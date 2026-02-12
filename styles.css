@@ -1,1 +1,76 @@
+body {
+  margin:0;
+  font-family: system-ui;
+  background:#0d1117;
+  color:white;
+}
 
+.topbar {
+  padding:15px;
+  background:#161b22;
+  display:flex;
+  align-items:center;
+}
+
+.logo {
+  font-size:24px;
+  margin-right:10px;
+}
+
+.app {
+  padding:15px;
+}
+
+.card {
+  background:#161b22;
+  padding:15px;
+  border-radius:12px;
+  margin-bottom:15px;
+}
+
+.card-title {
+  font-weight:bold;
+  margin-bottom:10px;
+}
+
+.input {
+  padding:10px;
+  border-radius:8px;
+  border:none;
+  width:100%;
+  margin-bottom:10px;
+}
+
+.btn {
+  padding:10px 15px;
+  border:none;
+  border-radius:8px;
+  background:#238636;
+  color:white;
+  cursor:pointer;
+}
+
+.bottomnav {
+  position:fixed;
+  bottom:0;
+  width:100%;
+  display:flex;
+  background:#161b22;
+}
+
+.navbtn {
+  flex:1;
+  padding:15px;
+  background:none;
+  border:none;
+  color:#8b949e;
+  cursor:pointer;
+}
+
+.navbtn.active {
+  color:white;
+}
+
+.hidden {
+  display:none;
+}
