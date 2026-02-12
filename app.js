@@ -1,5 +1,5 @@
-/* Futbolista (No Assists) - localStorage */
-const STORAGE_KEY = "futbolista_v2";
+/* Futbolista (No Assists) */
+const STORAGE_KEY = "futbolista_v3";
 
 const state = loadState();
 
@@ -10,11 +10,11 @@ const els = {
   screens: Array.from(document.querySelectorAll("[data-screen]")),
 
   // dashboard
-  kpiPlayers: document.getElementById("kpiPlayers"),
-  kpiLogs: document.getElementById("kpiLogs"),
-  topScorers: document.getElementById("topScorers"),
+  podiumScorers: document.getElementById("podiumScorers"),
   topStreaks: document.getElementById("topStreaks"),
   topWinPct: document.getElementById("topWinPct"),
+  kpiPlayers: document.getElementById("kpiPlayers"),
+  kpiLogs: document.getElementById("kpiLogs"),
 
   // players
   playerName: document.getElementById("playerName"),
@@ -33,7 +33,8 @@ const els = {
   sortBy: document.getElementById("sortBy"),
   leaderCards: document.getElementById("leaderCards"),
 
-  // table view
+  // table
+  tableSearch: document.getElementById("tableSearch"),
   tableSortBy: document.getElementById("tableSortBy"),
   playersTableBody: document.getElementById("playersTableBody"),
 
@@ -49,10 +50,6 @@ init();
 function init() {
   els.logDate.valueAsDate = new Date();
 
-  // default sorting (Win %)
-  if (els.sortBy) els.sortBy.value = "winpct";
-  if (els.tableSortBy) els.tableSortBy.value = "winpct";
-
   els.navButtons.forEach(btn => {
     btn.addEventListener("click", () => showScreen(btn.dataset.nav));
   });
@@ -66,6 +63,7 @@ function init() {
 
   els.sortBy.addEventListener("change", renderAll);
   els.tableSortBy.addEventListener("change", renderAll);
+  els.tableSearch.addEventListener("input", renderAll);
 
   els.btnExport.addEventListener("click", exportJSON);
   els.btnExport2.addEventListener("click", exportJSON);
@@ -87,8 +85,8 @@ function renderAll() {
   saveState();
 
   const stats = computeAllPlayerStats();
-  renderPlayers(stats);
   renderPlayerSelect();
+  renderPlayers(stats);
   renderLogsList();
   renderLeaderboard(stats);
   renderTable(stats);
@@ -110,12 +108,12 @@ function addPlayer() {
 function removePlayer(playerId) {
   const p = state.players.find(x => x.id === playerId);
   if (!p) return;
-  if (!confirm(`Remove ${p.name}? (Logs will stay, but player will disappear.)`)) return;
+  if (!confirm(`Remove ${p.name}? (Logs will stay.)`)) return;
   state.players = state.players.filter(x => x.id !== playerId);
   renderAll();
 }
 
-/* Match logs */
+/* Logs */
 function addLogEntry() {
   if (state.players.length === 0) return alert("Add players first.");
 
@@ -129,7 +127,6 @@ function addLogEntry() {
 
   const playerStats = computeAllPlayerStats();
   const currentStreak = playerStats[playerId]?.currentStreak ?? 0;
-
   const streakCounter = win ? (currentStreak + 1) : 0;
 
   state.logs.unshift({
@@ -154,7 +151,6 @@ function deleteLog(logId) {
   renderAll();
 }
 
-/* UI renders */
 function renderPlayerSelect() {
   const options = state.players
     .slice()
@@ -162,10 +158,7 @@ function renderPlayerSelect() {
     .map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
     .join("");
   els.logPlayer.innerHTML = options;
-
-  if (!els.logPlayer.value && state.players.length) {
-    els.logPlayer.value = state.players[0].id;
-  }
+  if (!els.logPlayer.value && state.players.length) els.logPlayer.value = state.players[0].id;
 }
 
 function renderPlayers(statsById) {
@@ -179,15 +172,15 @@ function renderPlayers(statsById) {
           <div>
             <div class="name">${escapeHtml(p.name)}</div>
             <div class="meta">
-              Goals: <b>${s.goals}</b> · Matches: <b>${s.matches}</b> · Wins: <b>${s.wins}</b> · Win%: <b>${fmtPct(s.winPct)}</b> · G/Match: <b>${fmtDec(s.goalsPerMatch, 2)}</b>
+              Matches: <b>${s.matches}</b> · Wins: <b>${s.wins}</b> · Goals: <b>${s.goals}</b> · Win%: <b>${fmtPct(s.winPct)}</b> · G/Match: <b>${fmtDec(s.goalsPerMatch,2)}</b>
             </div>
             <div class="meta">
-              Streak: <b>${s.currentStreak}</b> · Best: <b>${s.bestStreak}</b>
+              Current Streak: <b>${s.currentStreak}</b> · Best Streak: <b>${s.bestStreak}</b>
             </div>
           </div>
           <div class="pills">
             <span class="pill">⚽ ${s.goals}</span>
-            <span class="pill warn">📈 ${fmtDec(s.goalsPerMatch, 2)}</span>
+            <span class="pill warn">📈 ${fmtDec(s.goalsPerMatch,2)}</span>
             <span class="pill warn">🔥 ${s.currentStreak}</span>
             <button class="ghost" onclick="window.__rmPlayer('${p.id}')">Remove</button>
           </div>
@@ -226,54 +219,45 @@ function renderLogsList() {
   window.__delLog = deleteLog;
 }
 
+/* Leaderboard (cards) */
 function renderLeaderboard(statsById) {
   const sort = els.sortBy.value;
 
-  const rows = state.players
-    .map(p => ({ p, s: statsById[p.id] || blankStats() }));
-
+  const rows = state.players.map(p => ({ p, s: statsById[p.id] || blankStats() }));
   rows.sort((a,b) => compareStats(a.s, b.s, sort) || a.p.name.localeCompare(b.p.name));
 
   const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
-  const winPill = (winPct) => {
-    if (winPct >= 0.7) return "good";
-    if (winPct <= 0.4) return "bad";
-    return "warn";
-  };
+  const winPill = (x) => x >= 0.7 ? "good" : x <= 0.4 ? "bad" : "warn";
 
-  els.leaderCards.innerHTML = rows.map((x, idx) => {
-    const m = medal(idx);
-    return `
-      <div class="item">
-        <div>
-          <div class="name">
-            <span class="badge">${idx+1}</span>
-            <span style="margin-inline:8px">${m}</span>
-            ${escapeHtml(x.p.name)}
-          </div>
-          <div class="meta">
-            Matches: <b>${x.s.matches}</b> · Wins: <b>${x.s.wins}</b> · Goals: <b>${x.s.goals}</b> · Win%: <b>${fmtPct(x.s.winPct)}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch, 2)}</b>
-          </div>
-          <div class="meta">
-            Current Streak: <b>${x.s.currentStreak}</b> · Best Streak: <b>${x.s.bestStreak}</b>
-          </div>
+  els.leaderCards.innerHTML = rows.map((x, idx) => `
+    <div class="item">
+      <div>
+        <div class="name"><span class="badge">${idx+1}</span> <span style="margin-inline:8px">${medal(idx)}</span> ${escapeHtml(x.p.name)}</div>
+        <div class="meta">
+          Matches: <b>${x.s.matches}</b> · Wins: <b>${x.s.wins}</b> · Goals: <b>${x.s.goals}</b> · Win%: <b>${fmtPct(x.s.winPct)}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch,2)}</b>
         </div>
-        <div class="pills">
-          <span class="pill ${winPill(x.s.winPct)}">🏆 ${fmtPct(x.s.winPct)}</span>
-          <span class="pill">⚽ ${x.s.goals}</span>
-          <span class="pill warn">📈 ${fmtDec(x.s.goalsPerMatch, 2)}</span>
-          <span class="pill warn">🔥 ${x.s.currentStreak}</span>
+        <div class="meta">
+          Current Streak: <b>${x.s.currentStreak}</b> · Best Streak: <b>${x.s.bestStreak}</b>
         </div>
       </div>
-    `;
-  }).join("") || `<div class="note">No data yet. Add players and match entries.</div>`;
+      <div class="pills">
+        <span class="pill ${winPill(x.s.winPct)}">🏆 ${fmtPct(x.s.winPct)}</span>
+        <span class="pill">⚽ ${x.s.goals}</span>
+        <span class="pill warn">📈 ${fmtDec(x.s.goalsPerMatch,2)}</span>
+        <span class="pill warn">🔥 ${x.s.currentStreak}</span>
+      </div>
+    </div>
+  `).join("") || `<div class="note">No data yet.</div>`;
 }
 
+/* Table */
 function renderTable(statsById) {
   const sort = els.tableSortBy.value;
+  const q = (els.tableSearch.value || "").toLowerCase();
 
   const rows = state.players
-    .map(p => ({ p, s: statsById[p.id] || blankStats() }));
+    .map(p => ({ p, s: statsById[p.id] || blankStats() }))
+    .filter(x => x.p.name.toLowerCase().includes(q));
 
   rows.sort((a,b) => compareStats(a.s, b.s, sort) || a.p.name.localeCompare(b.p.name));
 
@@ -285,43 +269,43 @@ function renderTable(statsById) {
       <td>${x.s.wins}</td>
       <td>${x.s.goals}</td>
       <td>${fmtPct(x.s.winPct)}</td>
-      <td>${fmtDec(x.s.goalsPerMatch, 2)}</td>
+      <td>${fmtDec(x.s.goalsPerMatch,2)}</td>
       <td>${x.s.currentStreak}</td>
       <td>${x.s.bestStreak}</td>
     </tr>
   `).join("") || `<tr><td colspan="9" style="padding:14px;color:#A7B3D6">No data yet.</td></tr>`;
 }
 
+/* Dashboard */
 function renderDashboard(statsById) {
   els.kpiPlayers.textContent = String(state.players.length);
   els.kpiLogs.textContent = String(state.logs.length);
 
   const rows = state.players.map(p => ({ p, s: statsById[p.id] || blankStats() }));
-  const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
 
-  // Top 3 scorers
+  // Podium: Top 3 scorers
   const topGoals = rows.slice()
-    .sort((a,b)=> b.s.goals - a.s.goals || b.s.matches - a.s.matches)
+    .sort((a,b)=> (b.s.goals - a.s.goals) || (b.s.goalsPerMatch - a.s.goalsPerMatch))
     .slice(0,3);
 
-  els.topScorers.innerHTML = topGoals.map((x,i) => `
-    <div class="item">
-      <div>
-        <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
-        <div class="meta">Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch, 2)}</b></div>
-      </div>
-      <div class="pills">
-        <span class="pill">⚽ ${x.s.goals}</span>
-        <span class="pill warn">📈 ${fmtDec(x.s.goalsPerMatch, 2)}</span>
-      </div>
+  const medals = ["🥇","🥈","🥉"];
+
+  els.podiumScorers.innerHTML = topGoals.map((x,i) => `
+    <div class="podium-card rank-${i+1}">
+      <div class="podium-rank">${medals[i]}</div>
+      <div class="podium-name">${escapeHtml(x.p.name)}</div>
+      <div class="podium-big">${x.s.goals}</div>
+      <div class="podium-sub">Goals · G/Match ${fmtDec(x.s.goalsPerMatch,2)}</div>
+      <div class="podium-sub">Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches}</div>
     </div>
   `).join("") || `<div class="note">No data yet.</div>`;
 
-  // Top 3 current streak
+  // Best current streak top 3
   const topStreak = rows.slice()
-    .sort((a,b)=> b.s.currentStreak - a.s.currentStreak || b.s.bestStreak - a.s.bestStreak)
+    .sort((a,b)=> (b.s.currentStreak - a.s.currentStreak) || (b.s.bestStreak - a.s.bestStreak))
     .slice(0,3);
 
+  const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
   els.topStreaks.innerHTML = topStreak.map((x,i) => `
     <div class="item">
       <div>
@@ -334,7 +318,7 @@ function renderDashboard(statsById) {
     </div>
   `).join("") || `<div class="note">No data yet.</div>`;
 
-  // Top 3 win% (min 2 matches)
+  // Best win% top 3 (min 2 matches)
   const topWin = rows.slice()
     .filter(x => x.s.matches >= 2)
     .sort((a,b)=> (b.s.winPct - a.s.winPct) || (b.s.wins - a.s.wins) || (b.s.matches - a.s.matches))
@@ -344,7 +328,7 @@ function renderDashboard(statsById) {
     <div class="item">
       <div>
         <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
-        <div class="meta">Win%: <b>${fmtPct(x.s.winPct)}</b> · Wins: <b>${x.s.wins}</b> · Matches: <b>${x.s.matches}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch, 2)}</b></div>
+        <div class="meta">Win%: <b>${fmtPct(x.s.winPct)}</b> · Wins: <b>${x.s.wins}</b> · Matches: <b>${x.s.matches}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch,2)}</b></div>
       </div>
       <div class="pills">
         <span class="pill good">🏆 ${fmtPct(x.s.winPct)}</span>
@@ -353,7 +337,7 @@ function renderDashboard(statsById) {
   `).join("") || `<div class="note">Need at least 2 matches per player.</div>`;
 }
 
-/* Stats engine */
+/* Stats */
 function computeAllPlayerStats() {
   const byPlayer = Object.create(null);
   for (const p of state.players) byPlayer[p.id] = [];
@@ -380,14 +364,9 @@ function computeAllPlayerStats() {
     const winPct = matches ? (wins / matches) : 0;
     const goalsPerMatch = matches ? (goals / matches) : 0;
 
-    // current streak
     let currentStreak = 0;
-    for (const l of logsDesc) {
-      if (l.win) currentStreak++;
-      else break;
-    }
+    for (const l of logsDesc) { if (l.win) currentStreak++; else break; }
 
-    // best streak
     const logsAsc = logsDesc.slice()
       .sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
@@ -413,12 +392,11 @@ function compareStats(a, b, sortKey) {
     case "bestStreak": return (b.bestStreak - a.bestStreak);
     case "winpct":
     default:
-      // default by Win% then wins then matches (so it feels fair)
       return ((b.winPct - a.winPct) || (b.wins - a.wins) || (b.matches - a.matches));
   }
 }
 
-/* Backup / restore */
+/* Backup */
 function exportJSON() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -438,17 +416,13 @@ function importJSON(e) {
   reader.onload = () => {
     try {
       const data = JSON.parse(String(reader.result || ""));
-      if (!data || !Array.isArray(data.players) || !Array.isArray(data.logs)) {
-        return alert("Invalid backup file.");
-      }
+      if (!data || !Array.isArray(data.players) || !Array.isArray(data.logs)) return alert("Invalid backup file.");
       state.players = data.players;
       state.logs = data.logs;
       saveState();
       renderAll();
       alert("Imported successfully!");
-    } catch {
-      alert("Failed to import.");
-    }
+    } catch { alert("Failed to import."); }
   };
   reader.readAsText(file);
   e.target.value = "";
@@ -462,7 +436,7 @@ function resetAll() {
   renderAll();
 }
 
-/* Storage helpers */
+/* Storage */
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -472,45 +446,23 @@ function loadState() {
       players: Array.isArray(parsed.players) ? parsed.players : [],
       logs: Array.isArray(parsed.logs) ? parsed.logs : [],
     };
-  } catch {
-    return { players: [], logs: [] };
-  }
+  } catch { return { players: [], logs: [] }; }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function uid() { return Math.random().toString(16).slice(2) + Date.now().toString(16); }
 
 function clampInt(v, min, max) {
   const n = Number.parseInt(String(v), 10);
   if (Number.isNaN(n)) return min;
   return Math.max(min, Math.min(max, n));
 }
-
-function fmtPct(x) {
-  if (!Number.isFinite(x)) return "0%";
-  return `${Math.round(x * 100)}%`;
-}
-
-function fmtDec(x, digits) {
-  if (!Number.isFinite(x)) return "0.00";
-  const d = Math.max(0, Math.min(6, digits|0));
-  return x.toFixed(d);
-}
+function fmtPct(x) { return Number.isFinite(x) ? `${Math.round(x*100)}%` : "0%"; }
+function fmtDec(x, d){ return Number.isFinite(x) ? x.toFixed(Math.max(0, Math.min(6, d|0))) : "0.00"; }
 
 function blankStats() {
   return { goals:0, wins:0, matches:0, winPct:0, goalsPerMatch:0, currentStreak:0, bestStreak:0 };
 }
-
 function escapeHtml(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+  return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
