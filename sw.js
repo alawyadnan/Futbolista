@@ -1,4 +1,4 @@
-const CACHE = "slp-cache-v2"; // IMPORTANT: bump version when you change UI
+const CACHE = "futbolista-cache-v4";
 const ASSETS = [
   "./",
   "./index.html",
