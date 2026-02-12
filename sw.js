@@ -1,4 +1,4 @@
-const CACHE = "futbolista-cache-v99"; // غيّر الرقم كل مرة إذا احتجت
+const CACHE = "futbolista-cache-v101"; // غيّر الرقم كل مرة إذا احتجت
 
 const ASSETS = [
   "./",
