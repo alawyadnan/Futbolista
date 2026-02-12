@@ -9,15 +9,19 @@ const els = {
   navButtons: Array.from(document.querySelectorAll(".navbtn")),
   screens: Array.from(document.querySelectorAll("[data-screen]")),
 
+  // dashboard
   kpiPlayers: document.getElementById("kpiPlayers"),
   kpiLogs: document.getElementById("kpiLogs"),
   topScorers: document.getElementById("topScorers"),
   topStreaks: document.getElementById("topStreaks"),
+  topWinPct: document.getElementById("topWinPct"),
 
+  // players
   playerName: document.getElementById("playerName"),
   btnAddPlayer: document.getElementById("btnAddPlayer"),
   playersList: document.getElementById("playersList"),
 
+  // logs
   logDate: document.getElementById("logDate"),
   logPlayer: document.getElementById("logPlayer"),
   logGoals: document.getElementById("logGoals"),
@@ -25,9 +29,11 @@ const els = {
   btnAddLog: document.getElementById("btnAddLog"),
   logsList: document.getElementById("logsList"),
 
+  // leaderboard
   sortBy: document.getElementById("sortBy"),
   leaderCards: document.getElementById("leaderCards"),
 
+  // backup
   btnExport: document.getElementById("btnExport"),
   btnExport2: document.getElementById("btnExport2"),
   importFile: document.getElementById("importFile"),
@@ -65,15 +71,7 @@ function showScreen(name) {
   els.navButtons.forEach(b => b.classList.toggle("active", b.dataset.nav === name));
   els.screens.forEach(s => s.classList.add("hidden"));
   document.getElementById(`screen-${name}`).classList.remove("hidden");
-
-  const titles = {
-    dashboard: "",
-    leaderboard: "",
-    players: "",
-    matches: "",
-    settings: "",
-  };
-  els.subtitle.textContent = titles[name] || "";
+  els.subtitle.textContent = "";
 }
 
 function renderAll() {
@@ -87,6 +85,7 @@ function renderAll() {
   renderDashboard(stats);
 }
 
+/* Players */
 function addPlayer() {
   const name = (els.playerName.value || "").trim();
   if (!name) return alert("Enter a player name.");
@@ -101,11 +100,12 @@ function addPlayer() {
 function removePlayer(playerId) {
   const p = state.players.find(x => x.id === playerId);
   if (!p) return;
-  if (!confirm(`Remove ${p.name}? (Logs will stay.)`)) return;
+  if (!confirm(`Remove ${p.name}? (Logs will stay, but player will disappear.)`)) return;
   state.players = state.players.filter(x => x.id !== playerId);
   renderAll();
 }
 
+/* Match logs */
 function addLogEntry() {
   if (state.players.length === 0) return alert("Add players first.");
 
@@ -119,6 +119,7 @@ function addLogEntry() {
 
   const playerStats = computeAllPlayerStats();
   const currentStreak = playerStats[playerId]?.currentStreak ?? 0;
+
   const streakCounter = win ? (currentStreak + 1) : 0;
 
   state.logs.unshift({
@@ -143,6 +144,7 @@ function deleteLog(logId) {
   renderAll();
 }
 
+/* UI renders */
 function renderPlayerSelect() {
   const options = state.players
     .slice()
@@ -262,39 +264,60 @@ function renderDashboard(statsById) {
   const rows = state.players.map(p => ({ p, s: statsById[p.id] || blankStats() }));
   const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
 
+  // Top 3 scorers
   const topGoals = rows.slice()
     .sort((a,b)=> b.s.goals - a.s.goals || b.s.matches - a.s.matches)
-    .slice(0,5);
+    .slice(0,3);
 
   els.topScorers.innerHTML = topGoals.map((x,i) => `
     <div class="item">
       <div>
         <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
-        <div class="meta">Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · Win%: <b>${fmtPct(x.s.winPct)}</b></div>
+        <div class="meta">Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · Wins: <b>${x.s.wins}</b></div>
       </div>
       <div class="pills">
         <span class="pill">⚽ ${x.s.goals}</span>
       </div>
     </div>
-  `).join("") || `<div class="note">Add players and match entries to see stats.</div>`;
+  `).join("") || `<div class="note">No data yet.</div>`;
 
-  const topSt = rows.slice()
+  // Top 3 current streak
+  const topStreak = rows.slice()
     .sort((a,b)=> b.s.currentStreak - a.s.currentStreak || b.s.bestStreak - a.s.bestStreak)
-    .slice(0,5);
+    .slice(0,3);
 
-  els.topStreaks.innerHTML = topSt.map((x,i) => `
+  els.topStreaks.innerHTML = topStreak.map((x,i) => `
     <div class="item">
       <div>
         <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
-        <div class="meta">Current: <b>${x.s.currentStreak}</b> · Best: <b>${x.s.bestStreak}</b></div>
+        <div class="meta">Current: <b>${x.s.currentStreak}</b> · Best: <b>${x.s.bestStreak}</b> · Matches: <b>${x.s.matches}</b></div>
       </div>
       <div class="pills">
         <span class="pill warn">🔥 ${x.s.currentStreak}</span>
       </div>
     </div>
-  `).join("") || `<div class="note">No streak data yet.</div>`;
+  `).join("") || `<div class="note">No data yet.</div>`;
+
+  // Top 3 win% (min 2 matches)
+  const topWin = rows.slice()
+    .filter(x => x.s.matches >= 2)
+    .sort((a,b)=> (b.s.winPct - a.s.winPct) || (b.s.wins - a.s.wins) || (b.s.matches - a.s.matches))
+    .slice(0,3);
+
+  els.topWinPct.innerHTML = topWin.map((x,i) => `
+    <div class="item">
+      <div>
+        <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
+        <div class="meta">Win%: <b>${fmtPct(x.s.winPct)}</b> · Wins: <b>${x.s.wins}</b> · Matches: <b>${x.s.matches}</b></div>
+      </div>
+      <div class="pills">
+        <span class="pill good">🏆 ${fmtPct(x.s.winPct)}</span>
+      </div>
+    </div>
+  `).join("") || `<div class="note">Need at least 2 matches per player.</div>`;
 }
 
+/* Stats engine */
 function computeAllPlayerStats() {
   const byPlayer = Object.create(null);
   for (const p of state.players) byPlayer[p.id] = [];
@@ -309,7 +332,7 @@ function computeAllPlayerStats() {
   for (const p of state.players) {
     const logsDesc = (byPlayer[p.id] || [])
       .slice()
-      .sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      .sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // desc
 
     let goals = 0, wins = 0, matches = logsDesc.length;
 
@@ -355,6 +378,7 @@ function compareStats(a, b, sortKey) {
   }
 }
 
+/* Backup / restore */
 function exportJSON() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -398,6 +422,7 @@ function resetAll() {
   renderAll();
 }
 
+/* Storage helpers */
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
