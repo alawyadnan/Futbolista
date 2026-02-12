@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="theme-color" content="#0b1220" />
   <title>Futbolista</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="styles.css?v=150" />
+
+  <!-- Force-refresh assets -->
+  <link rel="manifest" href="manifest.json?v=151" />
+  <link rel="stylesheet" href="styles.css?v=151" />
 </head>
 
 <body>
@@ -212,10 +214,10 @@
     <button class="navbtn" data-nav="settings">Settings</button>
   </nav>
 
-  <script src="app.js?v=150"></script>
+  <script src="app.js?v=151"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js?v=150');
+      navigator.serviceWorker.register('./sw.js?v=151');
     }
   </script>
 </body>
