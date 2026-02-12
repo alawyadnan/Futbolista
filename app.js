@@ -32,8 +32,7 @@ const els = {
   // leaderboard
   sortBy: document.getElementById("sortBy"),
   minMatches: document.getElementById("minMatches"),
-  leaderBody: document.getElementById("leaderBody"),
-
+  leaderCards: document.getElementById("leaderCards"),
   // backup
   btnExport: document.getElementById("btnExport"),
   btnExport2: document.getElementById("btnExport2"),
