@@ -30,7 +30,7 @@ const logsRef = collection(db, "logs");
 let players = [];
 let logs = [];
 
-const PASSCODE = "0550";
+const PASSCODE = "1234";
 const entered = prompt("Enter passcode to edit (Cancel = View only)");
 const editMode = entered === PASSCODE;
 
@@ -50,7 +50,7 @@ document.querySelectorAll(".navbtn").forEach(btn=>{
 /* =========================
    Add Player
 ========================= */
-document.getElementById("btnAddPlayer").addEventListener("click", async ()=>{
+document.getElementById("btnAddPlayer")?.addEventListener("click", async ()=>{
   if(!editMode) return alert("View only mode");
 
   const name = document.getElementById("playerName").value.trim();
@@ -61,7 +61,7 @@ document.getElementById("btnAddPlayer").addEventListener("click", async ()=>{
 });
 
 /* =========================
-   Listen
+   Listen Firestore
 ========================= */
 onSnapshot(playersRef, snapshot=>{
   players=[];
@@ -80,7 +80,7 @@ onSnapshot(logsRef, snapshot=>{
 });
 
 /* =========================
-   Add Match (per player)
+   Add Match
 ========================= */
 window.addMatch = async function(playerId, goals, win){
   if(!editMode) return alert("View only");
@@ -94,7 +94,15 @@ window.addMatch = async function(playerId, goals, win){
 };
 
 /* =========================
-   Stats
+   Delete Player
+========================= */
+window.deletePlayer = async function(id){
+  if(!editMode) return;
+  await deleteDoc(doc(db,"players",id));
+};
+
+/* =========================
+   Stats Engine
 ========================= */
 function computeStats(playerId){
   const playerLogs = logs.filter(l=>l.playerId===playerId);
@@ -122,36 +130,36 @@ function renderAll(){
   renderDashboard();
 }
 
+/* PLAYERS PAGE */
 function renderPlayers(){
   const list=document.getElementById("playersList");
   if(!list) return;
 
-  list.innerHTML=players.map(p=>{
-    const s=computeStats(p.id);
-    return `
-      <div class="card">
-        <b>${p.name}</b><br>
-        Matches: ${s.matches} |
-        Wins: ${s.wins} |
-        Goals: ${s.goals} |
-        Win%: ${s.winPct}% |
-        G/Match: ${s.goalsPerMatch}
-        <br><br>
-        ${editMode ? `
-          <button onclick="addMatch('${p.id}',1,true)">+1 Goal (Win)</button>
-          <button onclick="addMatch('${p.id}',0,false)">Loss</button>
-          <button onclick="deletePlayer('${p.id}')">Delete</button>
-        ` : ``}
-      </div>
-    `;
-  }).join("");
+  list.innerHTML = players
+    .slice()
+    .sort((a,b)=>a.name.localeCompare(b.name))
+    .map(p=>{
+      const s=computeStats(p.id);
+      return `
+        <div class="card">
+          <b>${p.name}</b><br>
+          Matches: ${s.matches} |
+          Wins: ${s.wins} |
+          Goals: ${s.goals} |
+          Win%: ${s.winPct}% |
+          G/Match: ${s.goalsPerMatch}
+          <br><br>
+          ${editMode ? `
+            <button onclick="addMatch('${p.id}',1,true)">+1 Goal (Win)</button>
+            <button onclick="addMatch('${p.id}',0,false)">Loss</button>
+            <button onclick="deletePlayer('${p.id}')">Delete</button>
+          ` : ``}
+        </div>
+      `;
+    }).join("") || "<div>No players yet</div>";
 }
 
-window.deletePlayer=async function(id){
-  if(!editMode) return;
-  await deleteDoc(doc(db,"players",id));
-};
-
+/* DASHBOARD */
 function renderDashboard(){
   const dash=document.getElementById("dashboardTop");
   if(!dash) return;
@@ -162,8 +170,11 @@ function renderDashboard(){
     return sb.goals - sa.goals;
   });
 
-  dash.innerHTML=ranked.map(p=>{
+  const top3 = ranked.slice(0,3);
+
+  dash.innerHTML = top3.map((p,i)=>{
     const s=computeStats(p.id);
-    return `<div>${p.name} - ${s.goals} Goals</div>`;
-  }).join("");
+    const medal = i===0?"🥇":i===1?"🥈":"🥉";
+    return `<div>${medal} ${p.name} - ${s.goals} Goals</div>`;
+  }).join("") || "<div>No data yet</div>";
 }
