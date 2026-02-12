@@ -8,9 +8,7 @@ import {
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/* =========================
-   Firebase
-========================= */
+/* Firebase */
 const firebaseConfig = {
   apiKey: "AIzaSyA6rH6OY8e-qr3-jaJX0irmOjoySiL8VAg",
   authDomain: "el-futbolistas.firebaseapp.com",
@@ -24,19 +22,16 @@ const db = getFirestore(app);
 const playersRef = collection(db, "players");
 const logsRef = collection(db, "logs");
 
-/* =========================
-   State
-========================= */
+/* State */
 let players = [];
 let logs = [];
 
+/* Passcode */
 const PASSCODE = "1234";
-const entered = prompt("Enter passcode to edit (Cancel = View only)");
+const entered = prompt("Enter passcode (Cancel = View only)");
 const editMode = entered === PASSCODE;
 
-/* =========================
-   Navigation
-========================= */
+/* Navigation */
 document.querySelectorAll(".navbtn").forEach(btn=>{
   btn.addEventListener("click", ()=>{
     document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden"));
@@ -47,134 +42,89 @@ document.querySelectorAll(".navbtn").forEach(btn=>{
   });
 });
 
-/* =========================
-   Add Player
-========================= */
-document.getElementById("btnAddPlayer")?.addEventListener("click", async ()=>{
+/* Add Player */
+document.getElementById("btnAddPlayer").addEventListener("click", async ()=>{
   if(!editMode) return alert("View only mode");
-
-  const name = document.getElementById("playerName").value.trim();
+  const name=document.getElementById("playerName").value.trim();
   if(!name) return;
-
-  await addDoc(playersRef, { name });
+  await addDoc(playersRef,{name});
   document.getElementById("playerName").value="";
 });
 
-/* =========================
-   Listen Firestore
-========================= */
-onSnapshot(playersRef, snapshot=>{
+/* Listen */
+onSnapshot(playersRef,snapshot=>{
   players=[];
   snapshot.forEach(doc=>{
-    players.push({ id:doc.id, ...doc.data() });
+    players.push({id:doc.id,...doc.data()});
   });
-  renderAll();
+  render();
 });
 
-onSnapshot(logsRef, snapshot=>{
+onSnapshot(logsRef,snapshot=>{
   logs=[];
   snapshot.forEach(doc=>{
-    logs.push({ id:doc.id, ...doc.data() });
+    logs.push({id:doc.id,...doc.data()});
   });
-  renderAll();
+  render();
 });
 
-/* =========================
-   Add Match
-========================= */
-window.addMatch = async function(playerId, goals, win){
+/* Add Match */
+window.addMatch=async function(playerId,goals,win){
   if(!editMode) return alert("View only");
-
   await addDoc(logsRef,{
     playerId,
     goals:Number(goals),
-    win:win === true,
-    date: new Date().toISOString().slice(0,10)
+    win:win,
+    date:new Date().toISOString().slice(0,10)
   });
 };
 
-/* =========================
-   Delete Player
-========================= */
-window.deletePlayer = async function(id){
+/* Delete Player */
+window.deletePlayer=async function(id){
   if(!editMode) return;
   await deleteDoc(doc(db,"players",id));
 };
 
-/* =========================
-   Stats Engine
-========================= */
-function computeStats(playerId){
-  const playerLogs = logs.filter(l=>l.playerId===playerId);
-  const matches = playerLogs.length;
-  const wins = playerLogs.filter(l=>l.win).length;
-  const goals = playerLogs.reduce((sum,l)=>sum+Number(l.goals||0),0);
-
-  const winPct = matches ? (wins/matches)*100 : 0;
-  const goalsPerMatch = matches ? goals/matches : 0;
-
-  return {
-    matches,
-    wins,
-    goals,
-    winPct: winPct.toFixed(0),
-    goalsPerMatch: goalsPerMatch.toFixed(2)
-  };
+/* Stats */
+function stats(id){
+  const pLogs=logs.filter(l=>l.playerId===id);
+  const matches=pLogs.length;
+  const wins=pLogs.filter(l=>l.win).length;
+  const goals=pLogs.reduce((s,l)=>s+Number(l.goals||0),0);
+  const winPct=matches?((wins/matches)*100).toFixed(0):0;
+  return{matches,wins,goals,winPct};
 }
 
-/* =========================
-   Render
-========================= */
-function renderAll(){
+/* Render */
+function render(){
   renderPlayers();
   renderDashboard();
 }
 
-/* PLAYERS PAGE */
 function renderPlayers(){
   const list=document.getElementById("playersList");
-  if(!list) return;
-
-  list.innerHTML = players
-    .slice()
-    .sort((a,b)=>a.name.localeCompare(b.name))
-    .map(p=>{
-      const s=computeStats(p.id);
-      return `
-        <div class="card">
-          <b>${p.name}</b><br>
-          Matches: ${s.matches} |
-          Wins: ${s.wins} |
-          Goals: ${s.goals} |
-          Win%: ${s.winPct}% |
-          G/Match: ${s.goalsPerMatch}
-          <br><br>
-          ${editMode ? `
-            <button onclick="addMatch('${p.id}',1,true)">+1 Goal (Win)</button>
-            <button onclick="addMatch('${p.id}',0,false)">Loss</button>
-            <button onclick="deletePlayer('${p.id}')">Delete</button>
-          ` : ``}
-        </div>
-      `;
-    }).join("") || "<div>No players yet</div>";
+  list.innerHTML=players.map(p=>{
+    const s=stats(p.id);
+    return`
+      <div class="card">
+        <b>${p.name}</b><br>
+        Matches:${s.matches} | Wins:${s.wins} | Goals:${s.goals} | Win%:${s.winPct}%
+        <br><br>
+        ${editMode?`
+          <button onclick="addMatch('${p.id}',1,true)">+Goal Win</button>
+          <button onclick="addMatch('${p.id}',0,false)">Loss</button>
+          <button onclick="deletePlayer('${p.id}')">Delete</button>
+        `:""}
+      </div>
+    `;
+  }).join("")||"No players";
 }
 
-/* DASHBOARD */
 function renderDashboard(){
   const dash=document.getElementById("dashboardTop");
-  if(!dash) return;
-
-  const ranked=[...players].sort((a,b)=>{
-    const sa=computeStats(a.id);
-    const sb=computeStats(b.id);
-    return sb.goals - sa.goals;
-  });
-
-  const top3 = ranked.slice(0,3);
-
-  dash.innerHTML = top3.map((p,i)=>{
-    const s=computeStats(p.id);
-    const medal = i===0?"🥇":i===1?"🥈":"🥉";
-    return `<div>${medal} ${p.name} - ${s.goals} Goals</div>`;
-  }).join("") || "<div>No data yet</div>";
+  const ranked=[...players].sort((a,b)=>stats(b.id).goals-stats(a.id).goals);
+  dash.innerHTML=ranked.slice(0,3).map((p,i)=>{
+    const medal=i===0?"🥇":i===1?"🥈":"🥉";
+    return`${medal} ${p.name} - ${stats(p.id).goals} Goals`;
+  }).join("")||"No data";
 }
