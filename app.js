@@ -3,12 +3,17 @@ import {
   getFirestore,
   collection,
   addDoc,
+  getDocs,
   deleteDoc,
   doc,
-  onSnapshot
+  onSnapshot,
+  query,
+  orderBy
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-/* Firebase */
+/* =========================
+   Firebase
+========================= */
 const firebaseConfig = {
   apiKey: "AIzaSyA6rH6OY8e-qr3-jaJX0irmOjoySiL8VAg",
   authDomain: "el-futbolistas.firebaseapp.com",
@@ -16,115 +21,90 @@ const firebaseConfig = {
   storageBucket: "el-futbolistas.appspot.com",
 };
 
+const PASSCODE = "1234";
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const playersRef = collection(db, "players");
 const logsRef = collection(db, "logs");
 
-/* State */
+/* =========================
+   State
+========================= */
 let players = [];
 let logs = [];
+let editMode = false;
 
-/* Passcode */
-const PASSCODE = "1234";
-const entered = prompt("Enter passcode (Cancel = View only)");
-const editMode = entered === PASSCODE;
+const els = {
+  btnExportTop: document.getElementById("btnExportTop"),
 
-/* Navigation */
-document.querySelectorAll(".navbtn").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
-    document.querySelectorAll(".screen").forEach(s=>s.classList.add("hidden"));
-    document.getElementById("screen-"+btn.dataset.nav).classList.remove("hidden");
+  // nav / screens
+  navBtns: Array.from(document.querySelectorAll(".navbtn")),
+  screens: Array.from(document.querySelectorAll(".screen")),
 
-    document.querySelectorAll(".navbtn").forEach(b=>b.classList.remove("active"));
-    btn.classList.add("active");
-  });
-});
+  // dashboard
+  dashTopScorers: document.getElementById("dashTopScorers"),
+  dashTopStreaks: document.getElementById("dashTopStreaks"),
+  dashTopWinPct: document.getElementById("dashTopWinPct"),
+  kpiPlayers: document.getElementById("kpiPlayers"),
+  kpiLogs: document.getElementById("kpiLogs"),
 
-/* Add Player */
-document.getElementById("btnAddPlayer").addEventListener("click", async ()=>{
-  if(!editMode) return alert("View only mode");
-  const name=document.getElementById("playerName").value.trim();
-  if(!name) return;
-  await addDoc(playersRef,{name});
-  document.getElementById("playerName").value="";
-});
+  // leaderboard / table
+  lbSort: document.getElementById("lbSort"),
+  leaderboardList: document.getElementById("leaderboardList"),
+  tableSort: document.getElementById("tableSort"),
+  tableBody: document.getElementById("tableBody"),
 
-/* Listen */
-onSnapshot(playersRef,snapshot=>{
-  players=[];
-  snapshot.forEach(doc=>{
-    players.push({id:doc.id,...doc.data()});
-  });
-  render();
-});
+  // players
+  playerName: document.getElementById("playerName"),
+  btnAddPlayer: document.getElementById("btnAddPlayer"),
+  playersList: document.getElementById("playersList"),
 
-onSnapshot(logsRef,snapshot=>{
-  logs=[];
-  snapshot.forEach(doc=>{
-    logs.push({id:doc.id,...doc.data()});
-  });
-  render();
-});
+  // matches
+  logDate: document.getElementById("logDate"),
+  logPlayer: document.getElementById("logPlayer"),
+  logGoals: document.getElementById("logGoals"),
+  logWin: document.getElementById("logWin"),
+  btnAddLog: document.getElementById("btnAddLog"),
+  logsList: document.getElementById("logsList"),
 
-/* Add Match */
-window.addMatch=async function(playerId,goals,win){
-  if(!editMode) return alert("View only");
-  await addDoc(logsRef,{
-    playerId,
-    goals:Number(goals),
-    win:win,
-    date:new Date().toISOString().slice(0,10)
-  });
+  // settings
+  btnExport: document.getElementById("btnExport"),
+  fileImport: document.getElementById("fileImport"),
+  btnReset: document.getElementById("btnReset"),
 };
 
-/* Delete Player */
-window.deletePlayer=async function(id){
-  if(!editMode) return;
-  await deleteDoc(doc(db,"players",id));
-};
+const sessionKey = "futbolista_editMode";
 
-/* Stats */
-function stats(id){
-  const pLogs=logs.filter(l=>l.playerId===id);
-  const matches=pLogs.length;
-  const wins=pLogs.filter(l=>l.win).length;
-  const goals=pLogs.reduce((s,l)=>s+Number(l.goals||0),0);
-  const winPct=matches?((wins/matches)*100).toFixed(0):0;
-  return{matches,wins,goals,winPct};
-}
+/* =========================
+   Boot
+========================= */
+document.addEventListener("DOMContentLoaded", () => {
+  // date default
+  if (els.logDate) els.logDate.value = new Date().toISOString().slice(0,10);
 
-/* Render */
-function render(){
-  renderPlayers();
-  renderDashboard();
-}
+  // restore mode if already unlocked this session
+  editMode = sessionStorage.getItem(sessionKey) === "1";
+  if (!editMode) {
+    const entered = prompt("Enter passcode to edit (Cancel = view only)");
+    if (entered === PASSCODE) {
+      editMode = true;
+      sessionStorage.setItem(sessionKey, "1");
+      alert("Edit mode enabled");
+    } else {
+      editMode = false;
+      sessionStorage.setItem(sessionKey, "0");
+      alert("View mode only");
+    }
+  }
 
-function renderPlayers(){
-  const list=document.getElementById("playersList");
-  list.innerHTML=players.map(p=>{
-    const s=stats(p.id);
-    return`
-      <div class="card">
-        <b>${p.name}</b><br>
-        Matches:${s.matches} | Wins:${s.wins} | Goals:${s.goals} | Win%:${s.winPct}%
-        <br><br>
-        ${editMode?`
-          <button onclick="addMatch('${p.id}',1,true)">+Goal Win</button>
-          <button onclick="addMatch('${p.id}',0,false)">Loss</button>
-          <button onclick="deletePlayer('${p.id}')">Delete</button>
-        `:""}
-      </div>
-    `;
-  }).join("")||"No players";
-}
+  setupNavigation();
+  setupUIActions();
+  listenFirestore();
+});
 
-function renderDashboard(){
-  const dash=document.getElementById("dashboardTop");
-  const ranked=[...players].sort((a,b)=>stats(b.id).goals-stats(a.id).goals);
-  dash.innerHTML=ranked.slice(0,3).map((p,i)=>{
-    const medal=i===0?"🥇":i===1?"🥈":"🥉";
-    return`${medal} ${p.name} - ${stats(p.id).goals} Goals`;
-  }).join("")||"No data";
-}
+/* =========================
+   Navigation
+========================= */
+function setup
