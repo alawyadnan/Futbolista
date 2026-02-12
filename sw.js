@@ -1,10 +1,11 @@
-const CACHE = "slp-cache-v1";
+const CACHE = "slp-cache-v2"; // IMPORTANT: bump version when you change UI
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./manifest.json"
+  "./manifest.json",
+  "./sw.js"
 ];
 
 self.addEventListener("install", (e) => {
@@ -13,7 +14,9 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.map(k => k === CACHE ? null : caches.delete(k))))
+    caches.keys().then(keys =>
+      Promise.all(keys.map(k => (k === CACHE ? null : caches.delete(k))))
+    )
   );
 });
 
