@@ -20,7 +20,7 @@ const firebaseConfig = {
   storageBucket: "el-futbolistas.appspot.com",
 };
 
-const PASSCODE = "1234"; // غيّره وقت ما تبغى
+const PASSCODE = "0550";
 
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
@@ -28,7 +28,7 @@ const playersRef = collection(db, "players");
 const logsRef = collection(db, "logs");
 
 /* =========================
-   App State
+   State
 ========================= */
 let editMode = false;
 let players = [];
@@ -38,14 +38,14 @@ let logs = [];
    Boot
 ========================= */
 document.addEventListener("DOMContentLoaded", () => {
-  mountAuthOverlay();     // شاشة الكود داخل الصفحة
-  setupNavigation();      // التنقل
-  wireUIActions();        // أزرار الإضافة من واجهتك (Players/Matches)
-  listenFirestore();      // سحب البيانات لايف
+  mountAuthOverlay();
+  setupNavigation();
+  wireUIActions();
+  listenFirestore();
 });
 
 /* =========================
-   Auth Overlay (No prompt)
+   Auth Overlay
 ========================= */
 function mountAuthOverlay(){
   const el = document.createElement("div");
@@ -58,26 +58,25 @@ function mountAuthOverlay(){
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   `;
-
   el.innerHTML = `
     <div style="
       width:min(460px, 100%);
       border-radius:18px;
       border:1px solid rgba(255,255,255,.14);
       background: rgba(12, 18, 32, .92);
-      color:#eaf0ff;
+      color:#eaf3ff;
       box-shadow: 0 20px 60px rgba(0,0,0,.55);
       padding:16px;
     ">
       <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
         <div style="
-          width:38px;height:38px;border-radius:12px;
+          width:42px;height:42px;border-radius:14px;
           display:grid;place-items:center;
-          background:rgba(255,255,255,.08);
-          border:1px solid rgba(255,255,255,.10);
+          background: linear-gradient(135deg, rgba(123,92,255,.22), rgba(53,230,178,.12));
+          border:1px solid rgba(255,255,255,.12);
         ">⚽</div>
         <div>
-          <div style="font-weight:900; font-size:16px;">Futbolista</div>
+          <div style="font-weight:950; font-size:16px;">Futbolista</div>
           <div style="opacity:.75; font-size:12px;">View for everyone · Edit needs code</div>
         </div>
       </div>
@@ -90,7 +89,7 @@ function mountAuthOverlay(){
           border-radius:14px;
           border:1px solid rgba(255,255,255,.14);
           background: rgba(0,0,0,.22);
-          color:#eaf0ff;
+          color:#eaf3ff;
           outline:none;
         "
       />
@@ -100,21 +99,20 @@ function mountAuthOverlay(){
           flex:1; padding:12px; border-radius:14px;
           border:1px solid rgba(255,255,255,.14);
           background: rgba(255,255,255,.06);
-          color:#eaf0ff; font-weight:900; cursor:pointer;
+          color:#eaf3ff; font-weight:950; cursor:pointer;
         ">View only</button>
 
         <button id="btnUnlockEdit" style="
           flex:1; padding:12px; border-radius:14px;
           border:1px solid rgba(255,255,255,.18);
           background: rgba(255,255,255,.10);
-          color:#eaf0ff; font-weight:900; cursor:pointer;
+          color:#eaf3ff; font-weight:950; cursor:pointer;
         ">Unlock edit</button>
       </div>
 
       <div id="authMsg" style="margin-top:10px; font-size:12px; opacity:.75;"></div>
     </div>
   `;
-
   document.body.appendChild(el);
 
   const input = el.querySelector("#passcodeInput");
@@ -145,7 +143,7 @@ function mountAuthOverlay(){
 }
 
 /* =========================
-   Navigation (fix)
+   Navigation
 ========================= */
 function setupNavigation(){
   const navButtons = Array.from(document.querySelectorAll(".navbtn"));
@@ -182,7 +180,7 @@ function listenFirestore(){
 }
 
 /* =========================
-   Wire UI buttons (uses your existing HTML ids)
+   Wire UI buttons
 ========================= */
 function wireUIActions(){
   const btnAddPlayer = document.getElementById("btnAddPlayer");
@@ -228,9 +226,6 @@ function wireUIActions(){
   }
 }
 
-/* =========================
-   Lock edit controls when view-only
-========================= */
 function applyEditLock(){
   const toDisable = ["btnAddPlayer","btnAddLog","btnReset"];
   toDisable.forEach(id => {
@@ -240,13 +235,82 @@ function applyEditLock(){
 }
 
 /* =========================
-   Rendering (minimal + fixes dropdowns)
-   (يبقي صفحاتك شغّالة + يعبّي القوائم)
+   Stats engine
+========================= */
+function computeAllPlayerStats(){
+  const out = Object.create(null);
+
+  for (const p of players) out[p.id] = blankStats();
+
+  // group logs by player
+  const by = Object.create(null);
+  for (const p of players) by[p.id] = [];
+  for (const l of logs){
+    if (by[l.playerId]) by[l.playerId].push(l);
+  }
+
+  for (const p of players){
+    const arr = (by[p.id] || []).slice().sort((a,b)=>{
+      const da = String(a.date||"");
+      const db = String(b.date||"");
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return (a.createdAt||0) - (b.createdAt||0);
+    });
+
+    let goals=0, wins=0, matches=arr.length;
+    for (const l of arr){
+      goals += Number(l.goals||0);
+      wins += l.win ? 1 : 0;
+    }
+
+    const winPct = matches ? wins/matches : 0;
+    const gpm = matches ? goals/matches : 0;
+
+    // best streak
+    let best=0, run=0;
+    for (const l of arr){
+      if (l.win){ run++; best = Math.max(best, run); }
+      else run=0;
+    }
+
+    // current streak (from last to first)
+    const desc = arr.slice().reverse();
+    let current=0;
+    for (const l of desc){
+      if (l.win) current++;
+      else break;
+    }
+
+    out[p.id] = { goals, wins, matches, winPct, goalsPerMatch:gpm, currentStreak:current, bestStreak:best };
+  }
+
+  return out;
+}
+
+function blankStats(){
+  return { goals:0, wins:0, matches:0, winPct:0, goalsPerMatch:0, currentStreak:0, bestStreak:0 };
+}
+
+function fmtPct(x){ return Number.isFinite(x) ? `${Math.round(x*100)}%` : "0%"; }
+function fmtDec(x,d){ return Number.isFinite(x) ? x.toFixed(Math.max(0, Math.min(6, d|0))) : "0.00"; }
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/* =========================
+   Render
 ========================= */
 function renderAll(){
   fillPlayerDropdown();
   renderKPIs();
-  renderLogsListMinimal();
+  renderDashboard();
+  renderLogsList();
 }
 
 function fillPlayerDropdown(){
@@ -261,7 +325,6 @@ function fillPlayerDropdown(){
     .join("");
 
   sel.innerHTML = options;
-
   if (current && players.some(p => p.id === current)) sel.value = current;
 }
 
@@ -272,7 +335,69 @@ function renderKPIs(){
   if (kpiLogs) kpiLogs.textContent = String(logs.length);
 }
 
-function renderLogsListMinimal(){
+function renderDashboard(){
+  const statsById = computeAllPlayerStats();
+  const podium = document.getElementById("podiumScorers");
+  const topStreaks = document.getElementById("topStreaks");
+  const topWinPct = document.getElementById("topWinPct");
+  if (!podium || !topStreaks || !topWinPct) return;
+
+  const rows = players.map(p => ({ p, s: statsById[p.id] || blankStats() }));
+
+  // Podium top scorers
+  const topGoals = rows.slice()
+    .sort((a,b)=> (b.s.goals - a.s.goals) || (b.s.goalsPerMatch - a.s.goalsPerMatch))
+    .slice(0,3);
+
+  const medals = ["🥇","🥈","🥉"];
+  podium.innerHTML = topGoals.map((x,i)=>`
+    <div class="podium-card rank-${i+1}">
+      <div class="podium-rank">${medals[i]}</div>
+      <div class="podium-name">${escapeHtml(x.p.name||"")}</div>
+      <div class="podium-big">${x.s.goals}</div>
+      <div class="podium-sub">Goals · G/Match ${fmtDec(x.s.goalsPerMatch,2)}</div>
+      <div class="podium-sub">Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches}</div>
+    </div>
+  `).join("") || `<div class="note">No data yet.</div>`;
+
+  // Top 3 current streak
+  const medal = (i)=> i===0?"🥇":i===1?"🥈":i===2?"🥉":"";
+  const topSt = rows.slice()
+    .sort((a,b)=> (b.s.currentStreak - a.s.currentStreak) || (b.s.bestStreak - a.s.bestStreak))
+    .slice(0,3);
+
+  topStreaks.innerHTML = topSt.map((x,i)=>`
+    <div class="item">
+      <div>
+        <div class="name">${medal(i)} ${escapeHtml(x.p.name||"")}</div>
+        <div class="meta">Current: <b>${x.s.currentStreak}</b> · Best: <b>${x.s.bestStreak}</b> · Matches: <b>${x.s.matches}</b></div>
+      </div>
+      <div class="pills">
+        <span class="pill warn">🔥 ${x.s.currentStreak}</span>
+      </div>
+    </div>
+  `).join("") || `<div class="note">No data yet.</div>`;
+
+  // Top 3 win% (min 2 matches)
+  const topW = rows.slice()
+    .filter(x => x.s.matches >= 2)
+    .sort((a,b)=> (b.s.winPct - a.s.winPct) || (b.s.wins - a.s.wins) || (b.s.matches - a.s.matches))
+    .slice(0,3);
+
+  topWinPct.innerHTML = topW.map((x,i)=>`
+    <div class="item">
+      <div>
+        <div class="name">${medal(i)} ${escapeHtml(x.p.name||"")}</div>
+        <div class="meta">Win%: <b>${fmtPct(x.s.winPct)}</b> · Wins: <b>${x.s.wins}</b> · Matches: <b>${x.s.matches}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch,2)}</b></div>
+      </div>
+      <div class="pills">
+        <span class="pill good">🏆 ${fmtPct(x.s.winPct)}</span>
+      </div>
+    </div>
+  `).join("") || `<div class="note">Need at least 2 matches per player.</div>`;
+}
+
+function renderLogsList(){
   const list = document.getElementById("logsList");
   if (!list) return;
 
@@ -300,12 +425,3 @@ window.__delLog = async (id) => {
   if (!editMode) return alert("View only");
   await deleteDoc(doc(db, "logs", id));
 };
-
-function escapeHtml(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
