@@ -1,5 +1,5 @@
-/* Futbolista (No Assists) - Dark UI - localStorage */
-const STORAGE_KEY = "futbolista_v1_dark";
+/* Futbolista (No Assists) - localStorage */
+const STORAGE_KEY = "futbolista_v2";
 
 const state = loadState();
 
@@ -33,6 +33,10 @@ const els = {
   sortBy: document.getElementById("sortBy"),
   leaderCards: document.getElementById("leaderCards"),
 
+  // table view
+  tableSortBy: document.getElementById("tableSortBy"),
+  playersTableBody: document.getElementById("playersTableBody"),
+
   // backup
   btnExport: document.getElementById("btnExport"),
   btnExport2: document.getElementById("btnExport2"),
@@ -44,6 +48,10 @@ init();
 
 function init() {
   els.logDate.valueAsDate = new Date();
+
+  // default sorting (Win %)
+  if (els.sortBy) els.sortBy.value = "winpct";
+  if (els.tableSortBy) els.tableSortBy.value = "winpct";
 
   els.navButtons.forEach(btn => {
     btn.addEventListener("click", () => showScreen(btn.dataset.nav));
@@ -57,6 +65,7 @@ function init() {
   els.btnAddLog.addEventListener("click", addLogEntry);
 
   els.sortBy.addEventListener("change", renderAll);
+  els.tableSortBy.addEventListener("change", renderAll);
 
   els.btnExport.addEventListener("click", exportJSON);
   els.btnExport2.addEventListener("click", exportJSON);
@@ -82,6 +91,7 @@ function renderAll() {
   renderPlayerSelect();
   renderLogsList();
   renderLeaderboard(stats);
+  renderTable(stats);
   renderDashboard(stats);
 }
 
@@ -169,7 +179,7 @@ function renderPlayers(statsById) {
           <div>
             <div class="name">${escapeHtml(p.name)}</div>
             <div class="meta">
-              Goals: <b>${s.goals}</b> · Matches: <b>${s.matches}</b> · Wins: <b>${s.wins}</b> · Win%: <b>${fmtPct(s.winPct)}</b>
+              Goals: <b>${s.goals}</b> · Matches: <b>${s.matches}</b> · Wins: <b>${s.wins}</b> · Win%: <b>${fmtPct(s.winPct)}</b> · G/Match: <b>${fmtDec(s.goalsPerMatch, 2)}</b>
             </div>
             <div class="meta">
               Streak: <b>${s.currentStreak}</b> · Best: <b>${s.bestStreak}</b>
@@ -177,6 +187,7 @@ function renderPlayers(statsById) {
           </div>
           <div class="pills">
             <span class="pill">⚽ ${s.goals}</span>
+            <span class="pill warn">📈 ${fmtDec(s.goalsPerMatch, 2)}</span>
             <span class="pill warn">🔥 ${s.currentStreak}</span>
             <button class="ghost" onclick="window.__rmPlayer('${p.id}')">Remove</button>
           </div>
@@ -241,20 +252,44 @@ function renderLeaderboard(statsById) {
             ${escapeHtml(x.p.name)}
           </div>
           <div class="meta">
-            Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · Wins: <b>${x.s.wins}</b> · Win%: <b>${fmtPct(x.s.winPct)}</b>
+            Matches: <b>${x.s.matches}</b> · Wins: <b>${x.s.wins}</b> · Goals: <b>${x.s.goals}</b> · Win%: <b>${fmtPct(x.s.winPct)}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch, 2)}</b>
           </div>
           <div class="meta">
-            Streak: <b>${x.s.currentStreak}</b> · Best: <b>${x.s.bestStreak}</b>
+            Current Streak: <b>${x.s.currentStreak}</b> · Best Streak: <b>${x.s.bestStreak}</b>
           </div>
         </div>
         <div class="pills">
+          <span class="pill ${winPill(x.s.winPct)}">🏆 ${fmtPct(x.s.winPct)}</span>
           <span class="pill">⚽ ${x.s.goals}</span>
-          <span class="pill ${winPill(x.s.winPct)}">🏆 ${x.s.wins}</span>
+          <span class="pill warn">📈 ${fmtDec(x.s.goalsPerMatch, 2)}</span>
           <span class="pill warn">🔥 ${x.s.currentStreak}</span>
         </div>
       </div>
     `;
   }).join("") || `<div class="note">No data yet. Add players and match entries.</div>`;
+}
+
+function renderTable(statsById) {
+  const sort = els.tableSortBy.value;
+
+  const rows = state.players
+    .map(p => ({ p, s: statsById[p.id] || blankStats() }));
+
+  rows.sort((a,b) => compareStats(a.s, b.s, sort) || a.p.name.localeCompare(b.p.name));
+
+  els.playersTableBody.innerHTML = rows.map((x, idx) => `
+    <tr>
+      <td>${idx+1}</td>
+      <td>${escapeHtml(x.p.name)}</td>
+      <td>${x.s.matches}</td>
+      <td>${x.s.wins}</td>
+      <td>${x.s.goals}</td>
+      <td>${fmtPct(x.s.winPct)}</td>
+      <td>${fmtDec(x.s.goalsPerMatch, 2)}</td>
+      <td>${x.s.currentStreak}</td>
+      <td>${x.s.bestStreak}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="9" style="padding:14px;color:#A7B3D6">No data yet.</td></tr>`;
 }
 
 function renderDashboard(statsById) {
@@ -273,10 +308,11 @@ function renderDashboard(statsById) {
     <div class="item">
       <div>
         <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
-        <div class="meta">Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · Wins: <b>${x.s.wins}</b></div>
+        <div class="meta">Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch, 2)}</b></div>
       </div>
       <div class="pills">
         <span class="pill">⚽ ${x.s.goals}</span>
+        <span class="pill warn">📈 ${fmtDec(x.s.goalsPerMatch, 2)}</span>
       </div>
     </div>
   `).join("") || `<div class="note">No data yet.</div>`;
@@ -308,7 +344,7 @@ function renderDashboard(statsById) {
     <div class="item">
       <div>
         <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
-        <div class="meta">Win%: <b>${fmtPct(x.s.winPct)}</b> · Wins: <b>${x.s.wins}</b> · Matches: <b>${x.s.matches}</b></div>
+        <div class="meta">Win%: <b>${fmtPct(x.s.winPct)}</b> · Wins: <b>${x.s.wins}</b> · Matches: <b>${x.s.matches}</b> · G/Match: <b>${fmtDec(x.s.goalsPerMatch, 2)}</b></div>
       </div>
       <div class="pills">
         <span class="pill good">🏆 ${fmtPct(x.s.winPct)}</span>
@@ -332,7 +368,7 @@ function computeAllPlayerStats() {
   for (const p of state.players) {
     const logsDesc = (byPlayer[p.id] || [])
       .slice()
-      .sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // desc
+      .sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
     let goals = 0, wins = 0, matches = logsDesc.length;
 
@@ -342,13 +378,16 @@ function computeAllPlayerStats() {
     }
 
     const winPct = matches ? (wins / matches) : 0;
+    const goalsPerMatch = matches ? (goals / matches) : 0;
 
+    // current streak
     let currentStreak = 0;
     for (const l of logsDesc) {
       if (l.win) currentStreak++;
       else break;
     }
 
+    // best streak
     const logsAsc = logsDesc.slice()
       .sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
@@ -358,7 +397,7 @@ function computeAllPlayerStats() {
       else run = 0;
     }
 
-    out[p.id] = { goals, wins, matches, winPct, currentStreak, bestStreak };
+    out[p.id] = { goals, wins, matches, winPct, goalsPerMatch, currentStreak, bestStreak };
   }
 
   return out;
@@ -367,14 +406,15 @@ function computeAllPlayerStats() {
 function compareStats(a, b, sortKey) {
   switch(sortKey){
     case "goals": return (b.goals - a.goals);
+    case "gpm": return ((b.goalsPerMatch - a.goalsPerMatch) || (b.goals - a.goals));
     case "wins": return (b.wins - a.wins);
     case "matches": return (b.matches - a.matches);
-    case "winpct": return (b.winPct - a.winPct);
     case "currentStreak": return (b.currentStreak - a.currentStreak);
     case "bestStreak": return (b.bestStreak - a.bestStreak);
-    case "points":
+    case "winpct":
     default:
-      return (b.goals - a.goals);
+      // default by Win% then wins then matches (so it feels fair)
+      return ((b.winPct - a.winPct) || (b.wins - a.wins) || (b.matches - a.matches));
   }
 }
 
@@ -456,8 +496,14 @@ function fmtPct(x) {
   return `${Math.round(x * 100)}%`;
 }
 
+function fmtDec(x, digits) {
+  if (!Number.isFinite(x)) return "0.00";
+  const d = Math.max(0, Math.min(6, digits|0));
+  return x.toFixed(d);
+}
+
 function blankStats() {
-  return { goals:0, wins:0, matches:0, winPct:0, currentStreak:0, bestStreak:0 };
+  return { goals:0, wins:0, matches:0, winPct:0, goalsPerMatch:0, currentStreak:0, bestStreak:0 };
 }
 
 function escapeHtml(str){
