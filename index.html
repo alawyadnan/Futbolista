@@ -25,17 +25,18 @@
     <!-- DASHBOARD -->
     <section class="screen" id="screen-dashboard" data-screen>
       <div class="grid">
-        <div class="card">
+        <div class="card wide">
           <div class="card-h">
             <div>
               <div class="kpi-label">Players</div>
               <div class="kpi" id="kpiPlayers">0</div>
             </div>
             <div>
-              <div class="kpi-label">Total Matches Logged</div>
+              <div class="kpi-label">Total Match Entries</div>
               <div class="kpi" id="kpiLogs">0</div>
             </div>
           </div>
+          <div class="note">Add players, then add match entries (one entry per player per match).</div>
         </div>
 
         <div class="card">
@@ -50,49 +51,54 @@
       </div>
 
       <div class="hint">
-        Tip: Add this site to iPhone Home Screen (Safari → Share → Add to Home Screen).
+        iPhone: Safari → Share → Add to Home Screen (works like an app).
       </div>
     </section>
 
     <!-- LEADERBOARD -->
     <section class="screen hidden" id="screen-leaderboard" data-screen>
-      <div class="row">
-        <div class="grow">
-          <label class="label">Sort by</label>
-          <select id="sortBy" class="select">
-            <option value="points">Points (Goals)</option>
-            <option value="goals">Goals</option>
-            <option value="winpct">Win %</option>
-            <option value="wins">Wins</option>
-            <option value="currentStreak">Current Win Streak</option>
-            <option value="bestStreak">Best Win Streak</option>
-            <option value="matches">Matches</option>
-          </select>
-        </div>
-        <div>
-          <label class="label">Min matches</label>
-          <input id="minMatches" class="input" type="number" min="0" value="0" />
+      <div class="card wide">
+        <div class="card-title">Leaderboard Settings</div>
+        <div class="row">
+          <div class="grow">
+            <label class="label">Sort by</label>
+            <select id="sortBy" class="select">
+              <option value="points">Points (Goals)</option>
+              <option value="goals">Goals</option>
+              <option value="winpct">Win %</option>
+              <option value="wins">Wins</option>
+              <option value="currentStreak">Current Win Streak</option>
+              <option value="bestStreak">Best Win Streak</option>
+              <option value="matches">Matches</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Min matches</label>
+            <input id="minMatches" class="input" type="number" min="0" value="0" />
+          </div>
         </div>
       </div>
 
-  <div class="card wide">
-    <div class="card-title">Leaderboard</div>
-    <div class="list" id="leaderCards"></div>
-  </div>
-      
+      <div class="card wide">
+        <div class="card-title">Leaderboard</div>
+        <div class="list" id="leaderCards"></div>
+      </div>
     </section>
 
     <!-- PLAYERS -->
     <section class="screen hidden" id="screen-players" data-screen>
-      <div class="row">
-        <div class="grow">
-          <label class="label">Add player</label>
-          <input id="playerName" class="input" placeholder="e.g., Ahmed" maxlength="40" />
+      <div class="card wide">
+        <div class="card-title">Add Player</div>
+        <div class="row">
+          <div class="grow">
+            <label class="label">Player name</label>
+            <input id="playerName" class="input" placeholder="e.g., Ahmed" maxlength="40" />
+          </div>
+          <button id="btnAddPlayer" class="btn">Add</button>
         </div>
-        <button id="btnAddPlayer" class="btn">Add</button>
       </div>
 
-      <div class="card">
+      <div class="card wide">
         <div class="card-title">Players</div>
         <div class="list" id="playersList"></div>
       </div>
@@ -100,7 +106,7 @@
 
     <!-- MATCHES -->
     <section class="screen hidden" id="screen-matches" data-screen>
-      <div class="card">
+      <div class="card wide">
         <div class="card-title">Add Match Entry (per player)</div>
 
         <div class="row">
@@ -130,11 +136,11 @@
         </div>
 
         <div class="note">
-          Streak rule: If player loses → streak becomes 0. If wins → streak increases by 1.
+          Streak rule: Loss → streak = 0. Win → streak +1 automatically.
         </div>
       </div>
 
-      <div class="card">
+      <div class="card wide">
         <div class="card-title">Recent Entries</div>
         <div class="list" id="logsList"></div>
       </div>
@@ -142,19 +148,17 @@
 
     <!-- SETTINGS -->
     <section class="screen hidden" id="screen-settings" data-screen>
-      <div class="card">
+      <div class="card wide">
         <div class="card-title">Backup / Restore</div>
         <div class="row">
           <button class="btn" id="btnExport2">Export JSON</button>
           <label class="btn secondary" for="importFile">Import JSON</label>
           <input id="importFile" type="file" accept="application/json" style="display:none" />
         </div>
-        <div class="note">
-          Export/Import helps you move data between devices.
-        </div>
+        <div class="note">Use Export/Import to move data to another device.</div>
       </div>
 
-      <div class="card danger">
+      <div class="card wide danger">
         <div class="card-title">Danger Zone</div>
         <button class="btn danger" id="btnReset">Reset all data</button>
       </div>
