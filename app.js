@@ -1,9 +1,10 @@
-/* Sunday League Pro (No Assists) - localStorage version */
-const STORAGE_KEY = "slp_v1";
+/* Sunday League Pro (No Assists) - Dark UI - localStorage */
+const STORAGE_KEY = "slp_v1_dark";
 
 const state = loadState();
 
 const els = {
+  // header
   subtitle: document.getElementById("subtitle"),
 
   // nav
@@ -33,6 +34,7 @@ const els = {
   sortBy: document.getElementById("sortBy"),
   minMatches: document.getElementById("minMatches"),
   leaderCards: document.getElementById("leaderCards"),
+
   // backup
   btnExport: document.getElementById("btnExport"),
   btnExport2: document.getElementById("btnExport2"),
@@ -75,15 +77,22 @@ function init() {
 }
 
 function showScreen(name) {
-  // update buttons
   els.navButtons.forEach(b => b.classList.toggle("active", b.dataset.nav === name));
-  // show/hide screens
   els.screens.forEach(s => s.classList.add("hidden"));
   document.getElementById(`screen-${name}`).classList.remove("hidden");
+
+  // update subtitle
+  const titles = {
+    dashboard: "Overview & highlights",
+    leaderboard: "Rankings & streaks",
+    players: "Add/remove players",
+    matches: "Log match entries",
+    settings: "Backup & reset",
+  };
+  els.subtitle.textContent = titles[name] || "Sunday League Pro";
 }
 
 function renderAll() {
-  ensureUniquePlayerNames();
   saveState();
 
   const stats = computeAllPlayerStats();
@@ -108,7 +117,7 @@ function addPlayer() {
 function removePlayer(playerId) {
   const p = state.players.find(x => x.id === playerId);
   if (!p) return;
-  if (!confirm(`Remove ${p.name}? This won't delete their logs.`)) return;
+  if (!confirm(`Remove ${p.name}? (Logs will stay, but player will disappear.)`)) return;
   state.players = state.players.filter(x => x.id !== playerId);
   renderAll();
 }
@@ -140,7 +149,6 @@ function addLogEntry() {
     createdAt: new Date().toISOString(),
   });
 
-  // reset goals input quickly
   els.logGoals.value = "0";
   renderAll();
 }
@@ -161,7 +169,6 @@ function renderPlayerSelect() {
     .join("");
   els.logPlayer.innerHTML = options;
 
-  // keep selected if possible
   if (!els.logPlayer.value && state.players.length) {
     els.logPlayer.value = state.players[0].id;
   }
@@ -177,18 +184,24 @@ function renderPlayers(statsById) {
         <div class="item">
           <div>
             <div class="name">${escapeHtml(p.name)}</div>
-            <div class="meta">Goals: <b>${s.goals}</b> · Matches: <b>${s.matches}</b> · Wins: <b>${s.wins}</b> · Win%: <b>${fmtPct(s.winPct)}</b></div>
-            <div class="meta">Streak: <b>${s.currentStreak}</b> (Best ${s.bestStreak})</div>
+            <div class="meta">
+              Goals: <b>${s.goals}</b> · Matches: <b>${s.matches}</b> · Wins: <b>${s.wins}</b> · Win%: <b>${fmtPct(s.winPct)}</b>
+            </div>
+            <div class="meta">
+              Streak: <b>${s.currentStreak}</b> · Best: <b>${s.bestStreak}</b>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
+          <div class="pills">
             <span class="pill">⚽ ${s.goals}</span>
+            <span class="pill warn">🔥 ${s.currentStreak}</span>
             <button class="ghost" onclick="window.__rmPlayer('${p.id}')">Remove</button>
           </div>
         </div>
       `;
     })
     .join("");
-  els.playersList.innerHTML = html || `<div class="meta">No players yet.</div>`;
+
+  els.playersList.innerHTML = html || `<div class="note">No players yet.</div>`;
   window.__rmPlayer = removePlayer;
 }
 
@@ -198,18 +211,23 @@ function renderLogsList() {
     .map(l => {
       const p = state.players.find(x => x.id === l.playerId);
       const name = p ? p.name : "(Unknown)";
+      const pillClass = l.win ? "good" : "bad";
       return `
         <div class="item">
           <div>
             <div class="name">${escapeHtml(name)} — ${l.win ? "✅ Win" : "❌ Loss"}</div>
             <div class="meta">${escapeHtml(l.date)} · Goals: <b>${l.goals}</b> · Streak: <b>${l.streakCounter}</b></div>
           </div>
-          <button class="ghost" onclick="window.__delLog('${l.id}')">Delete</button>
+          <div class="pills">
+            <span class="pill ${pillClass}">${l.win ? "🏆 Win" : "💥 Loss"}</span>
+            <button class="ghost" onclick="window.__delLog('${l.id}')">Delete</button>
+          </div>
         </div>
       `;
     })
     .join("");
-  els.logsList.innerHTML = html || `<div class="meta">No entries yet.</div>`;
+
+  els.logsList.innerHTML = html || `<div class="note">No entries yet.</div>`;
   window.__delLog = deleteLog;
 }
 
@@ -223,18 +241,38 @@ function renderLeaderboard(statsById) {
 
   rows.sort((a,b) => compareStats(a.s, b.s, sort) || a.p.name.localeCompare(b.p.name));
 
-  els.leaderBody.innerHTML = rows.map((x, idx) => `
-    <tr>
-      <td>${idx+1}</td>
-      <td>${escapeHtml(x.p.name)}</td>
-      <td>${x.s.goals}</td>
-      <td>${x.s.matches}</td>
-      <td>${x.s.wins}</td>
-      <td>${fmtPct(x.s.winPct)}</td>
-      <td>${x.s.currentStreak}</td>
-      <td>${x.s.bestStreak}</td>
-    </tr>
-  `).join("") || `<tr><td colspan="8" style="color:#a9b6d6;padding:14px">No data yet.</td></tr>`;
+  const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
+  const winPill = (winPct) => {
+    if (winPct >= 0.7) return "good";
+    if (winPct <= 0.4) return "bad";
+    return "warn";
+  };
+
+  els.leaderCards.innerHTML = rows.map((x, idx) => {
+    const m = medal(idx);
+    return `
+      <div class="item">
+        <div>
+          <div class="name">
+            <span class="badge">${idx+1}</span>
+            <span style="margin-inline:8px">${m}</span>
+            ${escapeHtml(x.p.name)}
+          </div>
+          <div class="meta">
+            Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · Wins: <b>${x.s.wins}</b> · Win%: <b>${fmtPct(x.s.winPct)}</b>
+          </div>
+          <div class="meta">
+            Streak: <b>${x.s.currentStreak}</b> · Best: <b>${x.s.bestStreak}</b>
+          </div>
+        </div>
+        <div class="pills">
+          <span class="pill">⚽ ${x.s.goals}</span>
+          <span class="pill ${winPill(x.s.winPct)}">🏆 ${x.s.wins}</span>
+          <span class="pill warn">🔥 ${x.s.currentStreak}</span>
+        </div>
+      </div>
+    `;
+  }).join("") || `<div class="note">No data yet. Add players and match entries.</div>`;
 }
 
 function renderDashboard(statsById) {
@@ -244,32 +282,43 @@ function renderDashboard(statsById) {
   const rows = state.players.map(p => ({ p, s: statsById[p.id] || blankStats() }));
 
   // top scorers
-  const topGoals = rows.slice().sort((a,b)=> b.s.goals - a.s.goals || b.s.matches - a.s.matches).slice(0,5);
-  els.topScorers.innerHTML = topGoals.map(x => `
+  const topGoals = rows.slice()
+    .sort((a,b)=> b.s.goals - a.s.goals || b.s.matches - a.s.matches)
+    .slice(0,5);
+
+  const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
+
+  els.topScorers.innerHTML = topGoals.map((x,i) => `
     <div class="item">
       <div>
-        <div class="name">${escapeHtml(x.p.name)}</div>
+        <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
         <div class="meta">Goals: <b>${x.s.goals}</b> · Matches: <b>${x.s.matches}</b> · Win%: <b>${fmtPct(x.s.winPct)}</b></div>
       </div>
-      <span class="pill">⚽ ${x.s.goals}</span>
+      <div class="pills">
+        <span class="pill">⚽ ${x.s.goals}</span>
+      </div>
     </div>
-  `).join("") || `<div class="meta">Add players and match entries to see stats.</div>`;
+  `).join("") || `<div class="note">Add players and match entries to see stats.</div>`;
 
   // top streaks
-  const topSt = rows.slice().sort((a,b)=> b.s.currentStreak - a.s.currentStreak || b.s.bestStreak - a.s.bestStreak).slice(0,5);
-  els.topStreaks.innerHTML = topSt.map(x => `
+  const topSt = rows.slice()
+    .sort((a,b)=> b.s.currentStreak - a.s.currentStreak || b.s.bestStreak - a.s.bestStreak)
+    .slice(0,5);
+
+  els.topStreaks.innerHTML = topSt.map((x,i) => `
     <div class="item">
       <div>
-        <div class="name">${escapeHtml(x.p.name)}</div>
+        <div class="name">${medal(i)} ${escapeHtml(x.p.name)}</div>
         <div class="meta">Current: <b>${x.s.currentStreak}</b> · Best: <b>${x.s.bestStreak}</b></div>
       </div>
-      <span class="pill">🔥 ${x.s.currentStreak}</span>
+      <div class="pills">
+        <span class="pill warn">🔥 ${x.s.currentStreak}</span>
+      </div>
     </div>
-  `).join("") || `<div class="meta">No streak data yet.</div>`;
+  `).join("") || `<div class="note">No streak data yet.</div>`;
 }
 
 function computeAllPlayerStats() {
-  // group logs per player
   const byPlayer = Object.create(null);
   for (const p of state.players) byPlayer[p.id] = [];
 
@@ -278,29 +327,33 @@ function computeAllPlayerStats() {
     byPlayer[l.playerId].push(l);
   }
 
-  // compute stats per playerId
   const out = Object.create(null);
 
   for (const p of state.players) {
-    const logs = (byPlayer[p.id] || []).slice().sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // desc
-    let goals = 0, wins = 0, matches = logs.length;
+    const logsDesc = (byPlayer[p.id] || [])
+      .slice()
+      .sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // desc
 
-    for (const l of logs) {
+    let goals = 0, wins = 0, matches = logsDesc.length;
+
+    for (const l of logsDesc) {
       goals += (l.goals || 0);
       wins += l.win ? 1 : 0;
     }
 
     const winPct = matches ? (wins / matches) : 0;
 
-    // current streak: consecutive wins from most recent going backwards
+    // current streak: consecutive wins from most recent backwards
     let currentStreak = 0;
-    for (const l of logs) {
+    for (const l of logsDesc) {
       if (l.win) currentStreak++;
       else break;
     }
 
-    // best streak: max consecutive wins in chronological order
-    const logsAsc = logs.slice().sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    // best streak: max consecutive wins (chronological)
+    const logsAsc = logsDesc.slice()
+      .sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
     let bestStreak = 0, run = 0;
     for (const l of logsAsc) {
       if (l.win) { run++; bestStreak = Math.max(bestStreak, run); }
@@ -321,12 +374,14 @@ function compareStats(a, b, sortKey) {
     case "winpct": return (b.winPct - a.winPct);
     case "currentStreak": return (b.currentStreak - a.currentStreak);
     case "bestStreak": return (b.bestStreak - a.bestStreak);
-    case "points": default:
-      // points == goals in this version (no assists). kept for future expand.
+    case "points":
+    default:
+      // points == goals in this no-assists version
       return (b.goals - a.goals);
   }
 }
 
+/* Backup / restore */
 function exportJSON() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -370,11 +425,7 @@ function resetAll() {
   renderAll();
 }
 
-function ensureUniquePlayerNames(){
-  // Avoid duplicate IDs collisions etc.
-  // No-op for now (names are validated on add)
-}
-
+/* Storage helpers */
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
