@@ -1,1 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Futbolista</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
 
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">⚽</div>
+    <div>
+      <div class="title">Futbolista</div>
+      <div class="subtitle">Live football stats</div>
+    </div>
+  </div>
+</header>
+
+<main class="app">
+
+  <!-- DASHBOARD -->
+  <section id="screen-dashboard" class="screen">
+    <div class="card wide">
+      <div class="card-title">Top Scorers</div>
+      <div id="dashboardTop"></div>
+    </div>
+  </section>
+
+  <!-- PLAYERS -->
+  <section id="screen-players" class="screen hidden">
+    <div class="card wide">
+      <div class="card-title">Add Player</div>
+      <input id="playerName" class="input" placeholder="Player name" />
+      <button id="btnAddPlayer" class="btn">Add</button>
+    </div>
+
+    <div class="card wide">
+      <div class="card-title">Players</div>
+      <div id="playersList"></div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottomnav">
+  <button class="navbtn active" data-nav="dashboard">Dashboard</button>
+  <button class="navbtn" data-nav="players">Players</button>
+</nav>
+
+<script type="module" src="app.js"></script>
+
+</body>
+</html>
