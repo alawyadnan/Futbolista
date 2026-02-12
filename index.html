@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1220" />
   <title>Futbolista</title>
   <link rel="manifest" href="manifest.json" />
-<link rel="stylesheet" href="styles.css?v=102" />
+  <link rel="stylesheet" href="styles.css?v=150" />
 </head>
 
 <body>
@@ -25,9 +25,9 @@
     <!-- DASHBOARD -->
     <section class="screen" id="screen-dashboard" data-screen>
       <div class="grid">
-        <div class="card">
-          <div class="card-title">Top Scorers (Top 3)</div>
-          <div class="list" id="topScorers"></div>
+        <div class="card wide">
+          <div class="card-title">Top 3 Scorers</div>
+          <div class="podium" id="podiumScorers"></div>
         </div>
 
         <div class="card">
@@ -56,7 +56,7 @@
       </div>
     </section>
 
-    <!-- LEADERBOARD (Cards) -->
+    <!-- LEADERBOARD -->
     <section class="screen hidden" id="screen-leaderboard" data-screen>
       <div class="card wide">
         <div class="card-title">Leaderboard Settings</div>
@@ -82,11 +82,16 @@
       </div>
     </section>
 
-    <!-- TABLE (All players as table) -->
+    <!-- TABLE -->
     <section class="screen hidden" id="screen-table" data-screen>
       <div class="card wide">
         <div class="card-title">All Players (Table)</div>
-        <div class="row">
+
+        <div class="row" style="margin-bottom:10px;">
+          <div class="grow">
+            <label class="label">Search Player</label>
+            <input id="tableSearch" class="input" placeholder="Type player name..." />
+          </div>
           <div class="grow">
             <label class="label">Sort by</label>
             <select id="tableSortBy" class="select">
@@ -171,9 +176,7 @@
           <button id="btnAddLog" class="btn">Add Entry</button>
         </div>
 
-        <div class="note">
-          Streak rule: Loss → streak = 0. Win → streak +1 automatically.
-        </div>
+        <div class="note">Streak rule: Loss → streak = 0. Win → streak +1 automatically.</div>
       </div>
 
       <div class="card wide">
@@ -191,7 +194,6 @@
           <label class="btn secondary" for="importFile">Import JSON</label>
           <input id="importFile" type="file" accept="application/json" style="display:none" />
         </div>
-        <div class="note">Use Export/Import to move data to another device.</div>
       </div>
 
       <div class="card wide danger">
@@ -210,10 +212,10 @@
     <button class="navbtn" data-nav="settings">Settings</button>
   </nav>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=150"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js');
+      navigator.serviceWorker.register('./sw.js?v=150');
     }
   </script>
 </body>
