@@ -1,28 +1,23 @@
-/* Sunday League Pro (No Assists) - Dark UI - localStorage */
-const STORAGE_KEY = "slp_v1_dark";
+/* Futbolista (No Assists) - Dark UI - localStorage */
+const STORAGE_KEY = "futbolista_v1_dark";
 
 const state = loadState();
 
 const els = {
-  // header
   subtitle: document.getElementById("subtitle"),
 
-  // nav
   navButtons: Array.from(document.querySelectorAll(".navbtn")),
   screens: Array.from(document.querySelectorAll("[data-screen]")),
 
-  // dashboard
   kpiPlayers: document.getElementById("kpiPlayers"),
   kpiLogs: document.getElementById("kpiLogs"),
   topScorers: document.getElementById("topScorers"),
   topStreaks: document.getElementById("topStreaks"),
 
-  // players
   playerName: document.getElementById("playerName"),
   btnAddPlayer: document.getElementById("btnAddPlayer"),
   playersList: document.getElementById("playersList"),
 
-  // logs
   logDate: document.getElementById("logDate"),
   logPlayer: document.getElementById("logPlayer"),
   logGoals: document.getElementById("logGoals"),
@@ -30,12 +25,9 @@ const els = {
   btnAddLog: document.getElementById("btnAddLog"),
   logsList: document.getElementById("logsList"),
 
-  // leaderboard
   sortBy: document.getElementById("sortBy"),
-  minMatches: document.getElementById("minMatches"),
   leaderCards: document.getElementById("leaderCards"),
 
-  // backup
   btnExport: document.getElementById("btnExport"),
   btnExport2: document.getElementById("btnExport2"),
   importFile: document.getElementById("importFile"),
@@ -45,28 +37,21 @@ const els = {
 init();
 
 function init() {
-  // default date
   els.logDate.valueAsDate = new Date();
 
-  // nav
   els.navButtons.forEach(btn => {
     btn.addEventListener("click", () => showScreen(btn.dataset.nav));
   });
 
-  // players
   els.btnAddPlayer.addEventListener("click", addPlayer);
   els.playerName.addEventListener("keydown", (e) => {
     if (e.key === "Enter") addPlayer();
   });
 
-  // logs
   els.btnAddLog.addEventListener("click", addLogEntry);
 
-  // leaderboard controls
   els.sortBy.addEventListener("change", renderAll);
-  els.minMatches.addEventListener("input", renderAll);
 
-  // export/import/reset
   els.btnExport.addEventListener("click", exportJSON);
   els.btnExport2.addEventListener("click", exportJSON);
   els.importFile.addEventListener("change", importJSON);
@@ -81,15 +66,14 @@ function showScreen(name) {
   els.screens.forEach(s => s.classList.add("hidden"));
   document.getElementById(`screen-${name}`).classList.remove("hidden");
 
-  // update subtitle
   const titles = {
-    dashboard: "Overview & highlights",
-    leaderboard: "Rankings & streaks",
-    players: "Add/remove players",
-    matches: "Log match entries",
-    settings: "Backup & reset",
+    dashboard: "",
+    leaderboard: "",
+    players: "",
+    matches: "",
+    settings: "",
   };
-  els.subtitle.textContent = titles[name] || "Sunday League Pro";
+  els.subtitle.textContent = titles[name] || "";
 }
 
 function renderAll() {
@@ -117,7 +101,7 @@ function addPlayer() {
 function removePlayer(playerId) {
   const p = state.players.find(x => x.id === playerId);
   if (!p) return;
-  if (!confirm(`Remove ${p.name}? (Logs will stay, but player will disappear.)`)) return;
+  if (!confirm(`Remove ${p.name}? (Logs will stay.)`)) return;
   state.players = state.players.filter(x => x.id !== playerId);
   renderAll();
 }
@@ -135,8 +119,6 @@ function addLogEntry() {
 
   const playerStats = computeAllPlayerStats();
   const currentStreak = playerStats[playerId]?.currentStreak ?? 0;
-
-  // streak rule
   const streakCounter = win ? (currentStreak + 1) : 0;
 
   state.logs.unshift({
@@ -232,12 +214,10 @@ function renderLogsList() {
 }
 
 function renderLeaderboard(statsById) {
-  const minM = clampInt(els.minMatches.value, 0, 999);
   const sort = els.sortBy.value;
 
   const rows = state.players
-    .map(p => ({ p, s: statsById[p.id] || blankStats() }))
-    .filter(x => x.s.matches >= minM);
+    .map(p => ({ p, s: statsById[p.id] || blankStats() }));
 
   rows.sort((a,b) => compareStats(a.s, b.s, sort) || a.p.name.localeCompare(b.p.name));
 
@@ -280,13 +260,11 @@ function renderDashboard(statsById) {
   els.kpiLogs.textContent = String(state.logs.length);
 
   const rows = state.players.map(p => ({ p, s: statsById[p.id] || blankStats() }));
+  const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
 
-  // top scorers
   const topGoals = rows.slice()
     .sort((a,b)=> b.s.goals - a.s.goals || b.s.matches - a.s.matches)
     .slice(0,5);
-
-  const medal = (i) => (i===0 ? "🥇" : i===1 ? "🥈" : i===2 ? "🥉" : "");
 
   els.topScorers.innerHTML = topGoals.map((x,i) => `
     <div class="item">
@@ -300,7 +278,6 @@ function renderDashboard(statsById) {
     </div>
   `).join("") || `<div class="note">Add players and match entries to see stats.</div>`;
 
-  // top streaks
   const topSt = rows.slice()
     .sort((a,b)=> b.s.currentStreak - a.s.currentStreak || b.s.bestStreak - a.s.bestStreak)
     .slice(0,5);
@@ -332,7 +309,7 @@ function computeAllPlayerStats() {
   for (const p of state.players) {
     const logsDesc = (byPlayer[p.id] || [])
       .slice()
-      .sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // desc
+      .sort((a,b)=> (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
     let goals = 0, wins = 0, matches = logsDesc.length;
 
@@ -343,14 +320,12 @@ function computeAllPlayerStats() {
 
     const winPct = matches ? (wins / matches) : 0;
 
-    // current streak: consecutive wins from most recent backwards
     let currentStreak = 0;
     for (const l of logsDesc) {
       if (l.win) currentStreak++;
       else break;
     }
 
-    // best streak: max consecutive wins (chronological)
     const logsAsc = logsDesc.slice()
       .sort((a,b)=> (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
@@ -376,18 +351,16 @@ function compareStats(a, b, sortKey) {
     case "bestStreak": return (b.bestStreak - a.bestStreak);
     case "points":
     default:
-      // points == goals in this no-assists version
       return (b.goals - a.goals);
   }
 }
 
-/* Backup / restore */
 function exportJSON() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `sunday-league-pro-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `futbolista-backup-${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -425,7 +398,6 @@ function resetAll() {
   renderAll();
 }
 
-/* Storage helpers */
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
