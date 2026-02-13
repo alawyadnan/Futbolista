@@ -4,11 +4,9 @@
   --card:#141c2d;
   --card2:#101829;
   --stroke:rgba(255,255,255,.10);
-  --stroke2:rgba(255,255,255,.14);
 
   --text:#eaf0ff;
   --muted:rgba(234,240,255,.65);
-  --muted2:rgba(234,240,255,.45);
 
   --green:#2ecc71;
   --blue:#3498db;
@@ -16,8 +14,8 @@
   --red:#e74c3c;
   --yellow:#f1c40f;
 
-  --shadow: 0 18px 50px rgba(0,0,0,.45);
-  --shadow2: 0 10px 26px rgba(0,0,0,.38);
+  --shadow: 0 14px 38px rgba(0,0,0,.42);
+  --shadow2: 0 8px 18px rgba(0,0,0,.34);
 
   --r:18px;
   --navH:70px;
@@ -30,12 +28,27 @@ body{
   font-family: ui-sans-serif, -apple-system, system-ui, Segoe UI, Roboto, Arial;
   color:var(--text);
 
-  /* ✅ ثابت بدون blur = لا glitches */
+  /* ✅ خلفية ثابتة بدون repaint banding */
+  background: linear-gradient(180deg, var(--bg0), var(--bg1));
+}
+
+/* ✨ Glow layer (stable) */
+.app{
+  position: relative;
+  padding: 14px 14px calc(var(--navH) + 32px + env(safe-area-inset-bottom));
+  max-width: 980px;
+  margin: 0 auto;
+}
+.app::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  pointer-events:none;
+  z-index: -1;
   background:
-    radial-gradient(1100px 700px at 15% -10%, rgba(46,204,113,.18), transparent 60%),
-    radial-gradient(950px 650px at 95% 0%, rgba(52,152,219,.20), transparent 60%),
-    radial-gradient(900px 650px at 50% 115%, rgba(155,89,182,.16), transparent 60%),
-    linear-gradient(180deg, var(--bg0), var(--bg1));
+    radial-gradient(900px 700px at 20% 0%, rgba(46,204,113,.14), transparent 60%),
+    radial-gradient(900px 700px at 90% 0%, rgba(52,152,219,.16), transparent 60%),
+    radial-gradient(900px 700px at 50% 120%, rgba(155,89,182,.12), transparent 60%);
 }
 
 .hidden{ display:none !important; }
@@ -53,7 +66,6 @@ body{
 
   padding: 14px 14px;
 
-  /* ✅ بدون شفافية/blur لتجنب iOS bug */
   background: linear-gradient(180deg, #0c1324, #0a1120);
   border-bottom: 1px solid rgba(255,255,255,.08);
   box-shadow: 0 10px 30px rgba(0,0,0,.35);
@@ -74,13 +86,6 @@ body{
   font-size:18px;
 }
 
-/* ---------- Layout ---------- */
-.app{
-  padding: 14px 14px calc(var(--navH) + 22px);
-  max-width: 980px;
-  margin: 0 auto;
-}
-
 /* ---------- Cards ---------- */
 .card{
   background:
@@ -94,7 +99,6 @@ body{
   box-shadow: var(--shadow);
   margin-bottom: 14px;
 
-  /* ✅ تحسين رسم iOS */
   transform: translateZ(0);
   will-change: transform;
 }
@@ -173,6 +177,9 @@ body{
 
   background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
   border: 1px solid rgba(255,255,255,.08);
+
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .name{ font-weight:900; }
@@ -231,14 +238,12 @@ body{
   margin-top: 6px;
 }
 
-/* ---------- Bottom nav ---------- */
+/* ---------- Bottom nav (✅ iPhone safe area + no tilt) ---------- */
 .bottomnav{
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 10px;
-
-  width: min(980px, calc(100% - 16px));
+  left: 8px;
+  right: 8px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
   height: var(--navH);
 
   display:flex;
@@ -247,10 +252,13 @@ body{
 
   border-radius: 20px;
 
-  /* ✅ بدون blur */
   background: linear-gradient(180deg, #0c1324, #0a1120);
   border: 1px solid rgba(255,255,255,.10);
   box-shadow: var(--shadow);
+
+  transform: none;   /* ✅ يمنع الميل */
+  max-width: 980px;
+  margin: 0 auto;
 }
 
 .navbtn{
@@ -318,27 +326,10 @@ body{
   font-variant-numeric: tabular-nums;
 }
 .noteCell{
-  color: var(--muted);
+  color: rgba(234,240,255,.65);
   text-align:center !important;
   padding:16px;
 }
 
 /* ---------- Tiny polishing ---------- */
 a, button { -webkit-tap-highlight-color: transparent; }
-
-
-/* ===== FIX: Safari/Chrome repaint banding ===== */
-body{
-  background-attachment: fixed; /* يمنع طبقة الخلفية تتغير أثناء السحب */
-}
-
-.app, .card, .item, .bottomnav{
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
-.card, .item{
-  will-change: transform;
-}
