@@ -325,3 +325,20 @@ body{
 
 /* ---------- Tiny polishing ---------- */
 a, button { -webkit-tap-highlight-color: transparent; }
+
+
+/* ===== FIX: Safari/Chrome repaint banding ===== */
+body{
+  background-attachment: fixed; /* يمنع طبقة الخلفية تتغير أثناء السحب */
+}
+
+.app, .card, .item, .bottomnav{
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card, .item{
+  will-change: transform;
+}
