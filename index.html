@@ -13,11 +13,16 @@
     <div class="appicon">⚽</div>
     <div class="brandtxt">
       <div class="title">Futbolista</div>
-      <!-- subtitle removed -->
     </div>
   </div>
 
-  <button id="btnExportTop" class="btn ghost">Export</button>
+  <div class="row">
+    <!-- يظهر للجميع (اختياري) -->
+    <button id="btnAdminLogin" class="btn ghost">Admin Login</button>
+
+    <!-- يظهر للأدمن فقط -->
+    <button id="btnExportTop" class="btn ghost" data-admin="1">Export</button>
+  </div>
 </header>
 
 <main class="app">
@@ -126,15 +131,14 @@
     </div>
   </section>
 
-  <!-- PLAYERS -->
-  <section id="screen-players" class="screen hidden">
+  <!-- PLAYERS (ADMIN ONLY UI) -->
+  <section id="screen-players" class="screen hidden" data-admin="1">
     <div class="card">
       <div class="card-title">Add Player</div>
       <div class="row">
         <input id="playerName" class="input" placeholder="Player name (e.g., Ahmed)" />
         <button id="btnAddPlayer" class="btn">Add</button>
       </div>
-      <div class="subnote">Players appear below immediately after adding.</div>
     </div>
 
     <div class="card">
@@ -143,8 +147,8 @@
     </div>
   </section>
 
-  <!-- MATCHES -->
-  <section id="screen-matches" class="screen hidden">
+  <!-- MATCHES (ADMIN ONLY UI) -->
+  <section id="screen-matches" class="screen hidden" data-admin="1">
     <div class="card">
       <div class="card-title">Add Match Entry (per player)</div>
 
@@ -171,7 +175,6 @@
       </div>
 
       <button id="btnAddLog" class="btn full">Add Entry</button>
-      <div class="subnote">Streak rule: Loss → streak = 0. Win → streak + 1 automatically.</div>
     </div>
 
     <div class="card">
@@ -180,8 +183,8 @@
     </div>
   </section>
 
-  <!-- SETTINGS -->
-  <section id="screen-settings" class="screen hidden">
+  <!-- SETTINGS (ADMIN ONLY UI) -->
+  <section id="screen-settings" class="screen hidden" data-admin="1">
     <div class="card">
       <div class="card-title">Backup / Restore</div>
       <div class="row">
@@ -191,13 +194,11 @@
           <input id="fileImport" type="file" accept="application/json" hidden />
         </label>
       </div>
-      <div class="subnote">Use Export/Import to move data to another device or recover after changes.</div>
     </div>
 
     <div class="card danger">
       <div class="card-title">Danger Zone</div>
       <button id="btnReset" class="btn dangerBtn full">Reset all data</button>
-      <div class="subnote">This deletes ALL players and match entries from Firebase.</div>
     </div>
   </section>
 
@@ -207,12 +208,13 @@
   <button class="navbtn active" data-nav="dashboard">Dashboard</button>
   <button class="navbtn" data-nav="leaderboard">Leaderboard</button>
   <button class="navbtn" data-nav="table">Table</button>
-  <button class="navbtn" data-nav="players">Players</button>
-  <button class="navbtn" data-nav="matches">Matches</button>
-  <button class="navbtn" data-nav="settings">Settings</button>
+
+  <!-- Admin-only tabs -->
+  <button class="navbtn" data-nav="players" data-admin="1">Players</button>
+  <button class="navbtn" data-nav="matches" data-admin="1">Matches</button>
+  <button class="navbtn" data-nav="settings" data-admin="1">Settings</button>
 </nav>
 
-<!-- تغيير رقم v يكسر الكاش -->
-<script type="module" src="app.js?v=9001"></script>
+<script type="module" src="app.js?v=9100"></script>
 </body>
 </html>
