@@ -1,3 +1,5 @@
+// Futbolista / FTbll - Clean Working app.js (no duplicate imports)
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore,
@@ -36,6 +38,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
+/* ========= COLLECTIONS ========= */
 const playersRef = collection(db, "players");
 const logsRef = collection(db, "logs");
 
@@ -44,25 +47,23 @@ let players = [];
 let logs = [];
 let isAdmin = false;
 
-/* ========= DOM ========= */
-const $ = (id)=>document.getElementById(id);
-const navBtns = Array.from(document.querySelectorAll(".navbtn"));
+/* ========= DOM HELPERS ========= */
+const $ = (id) => document.getElementById(id);
+
 const screens = Array.from(document.querySelectorAll(".screen"));
+const navBtns = Array.from(document.querySelectorAll(".navbtn"));
 const adminEls = Array.from(document.querySelectorAll("[data-admin='1']"));
 
 /* ========= BOOT ========= */
 document.addEventListener("DOMContentLoaded", async () => {
-  // default date
-  const d = $("logDate");
-  if (d) d.value = new Date().toISOString().slice(0,10);
+  // Default date
+  if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
-  // navigation
+  // Navigation
   setupNavigation();
 
-  // auth buttons
-  const btnLogin = $("btnAdminLogin");
-  btnLogin?.addEventListener("click", async () => {
-    // لو أنت مسجّل بالفعل، خلي الزر يسوي Logout
+  // Admin button
+  $("btnAdminLogin")?.addEventListener("click", async () => {
     if (isAdmin) {
       await signOut(auth);
       return;
@@ -70,94 +71,68 @@ document.addEventListener("DOMContentLoaded", async () => {
     await signInWithRedirect(auth, provider);
   });
 
-  // handle redirect result (important on iOS)
+  // Handle redirect result (important on Safari/iOS)
   try { await getRedirectResult(auth); } catch {}
 
-  // auth state
-  // ===== ADMIN EMAIL =====
-const ADMIN_EMAIL = "allaw.68@gmail.com"; // <-- غيره بإيميلك
+  // Auth state
+  onAuthStateChanged(auth, (user) => {
+    isAdmin = !!user && (user.email === ADMIN_EMAIL);
 
-// ===== AUTH STATE =====
-onAuthStateChanged(auth, (user) => {
+    // UI toggle
+    document.body.classList.toggle("is-admin", isAdmin);
 
-  const adminBtn = document.getElementById("adminBtn");
-  const adminTabs = document.querySelectorAll(".admin-only");
+    // Show/Hide admin-only elements
+    adminEls.forEach(el => el.style.display = isAdmin ? "" : "none");
 
-  if (user && user.email === ADMIN_EMAIL) {
+    // Button label
+    const btn = $("btnAdminLogin");
+    if (btn) btn.textContent = isAdmin ? "Logout" : "Admin Login";
 
-    // ✅ ADMIN MODE
-    window.isAdmin = true;
+    // If visitor is on an admin screen, bounce to dashboard
+    const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
+    if (openAdminScreen && !isAdmin) {
+      showScreen("dashboard");
+      setActiveNav("dashboard");
+    }
+  });
 
-    if (adminBtn) adminBtn.style.display = "none";
-
-    adminTabs.forEach(el => {
-      el.style.display = "flex";
-    });
-
-    console.log("Admin logged in:", user.email);
-
-  } else {
-
-    // 👀 VISITOR MODE
-    window.isAdmin = false;
-
-    if (adminBtn) adminBtn.style.display = "block";
-
-    adminTabs.forEach(el => {
-      el.style.display = "none";
-    });
-
-    console.log("Visitor mode");
-
-  }
-}););
-
-  // UI actions (admin only)
+  // Wire actions (admin-only will be blocked by rules anyway)
   wireActions();
 
-  // firestore listeners (public read)
+  // Listen to Firestore (public read)
   listenFirestore();
 });
 
 /* ========= NAV ========= */
-function setupNavigation(){
+function setupNavigation() {
   navBtns.forEach(btn => {
     btn.addEventListener("click", () => {
-      const name = btn.dataset.nav;
+      const target = btn.dataset.nav;
 
-      // منع فتح صفحات الأدمن لغير الأدمن (UI فقط)
+      // block admin tabs for visitors
       if (btn.dataset.admin === "1" && !isAdmin) return;
 
-      screens.forEach(s => s.classList.add("hidden"));
-      const target = document.getElementById(`screen-${name}`);
-      if (target) target.classList.remove("hidden");
-
-      navBtns.forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
+      showScreen(target);
+      setActiveNav(target);
     });
   });
 }
 
-/* ========= ADMIN UI ========= */
-function applyAdminUI(){
-  // اخفِ عناصر الأدمن إذا مو أدمن
-  for (const el of adminEls) el.style.display = isAdmin ? "" : "none";
+function showScreen(name) {
+  screens.forEach(s => s.classList.add("hidden"));
+  document.getElementById(`screen-${name}`)?.classList.remove("hidden");
+}
 
-  // لو الحالي صفحة أدمن وهو مو أدمن، رجعه للدashboard
-  const anyAdminScreenOpen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
-  if (anyAdminScreenOpen && !isAdmin){
-    screens.forEach(s => s.classList.add("hidden"));
-    document.getElementById("screen-dashboard")?.classList.remove("hidden");
-    navBtns.forEach(b=>b.classList.remove("active"));
-    document.querySelector(".navbtn[data-nav='dashboard']")?.classList.add("active");
-  }
+function setActiveNav(name) {
+  navBtns.forEach(b => b.classList.remove("active"));
+  document.querySelector(`.navbtn[data-nav="${name}"]`)?.classList.add("active");
 }
 
 /* ========= ACTIONS ========= */
-function wireActions(){
+function wireActions() {
   $("btnAddPlayer")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
-    const name = ($("playerName").value || "").trim();
+    const name = ($("playerName")?.value || "").trim();
     if (!name) return alert("Enter a name");
     await addDoc(playersRef, { name, createdAt: Date.now() });
     $("playerName").value = "";
@@ -170,6 +145,7 @@ function wireActions(){
     const goals = clampInt($("logGoals")?.value, 0, 99);
     const win = ($("logWin")?.value === "win");
     const date = $("logDate")?.value || new Date().toISOString().slice(0,10);
+
     await addDoc(logsRef, { playerId, goals, win, date, createdAt: Date.now() });
   });
 
@@ -180,6 +156,7 @@ function wireActions(){
     if (!isAdmin) return;
     exportJSON();
   });
+
   $("btnExport")?.addEventListener("click", () => {
     if (!isAdmin) return;
     exportJSON();
@@ -191,32 +168,17 @@ function wireActions(){
     if (!ok) return;
     await resetAllData();
   });
-
-  $("fileImport")?.addEventListener("change", async (e) => {
-    if (!isAdmin) return alert("Read only");
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    let data;
-    try { data = JSON.parse(text); } catch { return alert("Invalid JSON"); }
-    const ok = confirm("Replace ALL data with this import?");
-    if (!ok) return;
-    await resetAllData();
-    await importJSON(data);
-    e.target.value = "";
-    alert("Import done");
-  });
 }
 
-/* ========= FIRESTORE LISTEN ========= */
-function listenFirestore(){
-  onSnapshot(query(playersRef, orderBy("createdAt","asc")), snap => {
+/* ========= FIRESTORE ========= */
+function listenFirestore() {
+  onSnapshot(query(playersRef, orderBy("createdAt", "asc")), snap => {
     players = [];
     snap.forEach(d => players.push({ id: d.id, ...d.data() }));
     renderAll();
   });
 
-  onSnapshot(query(logsRef, orderBy("createdAt","desc")), snap => {
+  onSnapshot(query(logsRef, orderBy("createdAt", "desc")), snap => {
     logs = [];
     snap.forEach(d => logs.push({ id: d.id, ...d.data() }));
     renderAll();
@@ -224,9 +186,11 @@ function listenFirestore(){
 }
 
 /* ========= STATS ========= */
-function blankStats(){ return { matches:0,wins:0,goals:0,winPct:0,gpm:0,current:0,best:0 }; }
+function blankStats() {
+  return { matches:0, wins:0, goals:0, winPct:0, gpm:0, current:0, best:0 };
+}
 
-function computeAllStats(){
+function computeAllStats() {
   const byId = Object.create(null);
   for (const p of players) byId[p.id] = blankStats();
 
@@ -234,103 +198,82 @@ function computeAllStats(){
   for (const p of players) grouped[p.id] = [];
   for (const l of logs) if (grouped[l.playerId]) grouped[l.playerId].push(l);
 
-  for (const p of players){
-    const arr = (grouped[p.id]||[]).slice().sort((a,b)=>{
-      const da=String(a.date||""), db=String(b.date||"");
-      if (da<db) return -1;
-      if (da>db) return 1;
-      return (a.createdAt||0)-(b.createdAt||0);
+  for (const p of players) {
+    const arr = (grouped[p.id] || []).slice().sort((a,b) => {
+      const da = String(a.date||""), db = String(b.date||"");
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return (a.createdAt||0) - (b.createdAt||0);
     });
 
-    const matches=arr.length;
-    let wins=0, goals=0;
-    for (const l of arr){ wins += l.win?1:0; goals += Number(l.goals||0); }
+    const matches = arr.length;
+    let wins = 0, goals = 0;
+    for (const l of arr) { wins += l.win ? 1 : 0; goals += Number(l.goals||0); }
 
     const winPct = matches ? wins/matches : 0;
     const gpm = matches ? goals/matches : 0;
 
-    let best=0, run=0;
-    for (const l of arr){ if(l.win){ run++; best=Math.max(best,run);} else run=0; }
+    let best = 0, run = 0;
+    for (const l of arr) { if (l.win) { run++; best = Math.max(best, run); } else run = 0; }
 
-    let current=0;
-    for (let i=arr.length-1;i>=0;i--){ if(arr[i].win) current++; else break; }
+    let current = 0;
+    for (let i = arr.length - 1; i >= 0; i--) { if (arr[i].win) current++; else break; }
 
-    byId[p.id] = { matches,wins,goals,winPct,gpm,current,best };
+    byId[p.id] = { matches, wins, goals, winPct, gpm, current, best };
   }
   return byId;
 }
 
 /* ========= RENDER ========= */
-function renderAll(){
-  $("kpiPlayers").textContent = String(players.length);
-  $("kpiLogs").textContent = String(logs.length);
+function renderAll() {
+  $("kpiPlayers") && ($("kpiPlayers").textContent = String(players.length));
+  $("kpiLogs") && ($("kpiLogs").textContent = String(logs.length));
 
   fillPlayerDropdown();
 
   const stats = computeAllStats();
   renderDashboard(stats);
-  renderPlayers(stats);
   renderLeaderboard(stats);
   renderTable(stats);
+  renderPlayers(stats);
   renderLogs();
 }
 
-function fillPlayerDropdown(){
+function fillPlayerDropdown() {
   const sel = $("logPlayer");
   if (!sel) return;
-  const current = sel.value;
+  const cur = sel.value;
   sel.innerHTML = players
     .slice()
-    .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
-    .map(p=>`<option value="${p.id}">${escapeHtml(p.name||"")}</option>`).join("");
-  if (current && players.some(p=>p.id===current)) sel.value = current;
+    .sort((a,b) => (a.name||"").localeCompare(b.name||""))
+    .map(p => `<option value="${p.id}">${escapeHtml(p.name||"")}</option>`)
+    .join("");
+  if (cur && players.some(p => p.id === cur)) sel.value = cur;
 }
 
-function renderDashboard(stats){
-  const rows = players.map(p=>({p, s: stats[p.id]||blankStats()}));
+function renderDashboard(stats) {
+  const rows = players.map(p => ({ p, s: stats[p.id] || blankStats() }));
 
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
-  $("dashTopScorers").innerHTML = topGoals.length
+  if ($("dashTopScorers")) $("dashTopScorers").innerHTML = topGoals.length
     ? topGoals.map((x,i)=>dashItem(`${medal(i)} ${escapeHtml(x.p.name)}`, `${x.s.goals} goals · G/Match ${fmt2(x.s.gpm)} · Win% ${fmtPct(x.s.winPct)}`)).join("")
     : `<div class="note">No data yet.</div>`;
 
   const topStreak = rows.slice().sort((a,b)=>(b.s.current-a.s.current)||(b.s.best-a.s.best)).slice(0,3);
-  $("dashTopStreaks").innerHTML = topStreak.length
+  if ($("dashTopStreaks")) $("dashTopStreaks").innerHTML = topStreak.length
     ? topStreak.map((x,i)=>dashItem(`${medal(i)} ${escapeHtml(x.p.name)}`, `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`, "warn")).join("")
     : `<div class="note">No data yet.</div>`;
 
   const topWin = rows.filter(x=>x.s.matches>=2).sort((a,b)=>(b.s.winPct-a.s.winPct)||(b.s.wins-a.s.wins)).slice(0,3);
-  $("dashTopWinPct").innerHTML = topWin.length
+  if ($("dashTopWinPct")) $("dashTopWinPct").innerHTML = topWin.length
     ? topWin.map((x,i)=>dashItem(`${medal(i)} ${escapeHtml(x.p.name)}`, `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`, "good")).join("")
     : `<div class="note">Need at least 2 matches per player.</div>`;
 }
 
-function renderPlayers(stats){
-  const box = $("playersList");
-  if (!box) return;
-  const html = players
-    .slice()
-    .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
-    .map(p=>{
-      const s = stats[p.id]||blankStats();
-      return `
-        <div class="item">
-          <div>
-            <div class="name">${escapeHtml(p.name||"")}</div>
-            <div class="meta">
-              Matches <b>${s.matches}</b> · Wins <b>${s.wins}</b> · Goals <b>${s.goals}</b> ·
-              Win% <b>${fmtPct(s.winPct)}</b> · G/Match <b>${fmt2(s.gpm)}</b> ·
-              Streak <b>${s.current}</b> (best ${s.best})
-            </div>
-          </div>
-        </div>`;
-    }).join("");
-  box.innerHTML = html || `<div class="note">No players yet.</div>`;
-}
-
-function renderLeaderboard(stats){
+function renderLeaderboard(stats) {
   const sortBy = $("lbSort")?.value || "winPct";
   const rows = buildRows(stats).sort(makeSorter(sortBy));
+  if (!$("leaderboardList")) return;
   $("leaderboardList").innerHTML = rows.length
     ? rows.map((r,i)=>`
       <div class="item">
@@ -351,14 +294,17 @@ function renderLeaderboard(stats){
     : `<div class="note">No players yet.</div>`;
 }
 
-function renderTable(stats){
+function renderTable(stats) {
   const sortBy = $("tableSort")?.value || "winPct";
   const rows = buildRows(stats).sort(makeSorter(sortBy));
   const body = $("tableBody");
+  if (!body) return;
+
   if (!rows.length) {
     body.innerHTML = `<tr><td colspan="9" class="noteCell">No players yet.</td></tr>`;
     return;
   }
+
   body.innerHTML = rows.map((r,idx)=>`
     <tr>
       <td>${idx+1}</td>
@@ -370,14 +316,42 @@ function renderTable(stats){
       <td>${fmt2(r.gpm)}</td>
       <td>${r.curStreak}</td>
       <td>${r.bestStreak}</td>
-    </tr>`).join("");
+    </tr>
+  `).join("");
 }
 
-function renderLogs(){
+function renderPlayers(stats) {
+  const box = $("playersList");
+  if (!box) return;
+
+  const html = players
+    .slice()
+    .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
+    .map(p => {
+      const s = stats[p.id] || blankStats();
+      return `
+        <div class="item">
+          <div>
+            <div class="name">${escapeHtml(p.name||"")}</div>
+            <div class="meta">
+              Matches <b>${s.matches}</b> · Wins <b>${s.wins}</b> · Goals <b>${s.goals}</b> ·
+              Win% <b>${fmtPct(s.winPct)}</b> · G/Match <b>${fmt2(s.gpm)}</b> ·
+              Streak <b>${s.current}</b> (best ${s.best})
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+  box.innerHTML = html || `<div class="note">No players yet.</div>`;
+}
+
+function renderLogs() {
   const box = $("logsList");
   if (!box) return;
-  const html = logs.slice(0,30).map(l=>{
-    const p = players.find(x=>x.id===l.playerId);
+
+  const html = logs.slice(0, 30).map(l => {
+    const p = players.find(x => x.id === l.playerId);
     const name = p ? p.name : "(Unknown)";
     const win = !!l.win;
     return `
@@ -389,62 +363,33 @@ function renderLogs(){
         <div class="pills">
           <span class="pill ${win ? "good" : "bad"}">${win ? "🏆 Win" : "💥 Loss"}</span>
         </div>
-      </div>`;
+      </div>
+    `;
   }).join("");
+
   box.innerHTML = html || `<div class="note">No entries yet.</div>`;
 }
 
-/* ========= EXPORT/IMPORT/RESET ========= */
-async function exportJSON(){
+/* ========= EXPORT / RESET ========= */
+function exportJSON(){
   const data = { exportedAt: new Date().toISOString(), players, logs };
-  downloadJSON(data, `futbolista_backup_${new Date().toISOString().slice(0,10)}.json`);
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ftbll_backup_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function resetAllData(){
-  // delete logs then players (admin only by rules)
   const logsSnap = await getDocs(logsRef);
-  const logIds = [];
-  logsSnap.forEach(d=>logIds.push(d.id));
-  for (const id of logIds) await deleteDoc(doc(db,"logs",id));
+  for (const d of logsSnap.docs) await deleteDoc(doc(db, "logs", d.id));
 
   const playersSnap = await getDocs(playersRef);
-  const playerIds = [];
-  playersSnap.forEach(d=>playerIds.push(d.id));
-  for (const id of playerIds) await deleteDoc(doc(db,"players",id));
-}
-
-async function importJSON(data){
-  const pls = Array.isArray(data.players) ? data.players : [];
-  const lgs = Array.isArray(data.logs) ? data.logs : [];
-
-  for (const p of pls){
-    const name = String(p.name||"").trim();
-    if (!name) continue;
-    await addDoc(playersRef, { name, createdAt: Date.now() });
-  }
-
-  // map by name
-  const snap = await getDocs(playersRef);
-  const nowPlayers = [];
-  snap.forEach(d=>nowPlayers.push({id:d.id, ...d.data()}));
-  const byName = Object.create(null);
-  for (const p of nowPlayers){
-    const k=(p.name||"").trim().toLowerCase();
-    if (!byName[k]) byName[k]=p.id;
-  }
-
-  for (const l of lgs){
-    const nameKey = String(l.playerName||"").trim().toLowerCase();
-    const pid = (l.playerId && nowPlayers.some(p=>p.id===l.playerId)) ? l.playerId : byName[nameKey];
-    if (!pid) continue;
-    await addDoc(logsRef, {
-      playerId: pid,
-      goals: clampInt(l.goals,0,99),
-      win: !!l.win,
-      date: String(l.date||new Date().toISOString().slice(0,10)),
-      createdAt: Date.now()
-    });
-  }
+  for (const d of playersSnap.docs) await deleteDoc(doc(db, "players", d.id));
 }
 
 /* ========= HELPERS ========= */
@@ -459,6 +404,7 @@ function buildRows(stats){
     };
   });
 }
+
 function makeSorter(sortBy){
   if (sortBy === "name") return (a,b)=>(a.name||"").localeCompare(b.name||"");
   const key = ({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[sortBy]) || "winPct";
@@ -468,6 +414,17 @@ function makeSorter(sortBy){
     return (b.goals-a.goals)||(b.wins-a.wins)||(b.matches-a.matches)||(a.name||"").localeCompare(b.name||"");
   };
 }
+
+function clampInt(v,min,max){
+  const n=Math.floor(Number(v));
+  if(!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
+function fmt2(x){ return (Number(x)||0).toFixed(2); }
+function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
+
 function dashItem(title, meta, tone){
   const pillClass = tone==="warn" ? "pill warn" : tone==="good" ? "pill good" : "pill";
   const icon = tone==="warn" ? "🔥" : tone==="good" ? "🏆" : "⚽";
@@ -480,23 +437,12 @@ function dashItem(title, meta, tone){
       <div class="pills"><span class="${pillClass}">${icon}</span></div>
     </div>`;
 }
-function clampInt(v,min,max){
-  const n=Math.floor(Number(v));
-  if(!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, n));
-}
-function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
-function fmt2(x){ return (Number(x)||0).toFixed(2); }
-function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
+
 function escapeHtml(str){
-  return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
-}
-function downloadJSON(obj, filename){
-  const blob = new Blob([JSON.stringify(obj, null, 2)], { type:"application/json" });
-  const url = URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url; a.download=filename;
-  document.body.appendChild(a);
-  a.click(); a.remove();
-  URL.revokeObjectURL(url);
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
