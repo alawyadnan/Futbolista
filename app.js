@@ -500,3 +500,22 @@ function downloadJSON(obj, filename){
   a.click(); a.remove();
   URL.revokeObjectURL(url);
 }
+/* ===== ADMIN UI CONTROL ===== */
+
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const auth = getAuth();
+
+onAuthStateChanged(auth, (user) => {
+
+  const adminTabs = document.querySelectorAll('[data-admin="1"]');
+
+  if (user) {
+    // show admin buttons
+    adminTabs.forEach(el => el.style.display = "flex");
+  } else {
+    // hide admin buttons
+    adminTabs.forEach(el => el.style.display = "none");
+  }
+
+});
