@@ -1,24 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  getDocs,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  orderBy
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-import {
-  getAuth,
-  onAuthStateChanged,
-  setPersistence,
-  browserLocalPersistence,
-  signInWithEmailAndPassword,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 /* ========= CONFIG ========= */
 const firebaseConfig = {
@@ -28,45 +10,34 @@ const firebaseConfig = {
   storageBucket: "el-futbolistas.appspot.com"
 };
 
-// ✅ ضع ايميل الأدمن هنا (نفس اللي أنشأته في Firebase Auth > Users)
-const ADMIN_EMAIL = "admin@ftbll.live";
+const ADMIN_EMAIL = "admin@ftbll.live"; // <-- غيّره
 
 /* ========= INIT ========= */
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-
-// ✅ ثبّت الجلسة (يحفظ تسجيل الدخول)
 setPersistence(auth, browserLocalPersistence).catch(console.warn);
 
-/* ========= COLLECTIONS ========= */
+/* ========= DB ========= */
 const playersRef = collection(db, "players");
 const logsRef = collection(db, "logs");
 
-/* ========= STATE ========= */
 let players = [];
 let logs = [];
 let isAdmin = false;
 
-/* ========= DOM ========= */
 const $ = (id) => document.getElementById(id);
-const screens = Array.from(document.querySelectorAll(".screen"));
-const navBtns = Array.from(document.querySelectorAll(".navbtn"));
-const adminEls = Array.from(document.querySelectorAll("[data-admin='1']"));
+const screens = () => Array.from(document.querySelectorAll(".screen"));
+const navBtns = () => Array.from(document.querySelectorAll(".navbtn"));
 
-/* ========= HARD WIRED FUNCTIONS (no listener issues) ========= */
+/* ========= ADMIN (Hard-wired, no listener issues) ========= */
 window.__adminLogin = async () => {
   try {
-    // logout if logged in
-    if (auth.currentUser) {
-      await signOut(auth);
-      return;
-    }
+    if (auth.currentUser) { await signOut(auth); return; }
     const email = prompt("Admin Email:");
     if (!email) return;
     const password = prompt("Admin Password:");
     if (!password) return;
-
     await signInWithEmailAndPassword(auth, email.trim(), password);
   } catch (e) {
     alert("Login failed:\n" + (e?.message || e));
@@ -74,10 +45,7 @@ window.__adminLogin = async () => {
   }
 };
 
-window.__exportNow = () => {
-  if (!isAdmin) return;
-  exportJSON();
-};
+window.__exportNow = () => { if (isAdmin) exportJSON(); };
 
 /* ========= START ========= */
 document.addEventListener("DOMContentLoaded", () => {
@@ -85,72 +53,22 @@ document.addEventListener("DOMContentLoaded", () => {
   if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
   // navigation
-  setupNavigation();
-
-  // actions
-  wireActions();
-
-  // auth state
-  onAuthStateChanged(auth, (user) => {
-    const email = (user?.email || "").trim().toLowerCase();
-    isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
-
-    applyAdminUI(isAdmin);
-
-    // if visitor on admin screen -> back to dashboard
-    const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
-    if (openAdminScreen && !isAdmin) {
-      showScreen("dashboard");
-      setActiveNav("dashboard");
-    }
-  });
-
-  // firestore live read
-  listenFirestore();
-});
-
-/* ========= ADMIN UI ========= */
-function applyAdminUI(admin) {
-  adminEls.forEach(el => el.style.display = admin ? "" : "none");
-
-  const btn = $("btnAdminLogin");
-  if (btn) btn.textContent = admin ? "Logout" : "Admin Login";
-}
-
-/* ========= NAV ========= */
-function setupNavigation() {
-  navBtns.forEach(btn => {
+  navBtns().forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       const target = btn.dataset.nav;
-
       if (btn.dataset.admin === "1" && !isAdmin) return;
-
       showScreen(target);
       setActiveNav(target);
     });
   });
-}
 
-function showScreen(name) {
-  screens.forEach(s => s.classList.add("hidden"));
-  document.getElementById(`screen-${name}`)?.classList.remove("hidden");
-}
-
-function setActiveNav(name) {
-  navBtns.forEach(b => b.classList.remove("active"));
-  document.querySelector(`.navbtn[data-nav="${name}"]`)?.classList.add("active");
-}
-
-/* ========= ACTIONS ========= */
-function wireActions() {
+  // actions
   $("btnAddPlayer")?.addEventListener("click", async (e) => {
     e.preventDefault();
     if (!isAdmin) return alert("Read only");
-
     const name = ($("playerName")?.value || "").trim();
     if (!name) return alert("Enter a name");
-
     await addDoc(playersRef, { name, createdAt: Date.now() });
     $("playerName").value = "";
   });
@@ -181,65 +99,31 @@ function wireActions() {
   $("btnReset")?.addEventListener("click", async (e) => {
     e.preventDefault();
     if (!isAdmin) return alert("Read only");
-
     const ok = confirm("Delete ALL data? This cannot be undone.");
     if (!ok) return;
-
     await resetAllData();
   });
 
-  $("fileImport")?.addEventListener("change", async (e) => {
-    if (!isAdmin) return alert("Read only");
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // auth state (FINAL)
+  onAuthStateChanged(auth, (user) => {
+    const email = (user?.email || "").trim().toLowerCase();
+    isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
 
-    try{
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (!Array.isArray(data.players) || !Array.isArray(data.logs)) {
-        alert("Invalid backup file.");
-        return;
-      }
+    // ✅ CSS switch that shows admin tabs
+    document.body.classList.toggle("is-admin", isAdmin);
 
-      const ok = confirm("Import will REPLACE current data. Continue?");
-      if (!ok) return;
+    const btn = $("btnAdminLogin");
+    if (btn) btn.textContent = isAdmin ? "Logout" : "Admin Login";
 
-      await resetAllData();
-
-      for (const p of data.players) {
-        if (p?.name) await addDoc(playersRef, { name: String(p.name), createdAt: Date.now() });
-      }
-
-      // Need latest players map by name to reconnect logs (best-effort)
-      const snap = await getDocs(playersRef);
-      const nameToId = {};
-      snap.forEach(d => nameToId[(d.data().name||"").toLowerCase()] = d.id);
-
-      for (const l of data.logs) {
-        const nm = (l?.playerName || l?.name || "").toLowerCase();
-        const pid = nameToId[nm] || l?.playerId;
-        if (!pid) continue;
-        await addDoc(logsRef, {
-          playerId: pid,
-          goals: clampInt(l?.goals, 0, 99),
-          win: !!l?.win,
-          date: String(l?.date || new Date().toISOString().slice(0,10)),
-          createdAt: Date.now()
-        });
-      }
-
-      alert("Import done.");
-    } catch(err){
-      alert("Import failed: " + (err?.message || err));
-      console.error(err);
-    } finally {
-      e.target.value = "";
+    // if visitor is on admin screen -> dashboard
+    const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
+    if (openAdminScreen && !isAdmin) {
+      showScreen("dashboard");
+      setActiveNav("dashboard");
     }
   });
-}
 
-/* ========= FIRESTORE ========= */
-function listenFirestore() {
+  // firestore live read
   onSnapshot(query(playersRef, orderBy("createdAt", "asc")), snap => {
     players = [];
     snap.forEach(d => players.push({ id: d.id, ...d.data() }));
@@ -251,12 +135,25 @@ function listenFirestore() {
     snap.forEach(d => logs.push({ id: d.id, ...d.data() }));
     renderAll();
   });
+
+  // initial screen
+  showScreen("dashboard");
+  setActiveNav("dashboard");
+});
+
+/* ========= NAV HELPERS ========= */
+function showScreen(name) {
+  screens().forEach(s => s.classList.add("hidden"));
+  document.getElementById(`screen-${name}`)?.classList.remove("hidden");
+}
+
+function setActiveNav(name) {
+  navBtns().forEach(b => b.classList.remove("active"));
+  document.querySelector(`.navbtn[data-nav="${name}"]`)?.classList.add("active");
 }
 
 /* ========= STATS ========= */
-function blankStats() {
-  return { matches:0, wins:0, goals:0, winPct:0, gpm:0, current:0, best:0 };
-}
+function blankStats(){ return { matches:0, wins:0, goals:0, winPct:0, gpm:0, current:0, best:0 }; }
 
 function computeAllStats() {
   const byId = Object.create(null);
@@ -293,7 +190,7 @@ function computeAllStats() {
 }
 
 /* ========= RENDER ========= */
-function renderAll() {
+function renderAll(){
   $("kpiPlayers") && ($("kpiPlayers").textContent = String(players.length));
   $("kpiLogs") && ($("kpiLogs").textContent = String(logs.length));
 
@@ -307,7 +204,7 @@ function renderAll() {
   renderLogs();
 }
 
-function fillPlayerDropdown() {
+function fillPlayerDropdown(){
   const sel = $("logPlayer");
   if (!sel) return;
   const cur = sel.value;
@@ -319,7 +216,7 @@ function fillPlayerDropdown() {
   if (cur && players.some(p => p.id === cur)) sel.value = cur;
 }
 
-function renderDashboard(stats) {
+function renderDashboard(stats){
   const rows = players.map(p => ({ p, s: stats[p.id] || blankStats() }));
 
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
@@ -338,12 +235,13 @@ function renderDashboard(stats) {
     : `<div class="note">Need at least 2 matches per player.</div>`;
 }
 
-function renderLeaderboard(stats) {
+function renderLeaderboard(stats){
   const sortBy = $("lbSort")?.value || "winPct";
   const rows = buildRows(stats).sort(makeSorter(sortBy));
-  if (!$("leaderboardList")) return;
+  const box = $("leaderboardList");
+  if (!box) return;
 
-  $("leaderboardList").innerHTML = rows.length
+  box.innerHTML = rows.length
     ? rows.map((r,i)=>`
       <div class="item">
         <div>
@@ -363,33 +261,30 @@ function renderLeaderboard(stats) {
     : `<div class="note">No players yet.</div>`;
 }
 
-function renderTable(stats) {
+function renderTable(stats){
   const sortBy = $("tableSort")?.value || "winPct";
   const rows = buildRows(stats).sort(makeSorter(sortBy));
   const body = $("tableBody");
   if (!body) return;
 
-  if (!rows.length) {
-    body.innerHTML = `<tr><td colspan="9" class="noteCell">No players yet.</td></tr>`;
-    return;
-  }
-
-  body.innerHTML = rows.map((r,idx)=>`
-    <tr>
-      <td>${idx+1}</td>
-      <td>${escapeHtml(r.name)}</td>
-      <td>${r.matches}</td>
-      <td>${r.wins}</td>
-      <td>${r.goals}</td>
-      <td>${fmtPct(r.winPct)}</td>
-      <td>${fmt2(r.gpm)}</td>
-      <td>${r.curStreak}</td>
-      <td>${r.bestStreak}</td>
-    </tr>
-  `).join("");
+  body.innerHTML = rows.length
+    ? rows.map((r,idx)=>`
+      <tr>
+        <td>${idx+1}</td>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${r.matches}</td>
+        <td>${r.wins}</td>
+        <td>${r.goals}</td>
+        <td>${fmtPct(r.winPct)}</td>
+        <td>${fmt2(r.gpm)}</td>
+        <td>${r.curStreak}</td>
+        <td>${r.bestStreak}</td>
+      </tr>
+    `).join("")
+    : `<tr><td colspan="9" class="noteCell">No players yet.</td></tr>`;
 }
 
-function renderPlayers(stats) {
+function renderPlayers(stats){
   const box = $("playersList");
   if (!box) return;
 
@@ -408,14 +303,13 @@ function renderPlayers(stats) {
               Streak <b>${s.current}</b> (best ${s.best})
             </div>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join("");
 
   box.innerHTML = html || `<div class="note">No players yet.</div>`;
 }
 
-function renderLogs() {
+function renderLogs(){
   const box = $("logsList");
   if (!box) return;
 
@@ -432,8 +326,7 @@ function renderLogs() {
         <div class="pills">
           <span class="pill ${win ? "good" : "bad"}">${win ? "🏆 Win" : "💥 Loss"}</span>
         </div>
-      </div>
-    `;
+      </div>`;
   }).join("");
 
   box.innerHTML = html || `<div class="note">No entries yet.</div>`;
@@ -465,15 +358,9 @@ async function resetAllData(){
 function buildRows(stats){
   return players.map(p=>{
     const s = stats[p.id]||blankStats();
-    return {
-      name:p.name||"",
-      matches:s.matches, wins:s.wins, goals:s.goals,
-      winPct:s.winPct, gpm:s.gpm,
-      curStreak:s.current, bestStreak:s.best
-    };
+    return { name:p.name||"", matches:s.matches, wins:s.wins, goals:s.goals, winPct:s.winPct, gpm:s.gpm, curStreak:s.current, bestStreak:s.best };
   });
 }
-
 function makeSorter(sortBy){
   if (sortBy === "name") return (a,b)=>(a.name||"").localeCompare(b.name||"");
   const key = ({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[sortBy]) || "winPct";
@@ -483,35 +370,15 @@ function makeSorter(sortBy){
     return (b.goals-a.goals)||(b.wins-a.wins)||(b.matches-a.matches)||(a.name||"").localeCompare(b.name||"");
   };
 }
-
-function clampInt(v,min,max){
-  const n=Math.floor(Number(v));
-  if(!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, n));
-}
-
+function clampInt(v,min,max){ const n=Math.floor(Number(v)); if(!Number.isFinite(n)) return min; return Math.max(min, Math.min(max, n)); }
 function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
 function fmt2(x){ return (Number(x)||0).toFixed(2); }
 function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
-
 function dashItem(title, meta, tone){
   const pillClass = tone==="warn" ? "pill warn" : tone==="good" ? "pill good" : "pill";
   const icon = tone==="warn" ? "🔥" : tone==="good" ? "🏆" : "⚽";
-  return `
-    <div class="item">
-      <div>
-        <div class="name">${title}</div>
-        <div class="meta">${meta}</div>
-      </div>
-      <div class="pills"><span class="${pillClass}">${icon}</span></div>
-    </div>`;
+  return `<div class="item"><div><div class="name">${title}</div><div class="meta">${meta}</div></div><div class="pills"><span class="${pillClass}">${icon}</span></div></div>`;
 }
-
 function escapeHtml(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+  return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
