@@ -262,3 +262,8 @@ body{
 
 /* ===== Small polish ===== */
 a, button { -webkit-tap-highlight-color: transparent; }
+
+/* ===== Hide admin tabs for visitors ===== */
+button[data-admin="1"]{
+  display:none;
+}
