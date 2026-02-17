@@ -74,12 +74,43 @@ document.addEventListener("DOMContentLoaded", async () => {
   try { await getRedirectResult(auth); } catch {}
 
   // auth state
-  onAuthStateChanged(auth, (user) => {
-    isAdmin = !!user && (user.email === ADMIN_EMAIL);
-    applyAdminUI();
-    // لو كنت أدمن والزر موجود، غير النص
-    if (btnLogin) btnLogin.textContent = isAdmin ? "Logout" : "Admin Login";
-  });
+  // ===== ADMIN EMAIL =====
+const ADMIN_EMAIL = "allaw.68@gmail.com"; // <-- غيره بإيميلك
+
+// ===== AUTH STATE =====
+onAuthStateChanged(auth, (user) => {
+
+  const adminBtn = document.getElementById("adminBtn");
+  const adminTabs = document.querySelectorAll(".admin-only");
+
+  if (user && user.email === ADMIN_EMAIL) {
+
+    // ✅ ADMIN MODE
+    window.isAdmin = true;
+
+    if (adminBtn) adminBtn.style.display = "none";
+
+    adminTabs.forEach(el => {
+      el.style.display = "flex";
+    });
+
+    console.log("Admin logged in:", user.email);
+
+  } else {
+
+    // 👀 VISITOR MODE
+    window.isAdmin = false;
+
+    if (adminBtn) adminBtn.style.display = "block";
+
+    adminTabs.forEach(el => {
+      el.style.display = "none";
+    });
+
+    console.log("Visitor mode");
+
+  }
+}););
 
   // UI actions (admin only)
   wireActions();
