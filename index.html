@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=90001" />
+  <link rel="stylesheet" href="./styles.css?v=100001" />
 </head>
 <body>
 
@@ -17,19 +17,13 @@
   </div>
 
   <div class="row">
-    <!-- ✅ onclick مباشر (حل نهائي ضد refresh/submit) -->
-    <button id="btnAdminLogin"
-            type="button"
-            class="btn ghost"
-            onclick="event.preventDefault(); event.stopPropagation(); window.__adminLogin?.(); return false;">
+    <button id="btnAdminLogin" type="button" class="btn ghost"
+      onclick="event.preventDefault();event.stopPropagation();window.__adminLogin?.();return false;">
       Admin Login
     </button>
 
-    <button id="btnExportTop"
-            type="button"
-            class="btn ghost"
-            data-admin="1"
-            onclick="event.preventDefault(); event.stopPropagation(); window.__exportNow?.(); return false;">
+    <button id="btnExportTop" type="button" class="btn ghost" data-admin="1"
+      onclick="event.preventDefault();event.stopPropagation();window.__exportNow?.();return false;">
       Export
     </button>
   </div>
@@ -40,26 +34,18 @@
   <!-- DASHBOARD -->
   <section id="screen-dashboard" class="screen">
     <div class="card">
-      <div class="card-h">
-        <div class="card-title">Top Scorers (Top 3)</div>
-      </div>
+      <div class="card-title">Top Scorers (Top 3)</div>
       <div id="dashTopScorers" class="list note">No data yet.</div>
     </div>
 
     <div class="card">
-      <div class="card-h">
-        <div class="card-title">Best Current Streak (Top 3)</div>
-      </div>
+      <div class="card-title">Best Current Streak (Top 3)</div>
       <div id="dashTopStreaks" class="list note">No data yet.</div>
     </div>
 
     <div class="card">
-      <div class="card-h">
-        <div>
-          <div class="card-title">Best Win % (Top 3)</div>
-          <div class="subnote">Minimum 2 matches</div>
-        </div>
-      </div>
+      <div class="card-title">Best Win % (Top 3)</div>
+      <div class="subnote">Minimum 2 matches</div>
       <div id="dashTopWinPct" class="list note">Need at least 2 matches per player.</div>
     </div>
 
@@ -120,17 +106,10 @@
       <div class="tablewrap">
         <table class="table">
           <thead>
-            <tr>
-              <th>#</th>
-              <th>Name</th>
-              <th>Matches</th>
-              <th>Wins</th>
-              <th>Goals</th>
-              <th>Win %</th>
-              <th>Goals/Match</th>
-              <th>Current Streak</th>
-              <th>Best Streak</th>
-            </tr>
+          <tr>
+            <th>#</th><th>Name</th><th>Matches</th><th>Wins</th><th>Goals</th>
+            <th>Win %</th><th>Goals/Match</th><th>Current Streak</th><th>Best Streak</th>
+          </tr>
           </thead>
           <tbody id="tableBody">
             <tr><td colspan="9" class="noteCell">No players yet.</td></tr>
@@ -140,12 +119,12 @@
     </div>
   </section>
 
-  <!-- PLAYERS (ADMIN ONLY) -->
+  <!-- PLAYERS (ADMIN) -->
   <section id="screen-players" class="screen hidden" data-admin="1">
     <div class="card">
       <div class="card-title">Add Player</div>
       <div class="row">
-        <input id="playerName" class="input" placeholder="Player name (e.g., Ahmed)" />
+        <input id="playerName" class="input" placeholder="Player name" />
         <button id="btnAddPlayer" type="button" class="btn">Add</button>
       </div>
     </div>
@@ -156,7 +135,7 @@
     </div>
   </section>
 
-  <!-- MATCHES (ADMIN ONLY) -->
+  <!-- MATCHES (ADMIN) -->
   <section id="screen-matches" class="screen hidden" data-admin="1">
     <div class="card">
       <div class="card-title">Add Match Entry (per player)</div>
@@ -172,7 +151,7 @@
         </div>
         <div>
           <div class="label">Goals</div>
-          <input id="logGoals" class="input" type="number" min="0" max="99" value="0"/>
+          <input id="logGoals" class="input" type="number" min="0" max="99" value="0" />
         </div>
         <div>
           <div class="label">Result</div>
@@ -192,17 +171,11 @@
     </div>
   </section>
 
-  <!-- SETTINGS (ADMIN ONLY) -->
+  <!-- SETTINGS (ADMIN) -->
   <section id="screen-settings" class="screen hidden" data-admin="1">
     <div class="card">
-      <div class="card-title">Backup / Restore</div>
-      <div class="row">
-        <button id="btnExport" type="button" class="btn">Export JSON</button>
-        <label class="btn ghost filebtn">
-          Import JSON (Replace)
-          <input id="fileImport" type="file" accept="application/json" hidden />
-        </label>
-      </div>
+      <div class="card-title">Backup</div>
+      <button id="btnExport" type="button" class="btn full">Export JSON</button>
     </div>
 
     <div class="card danger">
@@ -213,7 +186,6 @@
 
 </main>
 
-<!-- ✅ Bottom Tabs -->
 <nav class="bottomnav">
   <div class="bottomnav-inner">
     <button type="button" class="navbtn active" data-nav="dashboard">Dashboard</button>
@@ -226,6 +198,6 @@
   </div>
 </nav>
 
-<script type="module" src="./app.js?v=90001"></script>
+<script type="module" src="./app.js?v=100001"></script>
 </body>
 </html>
