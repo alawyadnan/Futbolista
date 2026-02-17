@@ -1,6 +1,3 @@
-// Futbolista - app.js (Email/Password Admin, Visitors Read-only)
-// Works with your existing index.html IDs from the version we built.
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore,
@@ -31,7 +28,7 @@ const firebaseConfig = {
   storageBucket: "el-futbolistas.appspot.com"
 };
 
-// ✅ حط هنا نفس ايميل الأدمن اللي أنشأته في Firebase Authentication > Users
+// ✅ ضع ايميل الأدمن هنا (نفس اللي أنشأته في Firebase Auth > Users)
 const ADMIN_EMAIL = "admin@ftbll.live";
 
 /* ========= INIT ========= */
@@ -39,7 +36,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// ✅ ثبت الجلسة عشان ما يرجع زائر بعد تسجيل الدخول
+// ✅ ثبّت الجلسة (يحفظ تسجيل الدخول)
 setPersistence(auth, browserLocalPersistence).catch(console.warn);
 
 /* ========= COLLECTIONS ========= */
@@ -57,6 +54,31 @@ const screens = Array.from(document.querySelectorAll(".screen"));
 const navBtns = Array.from(document.querySelectorAll(".navbtn"));
 const adminEls = Array.from(document.querySelectorAll("[data-admin='1']"));
 
+/* ========= HARD WIRED FUNCTIONS (no listener issues) ========= */
+window.__adminLogin = async () => {
+  try {
+    // logout if logged in
+    if (auth.currentUser) {
+      await signOut(auth);
+      return;
+    }
+    const email = prompt("Admin Email:");
+    if (!email) return;
+    const password = prompt("Admin Password:");
+    if (!password) return;
+
+    await signInWithEmailAndPassword(auth, email.trim(), password);
+  } catch (e) {
+    alert("Login failed:\n" + (e?.message || e));
+    console.error(e);
+  }
+};
+
+window.__exportNow = () => {
+  if (!isAdmin) return;
+  exportJSON();
+};
+
 /* ========= START ========= */
 document.addEventListener("DOMContentLoaded", () => {
   // default date
@@ -64,27 +86,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // navigation
   setupNavigation();
-
-  // admin button
-  $("btnAdminLogin")?.addEventListener("click", async () => {
-    try {
-      if (auth.currentUser) {
-        await signOut(auth);
-        return;
-      }
-
-      const email = prompt("Admin Email:");
-      if (!email) return;
-
-      const password = prompt("Admin Password:");
-      if (!password) return;
-
-      await signInWithEmailAndPassword(auth, email.trim(), password);
-    } catch (e) {
-      alert("Login failed: " + (e?.message || e));
-      console.error(e);
-    }
-  });
 
   // actions
   wireActions();
@@ -94,30 +95,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const email = (user?.email || "").trim().toLowerCase();
     isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
 
-    // ✅ طبق واجهة الأدمن
     applyAdminUI(isAdmin);
 
-    // حماية: لو زائر فتح صفحة أدمن رجعه داشبورد
+    // if visitor on admin screen -> back to dashboard
     const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
     if (openAdminScreen && !isAdmin) {
       showScreen("dashboard");
       setActiveNav("dashboard");
     }
-
-    // Debug (يساعدك لو صار شيء)
-    console.log("AUTH:", user ? { email: user.email } : null, "isAdmin:", isAdmin);
   });
 
-  // firestore listeners (public read)
+  // firestore live read
   listenFirestore();
 });
 
 /* ========= ADMIN UI ========= */
 function applyAdminUI(admin) {
-  // show/hide admin-only buttons and sections
   adminEls.forEach(el => el.style.display = admin ? "" : "none");
 
-  // button text
   const btn = $("btnAdminLogin");
   if (btn) btn.textContent = admin ? "Logout" : "Admin Login";
 }
@@ -125,10 +120,10 @@ function applyAdminUI(admin) {
 /* ========= NAV ========= */
 function setupNavigation() {
   navBtns.forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
       const target = btn.dataset.nav;
 
-      // block admin tabs for visitors
       if (btn.dataset.admin === "1" && !isAdmin) return;
 
       showScreen(target);
@@ -149,15 +144,19 @@ function setActiveNav(name) {
 
 /* ========= ACTIONS ========= */
 function wireActions() {
-  $("btnAddPlayer")?.addEventListener("click", async () => {
+  $("btnAddPlayer")?.addEventListener("click", async (e) => {
+    e.preventDefault();
     if (!isAdmin) return alert("Read only");
+
     const name = ($("playerName")?.value || "").trim();
     if (!name) return alert("Enter a name");
+
     await addDoc(playersRef, { name, createdAt: Date.now() });
     $("playerName").value = "";
   });
 
-  $("btnAddLog")?.addEventListener("click", async () => {
+  $("btnAddLog")?.addEventListener("click", async (e) => {
+    e.preventDefault();
     if (!isAdmin) return alert("Read only");
 
     const playerId = $("logPlayer")?.value;
@@ -173,21 +172,69 @@ function wireActions() {
   $("lbSort")?.addEventListener("change", renderAll);
   $("tableSort")?.addEventListener("change", renderAll);
 
-  $("btnExportTop")?.addEventListener("click", () => {
+  $("btnExport")?.addEventListener("click", (e) => {
+    e.preventDefault();
     if (!isAdmin) return;
     exportJSON();
   });
 
-  $("btnExport")?.addEventListener("click", () => {
-    if (!isAdmin) return;
-    exportJSON();
-  });
-
-  $("btnReset")?.addEventListener("click", async () => {
+  $("btnReset")?.addEventListener("click", async (e) => {
+    e.preventDefault();
     if (!isAdmin) return alert("Read only");
+
     const ok = confirm("Delete ALL data? This cannot be undone.");
     if (!ok) return;
+
     await resetAllData();
+  });
+
+  $("fileImport")?.addEventListener("change", async (e) => {
+    if (!isAdmin) return alert("Read only");
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try{
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!Array.isArray(data.players) || !Array.isArray(data.logs)) {
+        alert("Invalid backup file.");
+        return;
+      }
+
+      const ok = confirm("Import will REPLACE current data. Continue?");
+      if (!ok) return;
+
+      await resetAllData();
+
+      for (const p of data.players) {
+        if (p?.name) await addDoc(playersRef, { name: String(p.name), createdAt: Date.now() });
+      }
+
+      // Need latest players map by name to reconnect logs (best-effort)
+      const snap = await getDocs(playersRef);
+      const nameToId = {};
+      snap.forEach(d => nameToId[(d.data().name||"").toLowerCase()] = d.id);
+
+      for (const l of data.logs) {
+        const nm = (l?.playerName || l?.name || "").toLowerCase();
+        const pid = nameToId[nm] || l?.playerId;
+        if (!pid) continue;
+        await addDoc(logsRef, {
+          playerId: pid,
+          goals: clampInt(l?.goals, 0, 99),
+          win: !!l?.win,
+          date: String(l?.date || new Date().toISOString().slice(0,10)),
+          createdAt: Date.now()
+        });
+      }
+
+      alert("Import done.");
+    } catch(err){
+      alert("Import failed: " + (err?.message || err));
+      console.error(err);
+    } finally {
+      e.target.value = "";
+    }
   });
 }
 
@@ -468,6 +515,3 @@ function escapeHtml(str){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-
-   <button id="btnAdminLogin" class="btn ghost">Admin Login</button>
-    <button id="btnExportTop" class="btn ghost" data-admin="1">Export</button>
