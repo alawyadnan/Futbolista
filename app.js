@@ -468,3 +468,6 @@ function escapeHtml(str){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
+
+   <button id="btnAdminLogin" class="btn ghost">Admin Login</button>
+    <button id="btnExportTop" class="btn ghost" data-admin="1">Export</button>
