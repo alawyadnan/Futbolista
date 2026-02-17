@@ -1,4 +1,5 @@
-// Futbolista / FTbll - Clean Working app.js (no duplicate imports)
+// Futbolista - app.js (Email/Password Admin, Visitors Read-only)
+// Works with your existing index.html IDs from the version we built.
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -15,10 +16,10 @@ import {
 
 import {
   getAuth,
-  GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  signInWithEmailAndPassword,
   signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
@@ -27,16 +28,19 @@ const firebaseConfig = {
   apiKey: "AIzaSyA6rH6OY8e-qr3-jaJX0irmOjoySiL8VAg",
   authDomain: "el-futbolistas.firebaseapp.com",
   projectId: "el-futbolistas",
-  storageBucket: "el-futbolistas.appspot.com",
+  storageBucket: "el-futbolistas.appspot.com"
 };
 
-const ADMIN_EMAIL = "allaw.68@gmail.com"; // <-- غيّره لإيميلك
+// ✅ حط هنا نفس ايميل الأدمن اللي أنشأته في Firebase Authentication > Users
+const ADMIN_EMAIL = "admin@ftbll.live";
 
 /* ========= INIT ========= */
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
+
+// ✅ ثبت الجلسة عشان ما يرجع زائر بعد تسجيل الدخول
+setPersistence(auth, browserLocalPersistence).catch(console.warn);
 
 /* ========= COLLECTIONS ========= */
 const playersRef = collection(db, "players");
@@ -47,61 +51,76 @@ let players = [];
 let logs = [];
 let isAdmin = false;
 
-/* ========= DOM HELPERS ========= */
+/* ========= DOM ========= */
 const $ = (id) => document.getElementById(id);
-
 const screens = Array.from(document.querySelectorAll(".screen"));
 const navBtns = Array.from(document.querySelectorAll(".navbtn"));
 const adminEls = Array.from(document.querySelectorAll("[data-admin='1']"));
 
-/* ========= BOOT ========= */
-document.addEventListener("DOMContentLoaded", async () => {
-  // Default date
+/* ========= START ========= */
+document.addEventListener("DOMContentLoaded", () => {
+  // default date
   if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
-  // Navigation
+  // navigation
   setupNavigation();
 
-  // Admin button
+  // admin button
   $("btnAdminLogin")?.addEventListener("click", async () => {
-    if (isAdmin) {
-      await signOut(auth);
-      return;
+    try {
+      if (auth.currentUser) {
+        await signOut(auth);
+        return;
+      }
+
+      const email = prompt("Admin Email:");
+      if (!email) return;
+
+      const password = prompt("Admin Password:");
+      if (!password) return;
+
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    } catch (e) {
+      alert("Login failed: " + (e?.message || e));
+      console.error(e);
     }
-    await signInWithRedirect(auth, provider);
   });
 
-  // Handle redirect result (important on Safari/iOS)
-  try { await getRedirectResult(auth); } catch {}
+  // actions
+  wireActions();
 
-  // Auth state
+  // auth state
   onAuthStateChanged(auth, (user) => {
-    isAdmin = !!user && (user.email === ADMIN_EMAIL);
+    const email = (user?.email || "").trim().toLowerCase();
+    isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
 
-    // UI toggle
-    document.body.classList.toggle("is-admin", isAdmin);
+    // ✅ طبق واجهة الأدمن
+    applyAdminUI(isAdmin);
 
-    // Show/Hide admin-only elements
-    adminEls.forEach(el => el.style.display = isAdmin ? "" : "none");
-
-    // Button label
-    const btn = $("btnAdminLogin");
-    if (btn) btn.textContent = isAdmin ? "Logout" : "Admin Login";
-
-    // If visitor is on an admin screen, bounce to dashboard
+    // حماية: لو زائر فتح صفحة أدمن رجعه داشبورد
     const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
     if (openAdminScreen && !isAdmin) {
       showScreen("dashboard");
       setActiveNav("dashboard");
     }
+
+    // Debug (يساعدك لو صار شيء)
+    console.log("AUTH:", user ? { email: user.email } : null, "isAdmin:", isAdmin);
   });
 
-  // Wire actions (admin-only will be blocked by rules anyway)
-  wireActions();
-
-  // Listen to Firestore (public read)
+  // firestore listeners (public read)
   listenFirestore();
 });
+
+/* ========= ADMIN UI ========= */
+function applyAdminUI(admin) {
+  // show/hide admin-only buttons and sections
+  adminEls.forEach(el => el.style.display = admin ? "" : "none");
+
+  // button text
+  const btn = $("btnAdminLogin");
+  if (btn) btn.textContent = admin ? "Logout" : "Admin Login";
+}
 
 /* ========= NAV ========= */
 function setupNavigation() {
@@ -140,11 +159,13 @@ function wireActions() {
 
   $("btnAddLog")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
+
     const playerId = $("logPlayer")?.value;
     if (!playerId) return alert("Pick a player");
+
     const goals = clampInt($("logGoals")?.value, 0, 99);
     const win = ($("logWin")?.value === "win");
-    const date = $("logDate")?.value || new Date().toISOString().slice(0,10);
+    const date = $("logDate")?.value || new Date().toISOString().slice(0, 10);
 
     await addDoc(logsRef, { playerId, goals, win, date, createdAt: Date.now() });
   });
@@ -274,6 +295,7 @@ function renderLeaderboard(stats) {
   const sortBy = $("lbSort")?.value || "winPct";
   const rows = buildRows(stats).sort(makeSorter(sortBy));
   if (!$("leaderboardList")) return;
+
   $("leaderboardList").innerHTML = rows.length
     ? rows.map((r,i)=>`
       <div class="item">
