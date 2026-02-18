@@ -189,8 +189,6 @@ function computeAllStats(){
 }
 
 function renderAll(){
-  $("kpiPlayers") && ($("kpiPlayers").textContent = String(players.length));
-  $("kpiLogs") && ($("kpiLogs").textContent = String(logs.length));
 
   // dropdown (admin entry)
   const sel = $("logPlayer");
