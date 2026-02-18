@@ -337,3 +337,14 @@ body:not(.is-admin) [data-admin="1"]{ display:none !important; }
   .iconnav .navbtn .ico{ font-size: 17px; }
   .iconnav .navbtn .txt{ font-size: 11px; }
 }
+
+/* Name-only player card */
+.pCardNameOnly{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height: 64px;
+}
+.pCardNameOnly .pName{
+  text-align:center;
+}
