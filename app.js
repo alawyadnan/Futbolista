@@ -23,6 +23,8 @@ let players = [];
 let logs = [];
 let isAdmin = false;
 
+let currentProfileId = null;
+
 const $ = (id) => document.getElementById(id);
 
 window.__adminLogin = async () => {
@@ -38,12 +40,12 @@ window.__adminLogin = async () => {
     console.error(e);
   }
 };
-
 window.__exportNow = () => { if (isAdmin) exportJSON(); };
 
 document.addEventListener("DOMContentLoaded", () => {
   if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
+  // NAV
   document.querySelectorAll(".navbtn").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -54,6 +56,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Player card click (event delegation)
+  $("playerCards")?.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-player-id]");
+    if (!card) return;
+    const pid = card.getAttribute("data-player-id");
+    openProfile(pid);
+  });
+
+  $("btnProfileBack")?.addEventListener("click", () => {
+    currentProfileId = null;
+    showScreen("playerstats");
+    setActiveNav("playerstats");
+  });
+
+  // Admin actions
   $("btnAddPlayer")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
     const name = ($("playerName")?.value || "").trim();
@@ -85,6 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await resetAllData();
   });
 
+  // AUTH
   onAuthStateChanged(auth, (user) => {
     const email = (user?.email || "").trim().toLowerCase();
     isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
@@ -101,6 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Firestore live
   onSnapshot(query(playersRef, orderBy("createdAt", "asc")), snap => {
     players = [];
     snap.forEach(d => players.push({ id: d.id, ...d.data() }));
@@ -165,6 +184,7 @@ function renderAll(){
   $("kpiPlayers") && ($("kpiPlayers").textContent = String(players.length));
   $("kpiLogs") && ($("kpiLogs").textContent = String(logs.length));
 
+  // dropdown
   const sel = $("logPlayer");
   if (sel){
     const cur = sel.value;
@@ -179,10 +199,165 @@ function renderAll(){
   renderTable(stats);
   renderPlayers(stats);
   renderLogs();
-  renderMatchHistory(); // ✅
+  renderMatchHistory();
+
+  renderPlayerStats(stats);
+  if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
 }
 
-/* ✅ Match History (clean layout, two columns, line-by-line) */
+/* =======================
+   ✅ Player Stats (cards)
+======================= */
+function renderPlayerStats(stats){
+  const box = $("playerCards");
+  if (!box) return;
+
+  if (!players.length){
+    box.classList.add("note");
+    box.textContent = "No players yet.";
+    return;
+  }
+  box.classList.remove("note");
+
+  const rows = players.map(p => {
+    const s = stats[p.id] || blankStats();
+    return { id:p.id, name:p.name||"", ...s };
+  }).sort((a,b)=> (b.winPct-a.winPct) || (b.goals-a.goals) || a.name.localeCompare(b.name));
+
+  box.innerHTML = rows.map(r => `
+    <div class="pCard" data-player-id="${r.id}">
+      <div class="pName">${esc(r.name)}</div>
+      <div class="pSub">${r.wins}/${r.matches} wins · Win% ${fmtPct(r.winPct)} · G/Match ${fmt2(r.gpm)}</div>
+      <div class="pBadges">
+        <span class="badge">⚽ ${r.goals}</span>
+        <span class="badge">🏆 ${r.wins}</span>
+        <span class="badge">🔥 ${r.current}</span>
+      </div>
+    </div>
+  `).join("");
+}
+
+function openProfile(pid){
+  currentProfileId = pid;
+  showScreen("playerprofile");
+  // نخلي التاب الفعال Players عشان ما تتوه
+  setActiveNav("playerstats");
+  const stats = computeAllStats();
+  renderPlayerProfile(stats, pid);
+}
+
+/* =======================
+   ✅ Player Profile + Most Teammates
+======================= */
+function renderPlayerProfile(stats, pid){
+  const p = players.find(x=>x.id===pid);
+  if (!p) return;
+
+  const s = stats[pid] || blankStats();
+  $("profileName") && ($("profileName").textContent = p.name || "Player");
+  $("profileSub") && ($("profileSub").textContent = `${s.wins}/${s.matches} wins · Win% ${fmtPct(s.winPct)} · Goals ${s.goals}`);
+
+  const grid = $("profileStatsGrid");
+  if (grid){
+    grid.innerHTML = [
+      tile("Matches", s.matches),
+      tile("Goals", s.goals),
+      tile("Wins", s.wins),
+      tile("Win %", fmtPct(s.winPct)),
+      tile("Goals / Match", fmt2(s.gpm)),
+      tile("Current Win Streak", s.current),
+      tile("Best Win Streak", s.best),
+    ].join("");
+  }
+
+  // teammates
+  const counts = computeTeammates(pid);
+  const matesBox = $("profileMates");
+  const neverBox = $("profileNever");
+
+  const sorted = Object.entries(counts).sort((a,b)=> b[1]-a[1] || (nameOf(a[0]).localeCompare(nameOf(b[0]))));
+  const playedIds = new Set(sorted.map(([id])=>id));
+
+  const never = players
+    .filter(x => x.id !== pid && !playedIds.has(x.id))
+    .map(x => x.name || "Unknown")
+    .sort((a,b)=>a.localeCompare(b));
+
+  if (matesBox){
+    if (!sorted.length){
+      matesBox.classList.add("note");
+      matesBox.textContent = "No teammate data yet.";
+    } else {
+      matesBox.classList.remove("note");
+      matesBox.innerHTML = sorted.map(([id,c])=>`
+        <div class="mateRow">
+          <div class="playerName">${esc(nameOf(id))}</div>
+          <div class="playerGoals">${c}</div>
+        </div>
+      `).join("");
+    }
+  }
+
+  if (neverBox){
+    if (!never.length){
+      neverBox.classList.add("note");
+      neverBox.textContent = "—";
+    } else {
+      neverBox.classList.remove("note");
+      neverBox.textContent = never.join(" - ");
+    }
+  }
+
+  function nameOf(id){
+    return (players.find(x=>x.id===id)?.name) || "Unknown";
+  }
+}
+
+function tile(label, value){
+  return `<div class="statTile"><div class="stLabel">${esc(label)}</div><div class="stValue">${esc(value)}</div></div>`;
+}
+
+/* Teammates logic:
+   - group logs by date
+   - define winners set (win:true), losers set (win:false)
+   - if player in winners: count others in winners
+   - if player in losers:  count others in losers
+*/
+function computeTeammates(pid){
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "");
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  const counts = {}; // teammateId -> times
+
+  Object.keys(byDate).forEach(date => {
+    const arr = byDate[date];
+
+    const winners = new Set(arr.filter(x=>!!x.win).map(x=>x.playerId));
+    const losers  = new Set(arr.filter(x=>!x.win).map(x=>x.playerId));
+
+    if (winners.has(pid)){
+      winners.forEach(id => {
+        if (id === pid) return;
+        counts[id] = (counts[id]||0) + 1;
+      });
+    } else if (losers.has(pid)){
+      losers.forEach(id => {
+        if (id === pid) return;
+        counts[id] = (counts[id]||0) + 1;
+      });
+    }
+  });
+
+  return counts;
+}
+
+/* =======================
+   ✅ Match History (two columns)
+======================= */
 function renderMatchHistory(){
   const box = $("matchHistoryList");
   if (!box) return;
@@ -257,19 +432,16 @@ function sideLines(entries, idToName){
   const others  = arr.filter(x=>x.goals<=0).sort((a,b)=> a.name.localeCompare(b.name));
 
   const lines = [];
-
   scorers.forEach(x => {
     lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals">(${x.goals})</div></div>`);
   });
-
   others.forEach(x => {
     lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals"></div></div>`);
   });
-
   return lines;
 }
 
-/* ===== Existing renders ===== */
+/* ===== Existing renders (unchanged logic) ===== */
 function renderDashboard(stats){
   const rows = players.map(p=>({p,s:stats[p.id]||blankStats()}));
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
