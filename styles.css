@@ -1,5 +1,6 @@
 :root{
-  --bg0:#070b14; --bg1:#0b1220; --card:#141c2d; --card2:#101829;
+  --bg0:#070b14; --bg1:#0b1220;
+  --card:#141c2d; --card2:#101829;
   --stroke:rgba(255,255,255,.10);
   --text:#eaf0ff; --muted:rgba(234,240,255,.65);
   --shadow:0 14px 38px rgba(0,0,0,.42);
@@ -11,7 +12,10 @@ body{
   margin:0;
   font-family: ui-sans-serif,-apple-system,system-ui,Segoe UI,Roboto,Arial;
   color:var(--text);
-  background: linear-gradient(180deg,var(--bg0),var(--bg1));
+  background:
+    radial-gradient(900px 500px at 12% -10%, rgba(46,204,113,.18), transparent 60%),
+    radial-gradient(900px 500px at 92% -10%, rgba(52,152,219,.18), transparent 60%),
+    linear-gradient(180deg,var(--bg0),var(--bg1));
 }
 a,button{-webkit-tap-highlight-color:transparent}
 .note{color:var(--muted)}
@@ -30,6 +34,7 @@ a,button{-webkit-tap-highlight-color:transparent}
   background: linear-gradient(180deg,#0c1324,#0a1120);
   border-bottom:1px solid rgba(255,255,255,.08);
   box-shadow:0 10px 30px rgba(0,0,0,.35);
+  backdrop-filter: blur(10px);
 }
 .brand{display:flex; align-items:center; gap:12px}
 .appicon{
@@ -48,9 +53,17 @@ a,button{-webkit-tap-highlight-color:transparent}
   padding:14px;
   box-shadow:var(--shadow);
   margin-bottom:14px;
+  position:relative;
+  overflow:hidden;
+}
+.card::before{
+  content:"";
+  position:absolute; inset:-2px;
+  background: radial-gradient(400px 140px at 20% 0%, rgba(46,204,113,.12), transparent 60%);
+  pointer-events:none;
 }
 .card-h{display:flex; justify-content:space-between; gap:12px; align-items:flex-end}
-.card-title{font-weight:900; font-size:18px}
+.card-title{font-weight:950; font-size:18px; letter-spacing:.2px}
 .subnote{margin-top:8px; font-size:12px; color:var(--muted)}
 
 .input,.select,textarea.input{
@@ -67,11 +80,12 @@ a,button{-webkit-tap-highlight-color:transparent}
   border:1px solid rgba(255,255,255,.14);
   background: rgba(255,255,255,.08);
   color:var(--text);
-  font-weight:900;
+  font-weight:950;
   cursor:pointer;
 }
 .btn.full{width:100%}
 .btn.ghost{background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.10)}
+.backbtn{padding:10px 12px}
 .danger{border-color:rgba(231,76,60,.30)}
 .dangerBtn{background:rgba(231,76,60,.14); border-color:rgba(231,76,60,.32)}
 
@@ -82,7 +96,7 @@ a,button{-webkit-tap-highlight-color:transparent}
   background: rgba(255,255,255,.05);
   border:1px solid rgba(255,255,255,.08);
 }
-.name{font-weight:900}
+.name{font-weight:950}
 .meta{font-size:12px; color:var(--muted); margin-top:6px}
 
 .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
@@ -93,7 +107,7 @@ a,button{-webkit-tap-highlight-color:transparent}
   padding:14px;
 }
 .mini-label{font-size:12px; color:var(--muted)}
-.mini-value{font-size:28px; font-weight:900; margin-top:6px}
+.mini-value{font-size:28px; font-weight:950; margin-top:6px}
 
 .gridForm{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 @media (max-width:700px){
@@ -137,18 +151,18 @@ a,button{-webkit-tap-highlight-color:transparent}
   color: rgba(234,240,255,.70);
   padding:10px 8px;
   border-radius:16px;
-  font-weight:900;
+  font-weight:950;
   cursor:pointer;
 }
 .navbtn.active{color:var(--text); background:rgba(46,204,113,.16); border-color:rgba(46,204,113,.26)}
 body:not(.is-admin) [data-admin="1"]{ display:none !important; }
 
-/* ✅ Match History card layout */
+/* Match History layout */
 .matchCard{ width:100%; }
 .matchTop{
   display:flex; justify-content:space-between; align-items:center; gap:12px;
 }
-.matchDate{ font-weight:900; }
+.matchDate{ font-weight:950; }
 .matchScore{
   font-weight:1000;
   font-size:22px;
@@ -169,7 +183,7 @@ body:not(.is-admin) [data-admin="1"]{ display:none !important; }
 .teamTitle{
   font-size:12px;
   color:var(--muted);
-  font-weight:900;
+  font-weight:950;
   margin-bottom:8px;
 }
 .teamLine{
@@ -180,9 +194,72 @@ body:not(.is-admin) [data-admin="1"]{ display:none !important; }
   border-bottom:1px solid rgba(255,255,255,.06);
 }
 .teamLine:last-child{border-bottom:none}
-.playerName{font-weight:800}
-.playerGoals{color:var(--muted); font-weight:900}
+.playerName{font-weight:900}
+.playerGoals{color:var(--muted); font-weight:950}
 @media (max-width:700px){
   .matchGrid{grid-template-columns:1fr}
   .matchScore{font-size:20px}
 }
+
+/* ✅ Player cards */
+.playerCards{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:12px;
+}
+@media (max-width:900px){ .playerCards{grid-template-columns:repeat(2,1fr)} }
+@media (max-width:600px){ .playerCards{grid-template-columns:1fr} }
+
+.pCard{
+  background: rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;
+  padding:14px;
+  cursor:pointer;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+.pCard:hover{
+  transform: translateY(-2px);
+  border-color: rgba(46,204,113,.24);
+  background: rgba(255,255,255,.06);
+}
+.pName{font-weight:1000; font-size:16px}
+.pSub{font-size:12px; color:var(--muted); margin-top:6px}
+.pBadges{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+.badge{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:7px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  font-weight:950;
+  font-size:12px;
+  color: rgba(234,240,255,.88);
+}
+
+/* ✅ Profile */
+.profileTop{display:flex; gap:12px; align-items:flex-start}
+.profileName{font-size:22px; font-weight:1000; letter-spacing:.2px}
+.statGrid{
+  display:grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap:12px;
+  margin-top:14px;
+}
+@media (max-width:700px){ .statGrid{grid-template-columns:1fr} }
+.statTile{
+  background: rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;
+  padding:14px;
+}
+.stLabel{font-size:12px; color:var(--muted); font-weight:900}
+.stValue{font-size:26px; font-weight:1000; margin-top:6px}
+
+.matesList .mateRow{
+  display:flex; justify-content:space-between; gap:10px;
+  padding:10px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.matesList .mateRow:last-child{border-bottom:none}
+.neverList{color:rgba(234,240,255,.78); line-height:1.7}
