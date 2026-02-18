@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=100001" />
+  <link rel="stylesheet" href="./styles.css?v=130001" />
 </head>
 <body>
 
@@ -119,6 +119,15 @@
     </div>
   </section>
 
+  <!-- ✅ MATCH HISTORY (PUBLIC, AUTO FROM LOGS) -->
+  <section id="screen-history" class="screen hidden">
+    <div class="card">
+      <div class="card-title">Match History</div>
+      <div class="subnote">Auto-generated from match entries (date + goals + win/loss).</div>
+      <div id="matchHistoryList" class="list note">No matches yet.</div>
+    </div>
+  </section>
+
   <!-- PLAYERS (ADMIN) -->
   <section id="screen-players" class="screen hidden" data-admin="1">
     <div class="card">
@@ -192,12 +201,15 @@
     <button type="button" class="navbtn" data-nav="leaderboard">Leaderboard</button>
     <button type="button" class="navbtn" data-nav="table">Table</button>
 
+    <!-- ✅ NEW PUBLIC TAB -->
+    <button type="button" class="navbtn" data-nav="history">Match History</button>
+
     <button type="button" class="navbtn" data-nav="players" data-admin="1">Players</button>
     <button type="button" class="navbtn" data-nav="matches" data-admin="1">Matches</button>
     <button type="button" class="navbtn" data-nav="settings" data-admin="1">Settings</button>
   </div>
 </nav>
 
-<script type="module" src="./app.js?v=100001"></script>
+<script type="module" src="./app.js?v=130001"></script>
 </body>
 </html>
