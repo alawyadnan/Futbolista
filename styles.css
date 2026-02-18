@@ -20,8 +20,6 @@ a,button{-webkit-tap-highlight-color:transparent}
   padding:14px 14px calc(var(--navH) + 44px + env(safe-area-inset-bottom));
   max-width:980px; margin:0 auto;
 }
-
-/* ✅ هذا هو المهم: يخلي كل Tab يظهر صفحة وحدة فقط */
 .screen{ display:block; }
 .screen.hidden{ display:none !important; }
 
@@ -40,7 +38,6 @@ a,button{-webkit-tap-highlight-color:transparent}
   background: rgba(255,255,255,.08);
   border:1px solid rgba(255,255,255,.10);
 }
-
 .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
 .label{font-size:12px; color:var(--muted)}
 
@@ -56,7 +53,7 @@ a,button{-webkit-tap-highlight-color:transparent}
 .card-title{font-weight:900; font-size:18px}
 .subnote{margin-top:8px; font-size:12px; color:var(--muted)}
 
-.input,.select{
+.input,.select,textarea.input{
   width:100%;
   padding:12px;
   border-radius:14px;
@@ -80,13 +77,13 @@ a,button{-webkit-tap-highlight-color:transparent}
 
 .list{display:flex; flex-direction:column; gap:10px}
 .item{
-  display:flex; justify-content:space-between; gap:12px; align-items:center;
+  display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
   padding:12px; border-radius:16px;
   background: rgba(255,255,255,.05);
   border:1px solid rgba(255,255,255,.08);
 }
 .name{font-weight:900}
-.meta{font-size:12px; color:var(--muted); margin-top:4px}
+.meta{font-size:12px; color:var(--muted); margin-top:6px}
 
 .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
 .mini{
@@ -144,6 +141,48 @@ a,button{-webkit-tap-highlight-color:transparent}
   cursor:pointer;
 }
 .navbtn.active{color:var(--text); background:rgba(46,204,113,.16); border-color:rgba(46,204,113,.26)}
-
-/* ✅ اخفاء تبويبات الادمن للزوار */
 body:not(.is-admin) [data-admin="1"]{ display:none !important; }
+
+/* ✅ Match History card layout */
+.matchCard{ width:100%; }
+.matchTop{
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+}
+.matchDate{ font-weight:900; }
+.matchScore{
+  font-weight:1000;
+  font-size:22px;
+  letter-spacing:.5px;
+}
+.matchGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
+  margin-top:10px;
+}
+.teamBox{
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;
+  padding:12px;
+}
+.teamTitle{
+  font-size:12px;
+  color:var(--muted);
+  font-weight:900;
+  margin-bottom:8px;
+}
+.teamLine{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  padding:7px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.teamLine:last-child{border-bottom:none}
+.playerName{font-weight:800}
+.playerGoals{color:var(--muted); font-weight:900}
+@media (max-width:700px){
+  .matchGrid{grid-template-columns:1fr}
+  .matchScore{font-size:20px}
+}
