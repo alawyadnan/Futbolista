@@ -263,3 +263,77 @@ body:not(.is-admin) [data-admin="1"]{ display:none !important; }
 }
 .matesList .mateRow:last-child{border-bottom:none}
 .neverList{color:rgba(234,240,255,.78); line-height:1.7}
+
+/* ===== Mobile Bottom Nav: Scroll like FotMob ===== */
+.bottomnav-inner{
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  gap: 10px;
+  padding: 10px;
+  justify-content: flex-start; /* بدل توزيع flex:1 */
+}
+
+/* نخفي شريط السكرول */
+.bottomnav-inner::-webkit-scrollbar{ display:none; }
+.bottomnav-inner{ scrollbar-width:none; }
+
+/* نخلي الأزرار ما تتمدد */
+.navbtn{
+  flex: 0 0 auto;
+  min-width: 112px; /* عرض مناسب */
+  scroll-snap-align: center;
+  white-space: nowrap;
+}
+
+/* للجوال: تصغير شوي */
+@media (max-width: 480px){
+  .bottomnav-inner{
+    gap: 8px;
+    padding: 10px 10px;
+  }
+  .navbtn{
+    min-width: 92px;
+    padding: 10px 10px;
+    font-size: 12px;
+  }
+}
+
+/* تحسين: إذا عندك safe-area */
+.bottomnav{
+  padding: 0 10px;
+}
+
+/* ===== Icon + Text tabs (FotMob-ish) ===== */
+.iconnav .navbtn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  min-width: 132px;   /* يخليها مريحة */
+  padding: 10px 12px;
+}
+
+.iconnav .navbtn .ico{
+  font-size: 18px;
+  line-height: 1;
+  opacity: .95;
+}
+
+.iconnav .navbtn .txt{
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .1px;
+}
+
+/* موبايل: أصغر + مظهر أنيق */
+@media (max-width: 480px){
+  .iconnav .navbtn{
+    min-width: 110px;
+    padding: 10px 10px;
+    gap:8px;
+  }
+  .iconnav .navbtn .ico{ font-size: 17px; }
+  .iconnav .navbtn .txt{ font-size: 11px; }
+}
