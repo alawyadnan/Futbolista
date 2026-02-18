@@ -44,7 +44,6 @@ window.__exportNow = () => { if (isAdmin) exportJSON(); };
 document.addEventListener("DOMContentLoaded", () => {
   if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
-  // NAV
   document.querySelectorAll(".navbtn").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -55,7 +54,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Admin actions
   $("btnAddPlayer")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
     const name = ($("playerName")?.value || "").trim();
@@ -87,7 +85,6 @@ document.addEventListener("DOMContentLoaded", () => {
     await resetAllData();
   });
 
-  // AUTH
   onAuthStateChanged(auth, (user) => {
     const email = (user?.email || "").trim().toLowerCase();
     isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
@@ -104,7 +101,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Firestore live
   onSnapshot(query(playersRef, orderBy("createdAt", "asc")), snap => {
     players = [];
     snap.forEach(d => players.push({ id: d.id, ...d.data() }));
@@ -117,7 +113,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAll();
   });
 
-  // Start
   showScreen("dashboard");
   setActiveNav("dashboard");
 });
@@ -170,7 +165,6 @@ function renderAll(){
   $("kpiPlayers") && ($("kpiPlayers").textContent = String(players.length));
   $("kpiLogs") && ($("kpiLogs").textContent = String(logs.length));
 
-  // dropdown
   const sel = $("logPlayer");
   if (sel){
     const cur = sel.value;
@@ -185,17 +179,10 @@ function renderAll(){
   renderTable(stats);
   renderPlayers(stats);
   renderLogs();
-  renderMatchHistory(); // ✅ new
+  renderMatchHistory(); // ✅
 }
 
-/* ✅ Match History auto from logs:
-   - group by date
-   - winners = win:true, losers = win:false
-   - score = sum goals winners : sum goals losers
-   - show each side list:
-     scorers first (desc goals) => Name (g)
-     then 0-goals => Name only (no (0))
-*/
+/* ✅ Match History (clean layout, two columns, line-by-line) */
 function renderMatchHistory(){
   const box = $("matchHistoryList");
   if (!box) return;
@@ -224,22 +211,43 @@ function renderMatchHistory(){
     const scoreW = winners.reduce((s,x)=> s + Number(x.goals||0), 0);
     const scoreL = losers.reduce((s,x)=> s + Number(x.goals||0), 0);
 
-    const wList = formatSideList(winners, idToName);
-    const lList = formatSideList(losers, idToName);
+    const winnerIsLeft = scoreW >= scoreL;
+
+    const leftTitle  = winnerIsLeft ? "Winners" : "Losers";
+    const rightTitle = winnerIsLeft ? "Losers"  : "Winners";
+
+    const leftEntries  = winnerIsLeft ? winners : losers;
+    const rightEntries = winnerIsLeft ? losers  : winners;
+
+    const leftLines  = sideLines(leftEntries, idToName);
+    const rightLines = sideLines(rightEntries, idToName);
 
     return `
       <div class="item">
-        <div style="width:100%">
-          <div class="name">${esc(date)} — <b>${scoreW}</b> : <b>${scoreL}</b></div>
-          <div class="meta"><b>Winners:</b> ${wList || "—"}</div>
-          <div class="meta"><b>Losers:</b> ${lList || "—"}</div>
+        <div class="matchCard">
+          <div class="matchTop">
+            <div class="matchDate">${esc(date)}</div>
+            <div class="matchScore">${scoreW} : ${scoreL}</div>
+          </div>
+
+          <div class="matchGrid">
+            <div class="teamBox">
+              <div class="teamTitle">${leftTitle}</div>
+              ${leftLines.length ? leftLines.join("") : `<div class="meta">—</div>`}
+            </div>
+
+            <div class="teamBox">
+              <div class="teamTitle">${rightTitle}</div>
+              ${rightLines.length ? rightLines.join("") : `<div class="meta">—</div>`}
+            </div>
+          </div>
         </div>
       </div>
     `;
   }).join("");
 }
 
-function formatSideList(entries, idToName){
+function sideLines(entries, idToName){
   const arr = entries.map(e => ({
     name: idToName[e.playerId] || "Unknown",
     goals: Number(e.goals||0)
@@ -248,14 +256,20 @@ function formatSideList(entries, idToName){
   const scorers = arr.filter(x=>x.goals>0).sort((a,b)=> b.goals-a.goals || a.name.localeCompare(b.name));
   const others  = arr.filter(x=>x.goals<=0).sort((a,b)=> a.name.localeCompare(b.name));
 
-  const parts = [];
-  scorers.forEach(x => parts.push(`${esc(x.name)} (${x.goals})`));
-  others.forEach(x => parts.push(`${esc(x.name)}`)); // ✅ بدون (0)
+  const lines = [];
 
-  return parts.join(", ");
+  scorers.forEach(x => {
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals">(${x.goals})</div></div>`);
+  });
+
+  others.forEach(x => {
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals"></div></div>`);
+  });
+
+  return lines;
 }
 
-/* ===== Existing UI renders ===== */
+/* ===== Existing renders ===== */
 function renderDashboard(stats){
   const rows = players.map(p=>({p,s:stats[p.id]||blankStats()}));
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
