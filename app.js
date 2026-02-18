@@ -42,10 +42,9 @@ window.__adminLogin = async () => {
 window.__exportNow = () => { if (isAdmin) exportJSON(); };
 
 document.addEventListener("DOMContentLoaded", () => {
-  // default date
   if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
-  // NAV: show ONE screen only
+  // NAV
   document.querySelectorAll(".navbtn").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -88,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
     await resetAllData();
   });
 
-  // AUTH state
+  // AUTH
   onAuthStateChanged(auth, (user) => {
     const email = (user?.email || "").trim().toLowerCase();
     isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
@@ -98,7 +97,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const btn = $("btnAdminLogin");
     if (btn) btn.textContent = isAdmin ? "Logout" : "Admin Login";
 
-    // إذا كان زائر وفتح صفحة أدمن، رجعه داشبورد
     const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
     if (openAdminScreen && !isAdmin) {
       showScreen("dashboard");
@@ -119,7 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAll();
   });
 
-  // Start at dashboard
+  // Start
   showScreen("dashboard");
   setActiveNav("dashboard");
 });
@@ -187,8 +185,77 @@ function renderAll(){
   renderTable(stats);
   renderPlayers(stats);
   renderLogs();
+  renderMatchHistory(); // ✅ new
 }
 
+/* ✅ Match History auto from logs:
+   - group by date
+   - winners = win:true, losers = win:false
+   - score = sum goals winners : sum goals losers
+   - show each side list:
+     scorers first (desc goals) => Name (g)
+     then 0-goals => Name only (no (0))
+*/
+function renderMatchHistory(){
+  const box = $("matchHistoryList");
+  if (!box) return;
+
+  const idToName = {};
+  players.forEach(p => idToName[p.id] = p.name || "Unknown");
+
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "");
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  const dates = Object.keys(byDate).sort((a,b)=> b.localeCompare(a));
+  if (!dates.length){
+    box.innerHTML = `<div class="note">No matches yet.</div>`;
+    return;
+  }
+
+  box.innerHTML = dates.map(date => {
+    const arr = byDate[date];
+    const winners = arr.filter(x => !!x.win);
+    const losers  = arr.filter(x => !x.win);
+
+    const scoreW = winners.reduce((s,x)=> s + Number(x.goals||0), 0);
+    const scoreL = losers.reduce((s,x)=> s + Number(x.goals||0), 0);
+
+    const wList = formatSideList(winners, idToName);
+    const lList = formatSideList(losers, idToName);
+
+    return `
+      <div class="item">
+        <div style="width:100%">
+          <div class="name">${esc(date)} — <b>${scoreW}</b> : <b>${scoreL}</b></div>
+          <div class="meta"><b>Winners:</b> ${wList || "—"}</div>
+          <div class="meta"><b>Losers:</b> ${lList || "—"}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function formatSideList(entries, idToName){
+  const arr = entries.map(e => ({
+    name: idToName[e.playerId] || "Unknown",
+    goals: Number(e.goals||0)
+  }));
+
+  const scorers = arr.filter(x=>x.goals>0).sort((a,b)=> b.goals-a.goals || a.name.localeCompare(b.name));
+  const others  = arr.filter(x=>x.goals<=0).sort((a,b)=> a.name.localeCompare(b.name));
+
+  const parts = [];
+  scorers.forEach(x => parts.push(`${esc(x.name)} (${x.goals})`));
+  others.forEach(x => parts.push(`${esc(x.name)}`)); // ✅ بدون (0)
+
+  return parts.join(", ");
+}
+
+/* ===== Existing UI renders ===== */
 function renderDashboard(stats){
   const rows = players.map(p=>({p,s:stats[p.id]||blankStats()}));
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
