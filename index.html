@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=140001" />
+  <link rel="stylesheet" href="./styles.css?v=150001" />
 </head>
 <body>
 
@@ -119,6 +119,42 @@
     </div>
   </section>
 
+  <!-- ✅ PLAYER STATS (PUBLIC) -->
+  <section id="screen-playerstats" class="screen hidden">
+    <div class="card">
+      <div class="card-h">
+        <div class="card-title">Player Stats</div>
+        <div class="subnote">Tap a player to view profile.</div>
+      </div>
+      <div id="playerCards" class="playerCards note">No players yet.</div>
+    </div>
+  </section>
+
+  <!-- ✅ PLAYER PROFILE (PUBLIC) -->
+  <section id="screen-playerprofile" class="screen hidden">
+    <div class="card">
+      <div class="profileTop">
+        <button id="btnProfileBack" class="btn ghost backbtn" type="button">← Back</button>
+        <div>
+          <div id="profileName" class="profileName">Player</div>
+          <div id="profileSub" class="subnote">—</div>
+        </div>
+      </div>
+
+      <div id="profileStatsGrid" class="statGrid"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Most Teammates</div>
+      <div id="profileMates" class="matesList note">No data yet.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Never played with</div>
+      <div id="profileNever" class="neverList note">—</div>
+    </div>
+  </section>
+
   <!-- MATCH HISTORY (PUBLIC) -->
   <section id="screen-history" class="screen hidden">
     <div class="card">
@@ -199,14 +235,18 @@
     <button type="button" class="navbtn active" data-nav="dashboard">Dashboard</button>
     <button type="button" class="navbtn" data-nav="leaderboard">Leaderboard</button>
     <button type="button" class="navbtn" data-nav="table">Table</button>
-    <button type="button" class="navbtn" data-nav="history">Match History</button>
 
-    <button type="button" class="navbtn" data-nav="players" data-admin="1">Players</button>
-    <button type="button" class="navbtn" data-nav="matches" data-admin="1">Matches</button>
+    <!-- ✅ NEW PUBLIC TAB -->
+    <button type="button" class="navbtn" data-nav="playerstats">Players</button>
+    <button type="button" class="navbtn" data-nav="history">History</button>
+
+    <button type="button" class="navbtn" data-nav="players" data-admin="1">Admin</button>
+    <button type="button" class="navbtn" data-nav="matches" data-admin="1">Entry</button>
     <button type="button" class="navbtn" data-nav="settings" data-admin="1">Settings</button>
   </div>
 </nav>
 
-<script type="module" src="./app.js?v=140001"></script>
+<script type="module" src="./app.js?v=150001"></script>
 </body>
 </html>
+
