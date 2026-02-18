@@ -9,7 +9,7 @@ const firebaseConfig = {
   storageBucket: "el-futbolistas.appspot.com"
 };
 
-const ADMIN_EMAIL = "admin@ftbll.live"; // <-- غيّره
+const ADMIN_EMAIL = "admin@ftbll.live"; // <-- غيّره لإيميل الأدمن
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -22,7 +22,6 @@ const logsRef = collection(db, "logs");
 let players = [];
 let logs = [];
 let isAdmin = false;
-
 let currentProfileId = null;
 
 const $ = (id) => document.getElementById(id);
@@ -56,12 +55,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Player card click (event delegation)
+  // Player cards click (delegation)
   $("playerCards")?.addEventListener("click", (e) => {
     const card = e.target.closest("[data-player-id]");
     if (!card) return;
-    const pid = card.getAttribute("data-player-id");
-    openProfile(pid);
+    openProfile(card.getAttribute("data-player-id"));
   });
 
   $("btnProfileBack")?.addEventListener("click", () => {
@@ -70,7 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setActiveNav("playerstats");
   });
 
-  // Admin actions
+  // Admin: add player
   $("btnAddPlayer")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
     const name = ($("playerName")?.value || "").trim();
@@ -79,6 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("playerName").value = "";
   });
 
+  // Admin: add log
   $("btnAddLog")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
     const playerId = $("logPlayer")?.value;
@@ -132,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAll();
   });
 
+  // Start
   showScreen("dashboard");
   setActiveNav("dashboard");
 });
@@ -143,7 +143,15 @@ function showScreen(name) {
 
 function setActiveNav(name) {
   document.querySelectorAll(".navbtn").forEach(b => b.classList.remove("active"));
-  document.querySelector(`.navbtn[data-nav="${name}"]`)?.classList.add("active");
+  const el = document.querySelector(`.navbtn[data-nav="${name}"]`);
+  el?.classList.add("active");
+
+  // (optional nice UX) bring active tab to center if scrollable
+  const scroller = document.querySelector(".bottomnav-inner");
+  if (scroller && el && scroller.scrollWidth > scroller.clientWidth) {
+    const left = el.offsetLeft - (scroller.clientWidth / 2) + (el.clientWidth / 2);
+    scroller.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }
 }
 
 function blankStats(){ return { matches:0,wins:0,goals:0,winPct:0,gpm:0,current:0,best:0 }; }
@@ -184,7 +192,7 @@ function renderAll(){
   $("kpiPlayers") && ($("kpiPlayers").textContent = String(players.length));
   $("kpiLogs") && ($("kpiLogs").textContent = String(logs.length));
 
-  // dropdown
+  // dropdown (admin entry)
   const sel = $("logPlayer");
   if (sel){
     const cur = sel.value;
@@ -194,21 +202,25 @@ function renderAll(){
   }
 
   const stats = computeAllStats();
+
   renderDashboard(stats);
   renderLeaderboard(stats);
   renderTable(stats);
-  renderPlayers(stats);
+  renderPlayersAdmin(stats);
   renderLogs();
   renderMatchHistory();
 
-  renderPlayerStats(stats);
+  // ✅ Public players page
+  renderPlayerCardsNameOnly(stats);
+
+  // ✅ Profile (if open)
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
 }
 
 /* =======================
-   ✅ Player Stats (cards)
+   ✅ Players (Public) = Name-only cards, A-Z
 ======================= */
-function renderPlayerStats(stats){
+function renderPlayerCardsNameOnly(stats){
   const box = $("playerCards");
   if (!box) return;
 
@@ -217,22 +229,14 @@ function renderPlayerStats(stats){
     box.textContent = "No players yet.";
     return;
   }
+
   box.classList.remove("note");
 
-  const rows = players.map(p => {
-    const s = stats[p.id] || blankStats();
-    return { id:p.id, name:p.name||"", ...s };
-  }).sort((a,b)=> (b.winPct-a.winPct) || (b.goals-a.goals) || a.name.localeCompare(b.name));
+  const sorted = players.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
 
-  box.innerHTML = rows.map(r => `
-    <div class="pCard" data-player-id="${r.id}">
-      <div class="pName">${esc(r.name)}</div>
-      <div class="pSub">${r.wins}/${r.matches} wins · Win% ${fmtPct(r.winPct)} · G/Match ${fmt2(r.gpm)}</div>
-      <div class="pBadges">
-        <span class="badge">⚽ ${r.goals}</span>
-        <span class="badge">🏆 ${r.wins}</span>
-        <span class="badge">🔥 ${r.current}</span>
-      </div>
+  box.innerHTML = sorted.map(p => `
+    <div class="pCard pCardNameOnly" data-player-id="${p.id}">
+      <div class="pName">${esc(p.name||"")}</div>
     </div>
   `).join("");
 }
@@ -240,22 +244,23 @@ function renderPlayerStats(stats){
 function openProfile(pid){
   currentProfileId = pid;
   showScreen("playerprofile");
-  // نخلي التاب الفعال Players عشان ما تتوه
   setActiveNav("playerstats");
   const stats = computeAllStats();
   renderPlayerProfile(stats, pid);
 }
 
 /* =======================
-   ✅ Player Profile + Most Teammates
+   ✅ Player Profile (No long summary line)
 ======================= */
 function renderPlayerProfile(stats, pid){
   const p = players.find(x=>x.id===pid);
   if (!p) return;
 
   const s = stats[pid] || blankStats();
+
   $("profileName") && ($("profileName").textContent = p.name || "Player");
-  $("profileSub") && ($("profileSub").textContent = `${s.wins}/${s.matches} wins · Win% ${fmtPct(s.winPct)} · Goals ${s.goals}`);
+  // ✅ مافيه سطر طويل تحت الاسم
+  $("profileSub") && ($("profileSub").textContent = "");
 
   const grid = $("profileStatsGrid");
   if (grid){
@@ -275,7 +280,9 @@ function renderPlayerProfile(stats, pid){
   const matesBox = $("profileMates");
   const neverBox = $("profileNever");
 
-  const sorted = Object.entries(counts).sort((a,b)=> b[1]-a[1] || (nameOf(a[0]).localeCompare(nameOf(b[0]))));
+  const sorted = Object.entries(counts)
+    .sort((a,b)=> b[1]-a[1] || (nameOf(a[0]).localeCompare(nameOf(b[0]))));
+
   const playedIds = new Set(sorted.map(([id])=>id));
 
   const never = players
@@ -319,7 +326,7 @@ function tile(label, value){
 
 /* Teammates logic:
    - group logs by date
-   - define winners set (win:true), losers set (win:false)
+   - winners set (win:true) & losers set (win:false)
    - if player in winners: count others in winners
    - if player in losers:  count others in losers
 */
@@ -331,11 +338,9 @@ function computeTeammates(pid){
     (byDate[d] ||= []).push(l);
   });
 
-  const counts = {}; // teammateId -> times
-
+  const counts = {};
   Object.keys(byDate).forEach(date => {
     const arr = byDate[date];
-
     const winners = new Set(arr.filter(x=>!!x.win).map(x=>x.playerId));
     const losers  = new Set(arr.filter(x=>!x.win).map(x=>x.playerId));
 
@@ -356,7 +361,7 @@ function computeTeammates(pid){
 }
 
 /* =======================
-   ✅ Match History (two columns)
+   Match History (two columns)
 ======================= */
 function renderMatchHistory(){
   const box = $("matchHistoryList");
@@ -441,7 +446,9 @@ function sideLines(entries, idToName){
   return lines;
 }
 
-/* ===== Existing renders (unchanged logic) ===== */
+/* =======================
+   Other pages (existing)
+======================= */
 function renderDashboard(stats){
   const rows = players.map(p=>({p,s:stats[p.id]||blankStats()}));
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
@@ -488,7 +495,7 @@ function renderTable(stats){
     : `<tr><td colspan="9" class="noteCell">No players yet.</td></tr>`;
 }
 
-function renderPlayers(stats){
+function renderPlayersAdmin(stats){
   const box = $("playersList");
   if (!box) return;
   const html = players.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(p=>{
@@ -510,6 +517,7 @@ function renderLogs(){
   }).join("") || `<div class="note">No entries yet.</div>`;
 }
 
+/* backup/reset */
 function exportJSON(){
   const data={exportedAt:new Date().toISOString(),players,logs};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
@@ -527,6 +535,7 @@ async function resetAllData(){
   for(const d of playersSnap.docs) await deleteDoc(doc(db,"players",d.id));
 }
 
+/* helpers */
 function buildRows(stats){
   return players.map(p=>{
     const s=stats[p.id]||blankStats();
