@@ -551,42 +551,88 @@ function fmt2(x){ return (Number(x)||0).toFixed(2); }
 function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
 function dashItem(t,m){ return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`; }
 function esc(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+/* =========================================================
+   ✅ Admin Rename Tool (NO HTML CHANGES)
+   - Adds a floating button for admins only
+   - Lets you rename a player by typing old name -> new name
+   - Updates Firestore collection: players
+========================================================= */
 
-/* =====================================================
-   PLAYER RENAME TOOL (SAFE ADD-ON)
-   adds rename ability without touching existing code
-===================================================== */
+(function adminRenameTool(){
+  // Create floating button once
+  const btnId = "adminRenameBtnFloating";
+  if (document.getElementById(btnId)) return;
 
-document.addEventListener("click", async (e) => {
+  const btn = document.createElement("button");
+  btn.id = btnId;
+  btn.type = "button";
+  btn.textContent = "✏️ Rename Player";
+  btn.style.cssText = `
+    position: fixed;
+    right: 14px;
+    bottom: 92px;
+    z-index: 999999;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(20,20,25,.75);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    display: none;
+  `;
+  document.body.appendChild(btn);
 
-  const btn = e.target.closest("[data-player-name]");
-  if (!btn) return;
+  // Show button only if admin (we detect by body class)
+  setInterval(() => {
+    const admin = document.body.classList.contains("is-admin");
+    btn.style.display = admin ? "block" : "none";
+  }, 800);
 
-  if (!window.isAdmin) {
-    alert("Admin only");
-    return;
-  }
+  btn.addEventListener("click", async () => {
+    try {
+      // Ask inputs
+      const oldNameRaw = prompt("Old name (exact):", "Bssel");
+      if (!oldNameRaw) return;
+      const newNameRaw = prompt("New name:", "Basel");
+      if (!newNameRaw) return;
 
-  const id = btn.getAttribute("data-player-id");
-  const currentName = btn.getAttribute("data-player-name");
+      const oldName = oldNameRaw.trim();
+      const newName = newNameRaw.trim();
+      if (!oldName || !newName) return alert("Names cannot be empty.");
 
-  const next = prompt("Rename player:", currentName || "");
-  if (!next) return;
+      // Use existing db from your app.js (should already exist)
+      if (typeof db === "undefined") {
+        alert("DB not found. This tool needs the Firestore db variable in app.js.");
+        return;
+      }
 
-  const newName = next.trim();
-  if (!newName) return;
+      const {
+        collection, query, where, getDocs, doc, updateDoc
+      } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
 
-  try {
-    const { doc, updateDoc } =
-      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      // Find player(s) by exact name
+      const q = query(collection(db, "players"), where("name", "==", oldName));
+      const snap = await getDocs(q);
 
-    await updateDoc(doc(window.db, "players", id), {
-      name: newName
-    });
+      if (snap.empty) {
+        alert(`No player found with name: "${oldName}"\n\nTip: must match exactly (case/spaces).`);
+        return;
+      }
 
-    alert("✅ Name updated");
-  } catch (err) {
-    console.error(err);
-    alert("Rename failed");
-  }
-});
+      // If multiple, update first and warn
+      const first = snap.docs[0];
+      await updateDoc(doc(db, "players", first.id), { name: newName });
+
+      const extra = snap.docs.length > 1 ? `\n\nNote: Found ${snap.docs.length} players with same name; updated the first one.` : "";
+      alert(`✅ Renamed: "${oldName}" → "${newName}"${extra}`);
+
+    } catch (e) {
+      console.error(e);
+      alert("Rename failed. Check console for details.");
+    }
+  });
+})();
