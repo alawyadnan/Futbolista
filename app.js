@@ -551,3 +551,42 @@ function fmt2(x){ return (Number(x)||0).toFixed(2); }
 function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
 function dashItem(t,m){ return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`; }
 function esc(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+
+/* =====================================================
+   PLAYER RENAME TOOL (SAFE ADD-ON)
+   adds rename ability without touching existing code
+===================================================== */
+
+document.addEventListener("click", async (e) => {
+
+  const btn = e.target.closest("[data-player-name]");
+  if (!btn) return;
+
+  if (!window.isAdmin) {
+    alert("Admin only");
+    return;
+  }
+
+  const id = btn.getAttribute("data-player-id");
+  const currentName = btn.getAttribute("data-player-name");
+
+  const next = prompt("Rename player:", currentName || "");
+  if (!next) return;
+
+  const newName = next.trim();
+  if (!newName) return;
+
+  try {
+    const { doc, updateDoc } =
+      await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+
+    await updateDoc(doc(window.db, "players", id), {
+      name: newName
+    });
+
+    alert("✅ Name updated");
+  } catch (err) {
+    console.error(err);
+    alert("Rename failed");
+  }
+});
