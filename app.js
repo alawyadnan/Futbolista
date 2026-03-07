@@ -1,6 +1,24 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+import {
+  getAuth,
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  signInWithEmailAndPassword,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA6rH6OY8e-qr3-jaJX0irmOjoySiL8VAg",
@@ -9,7 +27,7 @@ const firebaseConfig = {
   storageBucket: "el-futbolistas.appspot.com"
 };
 
-const ADMIN_EMAIL = "admin@ftbll.live"; // <-- غيّره لإيميل الأدمن
+const ADMIN_EMAIL = "admin@ftbll.live"; // <-- غيّره
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -28,23 +46,31 @@ const $ = (id) => document.getElementById(id);
 
 window.__adminLogin = async () => {
   try {
-    if (auth.currentUser) { await signOut(auth); return; }
+    if (auth.currentUser) {
+      await signOut(auth);
+      return;
+    }
+
     const email = prompt("Admin Email:");
     if (!email) return;
+
     const password = prompt("Admin Password:");
     if (!password) return;
+
     await signInWithEmailAndPassword(auth, email.trim(), password);
   } catch (e) {
     alert("Login failed:\n" + (e?.message || e));
     console.error(e);
   }
 };
-window.__exportNow = () => { if (isAdmin) exportJSON(); };
+
+window.__exportNow = () => {
+  if (isAdmin) exportJSON();
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
-  // NAV
   document.querySelectorAll(".navbtn").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
@@ -55,7 +81,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Player cards click (delegation)
   $("playerCards")?.addEventListener("click", (e) => {
     const card = e.target.closest("[data-player-id]");
     if (!card) return;
@@ -68,7 +93,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setActiveNav("playerstats");
   });
 
-  // Admin: add player
   $("btnAddPlayer")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
     const name = ($("playerName")?.value || "").trim();
@@ -77,23 +101,37 @@ document.addEventListener("DOMContentLoaded", () => {
     $("playerName").value = "";
   });
 
-  // Admin: add log
   $("btnAddLog")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
+
     const playerId = $("logPlayer")?.value;
     if (!playerId) return alert("Pick a player");
 
     const goals = clampInt($("logGoals")?.value, 0, 99);
-    const win = ($("logWin")?.value === "win");
+    const result = $("logResult")?.value || "win";
+    const side = $("logSide")?.value || "A";
+    const goalType = $("logGoalType")?.value || "normal";
+    const ownGoal = goalType === "own";
     const date = $("logDate")?.value || new Date().toISOString().slice(0, 10);
 
-    await addDoc(logsRef, { playerId, goals, win, date, createdAt: Date.now() });
+    await addDoc(logsRef, {
+      playerId,
+      goals,
+      result,   // win / draw / loss
+      side,     // A / B
+      ownGoal,  // true / false
+      date,
+      createdAt: Date.now()
+    });
   });
 
   $("lbSort")?.addEventListener("change", renderAll);
   $("tableSort")?.addEventListener("change", renderAll);
 
-  $("btnExport")?.addEventListener("click", () => { if (isAdmin) exportJSON(); });
+  $("btnExport")?.addEventListener("click", () => {
+    if (isAdmin) exportJSON();
+  });
+
   $("btnReset")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
     const ok = confirm("Delete ALL data? This cannot be undone.");
@@ -101,7 +139,6 @@ document.addEventListener("DOMContentLoaded", () => {
     await resetAllData();
   });
 
-  // AUTH
   onAuthStateChanged(auth, (user) => {
     const email = (user?.email || "").trim().toLowerCase();
     isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
@@ -118,7 +155,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Firestore live
   onSnapshot(query(playersRef, orderBy("createdAt", "asc")), snap => {
     players = [];
     snap.forEach(d => players.push({ id: d.id, ...d.data() }));
@@ -131,7 +167,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAll();
   });
 
-  // Start
   showScreen("dashboard");
   setActiveNav("dashboard");
 });
@@ -146,7 +181,6 @@ function setActiveNav(name) {
   const el = document.querySelector(`.navbtn[data-nav="${name}"]`);
   el?.classList.add("active");
 
-  // (optional nice UX) bring active tab to center if scrollable
   const scroller = document.querySelector(".bottomnav-inner");
   if (scroller && el && scroller.scrollWidth > scroller.clientWidth) {
     const left = el.offsetLeft - (scroller.clientWidth / 2) + (el.clientWidth / 2);
@@ -154,9 +188,31 @@ function setActiveNav(name) {
   }
 }
 
-function blankStats(){ return { matches:0,wins:0,goals:0,winPct:0,gpm:0,current:0,best:0 }; }
+function normalizeResult(l) {
+  if (l?.result === "win" || l?.result === "draw" || l?.result === "loss") return l.result;
+  if (typeof l?.win === "boolean") return l.win ? "win" : "loss"; // old logs support
+  return "loss";
+}
 
-function computeAllStats(){
+function normalizeSide(l) {
+  if (l?.side === "A" || l?.side === "B") return l.side;
+
+  // old logs fallback:
+  const r = normalizeResult(l);
+  if (r === "win") return "A";
+  if (r === "loss") return "B";
+  return "A";
+}
+
+function isOwnGoal(l) {
+  return !!l?.ownGoal;
+}
+
+function blankStats() {
+  return { matches:0, wins:0, goals:0, winPct:0, gpm:0, current:0, best:0 };
+}
+
+function computeAllStats() {
   const byId = {};
   players.forEach(p => byId[p.id] = blankStats());
 
@@ -165,64 +221,82 @@ function computeAllStats(){
   logs.forEach(l => { if (grouped[l.playerId]) grouped[l.playerId].push(l); });
 
   players.forEach(p => {
-    const arr = (grouped[p.id]||[]).slice().sort((a,b)=>{
-      const da=String(a.date||""), db=String(b.date||"");
-      if (da<db) return -1; if (da>db) return 1;
-      return (a.createdAt||0)-(b.createdAt||0);
+    const arr = (grouped[p.id] || []).slice().sort((a,b) => {
+      const da = String(a.date || ""), db = String(b.date || "");
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return (a.createdAt || 0) - (b.createdAt || 0);
     });
+
     const matches = arr.length;
-    let wins=0, goals=0;
-    arr.forEach(l=>{ wins += l.win?1:0; goals += Number(l.goals||0); });
-    const winPct = matches? wins/matches : 0;
-    const gpm = matches? goals/matches : 0;
+    let wins = 0;
+    let goals = 0;
 
-    let best=0, run=0;
-    arr.forEach(l=>{ if(l.win){ run++; best=Math.max(best,run);} else run=0; });
+    arr.forEach(l => {
+      const result = normalizeResult(l);
+      if (result === "win") wins += 1;
 
-    let current=0;
-    for(let i=arr.length-1;i>=0;i--){ if(arr[i].win) current++; else break; }
+      // own goals DO NOT count as personal goals
+      if (!isOwnGoal(l)) goals += Number(l.goals || 0);
+    });
 
-    byId[p.id] = { matches,wins,goals,winPct,gpm,current,best };
+    const winPct = matches ? wins / matches : 0;
+    const gpm = matches ? goals / matches : 0;
+
+    let best = 0;
+    let run = 0;
+    arr.forEach(l => {
+      const result = normalizeResult(l);
+      if (result === "win") {
+        run++;
+        best = Math.max(best, run);
+      } else {
+        run = 0; // draw and loss both break streak
+      }
+    });
+
+    let current = 0;
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const result = normalizeResult(arr[i]);
+      if (result === "win") current++;
+      else break;
+    }
+
+    byId[p.id] = { matches, wins, goals, winPct, gpm, current, best };
   });
 
   return byId;
 }
 
-function renderAll(){
-
-  // dropdown (admin entry)
+function renderAll() {
   const sel = $("logPlayer");
-  if (sel){
+  if (sel) {
     const cur = sel.value;
-    sel.innerHTML = players.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""))
-      .map(p=>`<option value="${p.id}">${esc(p.name||"")}</option>`).join("");
-    if (cur && players.some(p=>p.id===cur)) sel.value = cur;
+    sel.innerHTML = players
+      .slice()
+      .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
+      .map(p => `<option value="${p.id}">${esc(p.name||"")}</option>`)
+      .join("");
+    if (cur && players.some(p => p.id === cur)) sel.value = cur;
   }
 
   const stats = computeAllStats();
-
   renderDashboard(stats);
   renderLeaderboard(stats);
   renderTable(stats);
   renderPlayersAdmin(stats);
   renderLogs();
   renderMatchHistory();
-
-  // ✅ Public players page
-  renderPlayerCardsNameOnly(stats);
-
-  // ✅ Profile (if open)
+  renderPlayerCardsNameOnly();
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
 }
 
-/* =======================
-   ✅ Players (Public) = Name-only cards, A-Z
-======================= */
-function renderPlayerCardsNameOnly(stats){
+/* PUBLIC Players */
+function renderPlayerCardsNameOnly() {
   const box = $("playerCards");
   if (!box) return;
 
-  if (!players.length){
+  if (!players.length) {
     box.classList.add("note");
     box.textContent = "No players yet.";
     return;
@@ -231,7 +305,6 @@ function renderPlayerCardsNameOnly(stats){
   box.classList.remove("note");
 
   const sorted = players.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
-
   box.innerHTML = sorted.map(p => `
     <div class="pCard pCardNameOnly" data-player-id="${p.id}">
       <div class="pName">${esc(p.name||"")}</div>
@@ -239,7 +312,7 @@ function renderPlayerCardsNameOnly(stats){
   `).join("");
 }
 
-function openProfile(pid){
+function openProfile(pid) {
   currentProfileId = pid;
   showScreen("playerprofile");
   setActiveNav("playerstats");
@@ -247,49 +320,43 @@ function openProfile(pid){
   renderPlayerProfile(stats, pid);
 }
 
-/* =======================
-   ✅ Player Profile (No long summary line)
-======================= */
-function renderPlayerProfile(stats, pid){
+function renderPlayerProfile(stats, pid) {
   const p = players.find(x=>x.id===pid);
   if (!p) return;
 
   const s = stats[pid] || blankStats();
 
   $("profileName") && ($("profileName").textContent = p.name || "Player");
-  // ✅ مافيه سطر طويل تحت الاسم
   $("profileSub") && ($("profileSub").textContent = "");
 
   const grid = $("profileStatsGrid");
-  if (grid){
+  if (grid) {
     grid.innerHTML = [
       tile("Matches", s.matches),
       tile("Goals", s.goals),
       tile("Wins", s.wins),
       tile("Win %", fmtPct(s.winPct)),
-      tile("Goals / Match", fmt2(s.gpm)),
+      tile("Goals per Match", fmt2(s.gpm)),
       tile("Current Win Streak", s.current),
       tile("Best Win Streak", s.best),
     ].join("");
   }
 
-  // teammates
   const counts = computeTeammates(pid);
   const matesBox = $("profileMates");
   const neverBox = $("profileNever");
 
   const sorted = Object.entries(counts)
-    .sort((a,b)=> b[1]-a[1] || (nameOf(a[0]).localeCompare(nameOf(b[0]))));
+    .sort((a,b)=> b[1]-a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
 
   const playedIds = new Set(sorted.map(([id])=>id));
-
   const never = players
     .filter(x => x.id !== pid && !playedIds.has(x.id))
     .map(x => x.name || "Unknown")
     .sort((a,b)=>a.localeCompare(b));
 
-  if (matesBox){
-    if (!sorted.length){
+  if (matesBox) {
+    if (!sorted.length) {
       matesBox.classList.add("note");
       matesBox.textContent = "No teammate data yet.";
     } else {
@@ -303,8 +370,8 @@ function renderPlayerProfile(stats, pid){
     }
   }
 
-  if (neverBox){
-    if (!never.length){
+  if (neverBox) {
+    if (!never.length) {
       neverBox.classList.add("note");
       neverBox.textContent = "—";
     } else {
@@ -313,22 +380,16 @@ function renderPlayerProfile(stats, pid){
     }
   }
 
-  function nameOf(id){
+  function nameOf(id) {
     return (players.find(x=>x.id===id)?.name) || "Unknown";
   }
 }
 
-function tile(label, value){
+function tile(label, value) {
   return `<div class="statTile"><div class="stLabel">${esc(label)}</div><div class="stValue">${esc(value)}</div></div>`;
 }
 
-/* Teammates logic:
-   - group logs by date
-   - winners set (win:true) & losers set (win:false)
-   - if player in winners: count others in winners
-   - if player in losers:  count others in losers
-*/
-function computeTeammates(pid){
+function computeTeammates(pid) {
   const byDate = {};
   logs.forEach(l => {
     const d = String(l.date || "");
@@ -337,31 +398,26 @@ function computeTeammates(pid){
   });
 
   const counts = {};
+
   Object.keys(byDate).forEach(date => {
     const arr = byDate[date];
-    const winners = new Set(arr.filter(x=>!!x.win).map(x=>x.playerId));
-    const losers  = new Set(arr.filter(x=>!x.win).map(x=>x.playerId));
 
-    if (winners.has(pid)){
-      winners.forEach(id => {
-        if (id === pid) return;
-        counts[id] = (counts[id]||0) + 1;
-      });
-    } else if (losers.has(pid)){
-      losers.forEach(id => {
-        if (id === pid) return;
-        counts[id] = (counts[id]||0) + 1;
-      });
-    }
+    // same team based on side (new logs)
+    const playerSideEntry = arr.find(x => x.playerId === pid);
+    if (!playerSideEntry) return;
+
+    const side = normalizeSide(playerSideEntry);
+    arr.filter(x => normalizeSide(x) === side).forEach(x => {
+      if (x.playerId === pid) return;
+      counts[x.playerId] = (counts[x.playerId] || 0) + 1;
+    });
   });
 
   return counts;
 }
 
-/* =======================
-   Match History (two columns)
-======================= */
-function renderMatchHistory(){
+/* Match History */
+function renderMatchHistory() {
   const box = $("matchHistoryList");
   if (!box) return;
 
@@ -376,47 +432,42 @@ function renderMatchHistory(){
   });
 
   const dates = Object.keys(byDate).sort((a,b)=> b.localeCompare(a));
-  if (!dates.length){
+  if (!dates.length) {
     box.innerHTML = `<div class="note">No matches yet.</div>`;
     return;
   }
 
   box.innerHTML = dates.map(date => {
     const arr = byDate[date];
-    const winners = arr.filter(x => !!x.win);
-    const losers  = arr.filter(x => !x.win);
+    const teamA = arr.filter(x => normalizeSide(x) === "A");
+    const teamB = arr.filter(x => normalizeSide(x) === "B");
 
-    const scoreW = winners.reduce((s,x)=> s + Number(x.goals||0), 0);
-    const scoreL = losers.reduce((s,x)=> s + Number(x.goals||0), 0);
+    const scoreA = calcTeamScore(teamA, teamB);
+    const scoreB = calcTeamScore(teamB, teamA);
 
-    const winnerIsLeft = scoreW >= scoreL;
+    const titleA = scoreA > scoreB ? "Winners" : scoreA < scoreB ? "Losers" : "Draw";
+    const titleB = scoreB > scoreA ? "Winners" : scoreB < scoreA ? "Losers" : "Draw";
 
-    const leftTitle  = winnerIsLeft ? "Winners" : "Losers";
-    const rightTitle = winnerIsLeft ? "Losers"  : "Winners";
-
-    const leftEntries  = winnerIsLeft ? winners : losers;
-    const rightEntries = winnerIsLeft ? losers  : winners;
-
-    const leftLines  = sideLines(leftEntries, idToName);
-    const rightLines = sideLines(rightEntries, idToName);
+    const linesA = sideLines(teamA, idToName);
+    const linesB = sideLines(teamB, idToName);
 
     return `
       <div class="item">
         <div class="matchCard">
           <div class="matchTop">
             <div class="matchDate">${esc(date)}</div>
-            <div class="matchScore">${scoreW} : ${scoreL}</div>
+            <div class="matchScore">${scoreA} : ${scoreB}</div>
           </div>
 
           <div class="matchGrid">
             <div class="teamBox">
-              <div class="teamTitle">${leftTitle}</div>
-              ${leftLines.length ? leftLines.join("") : `<div class="meta">—</div>`}
+              <div class="teamTitle">${titleA}</div>
+              ${linesA.length ? linesA.join("") : `<div class="meta">—</div>`}
             </div>
 
             <div class="teamBox">
-              <div class="teamTitle">${rightTitle}</div>
-              ${rightLines.length ? rightLines.join("") : `<div class="meta">—</div>`}
+              <div class="teamTitle">${titleB}</div>
+              ${linesB.length ? linesB.join("") : `<div class="meta">—</div>`}
             </div>
           </div>
         </div>
@@ -425,214 +476,216 @@ function renderMatchHistory(){
   }).join("");
 }
 
-function sideLines(entries, idToName){
+function calcTeamScore(teamEntries, oppositeEntries) {
+  const normalGoals = teamEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? 0 : Number(x.goals || 0)), 0);
+  const oppOwnGoals = oppositeEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? Number(x.goals || 0) : 0), 0);
+  return normalGoals + oppOwnGoals;
+}
+
+function sideLines(entries, idToName) {
   const arr = entries.map(e => ({
     name: idToName[e.playerId] || "Unknown",
-    goals: Number(e.goals||0)
+    goals: Number(e.goals || 0),
+    ownGoal: isOwnGoal(e)
   }));
 
-  const scorers = arr.filter(x=>x.goals>0).sort((a,b)=> b.goals-a.goals || a.name.localeCompare(b.name));
-  const others  = arr.filter(x=>x.goals<=0).sort((a,b)=> a.name.localeCompare(b.name));
+  const scorers = arr
+    .filter(x => !x.ownGoal && x.goals > 0)
+    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+
+  const owns = arr
+    .filter(x => x.ownGoal && x.goals > 0)
+    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+
+  const others = arr
+    .filter(x => (!x.ownGoal && x.goals <= 0))
+    .sort((a,b)=> a.name.localeCompare(b.name));
 
   const lines = [];
+
   scorers.forEach(x => {
     lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals">(${x.goals})</div></div>`);
   });
+
+  owns.forEach(x => {
+    const label = x.goals === 1 ? "own goal" : `own goals x${x.goals}`;
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)} (${label})</div><div class="playerGoals"></div></div>`);
+  });
+
   others.forEach(x => {
     lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals"></div></div>`);
   });
+
   return lines;
 }
 
-/* =======================
-   Other pages (existing)
-======================= */
-function renderDashboard(stats){
+/* Dashboard / Leaderboard / Table / Admin Players / Logs */
+function renderDashboard(stats) {
   const rows = players.map(p=>({p,s:stats[p.id]||blankStats()}));
+
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
   $("dashTopScorers") && ($("dashTopScorers").innerHTML =
-    topGoals.length ? topGoals.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `${x.s.goals} goals · G/Match ${fmt2(x.s.gpm)} · Win% ${fmtPct(x.s.winPct)}`)).join("")
-                    : `<div class="note">No data yet.</div>`);
+    topGoals.length
+      ? topGoals.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `${x.s.goals} goals · G/Match ${fmt2(x.s.gpm)} · Win% ${fmtPct(x.s.winPct)}`)).join("")
+      : `<div class="note">No data yet.</div>`);
 
   const topStreak = rows.slice().sort((a,b)=>(b.s.current-a.s.current)||(b.s.best-a.s.best)).slice(0,3);
   $("dashTopStreaks") && ($("dashTopStreaks").innerHTML =
-    topStreak.length ? topStreak.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`)).join("")
-                     : `<div class="note">No data yet.</div>`);
+    topStreak.length
+      ? topStreak.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`)).join("")
+      : `<div class="note">No data yet.</div>`);
 
   const topWin = rows.filter(x=>x.s.matches>=2).sort((a,b)=>(b.s.winPct-a.s.winPct)||(b.s.wins-a.s.wins)).slice(0,3);
   $("dashTopWinPct") && ($("dashTopWinPct").innerHTML =
-    topWin.length ? topWin.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`)).join("")
-                  : `<div class="note">Need at least 2 matches per player.</div>`);
+    topWin.length
+      ? topWin.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`)).join("")
+      : `<div class="note">Need at least 2 matches per player.</div>`);
 }
 
-function renderLeaderboard(stats){
+function renderLeaderboard(stats) {
   const sortBy = $("lbSort")?.value || "winPct";
   const rows = buildRows(stats).sort(sorter(sortBy));
   const box = $("leaderboardList");
   if (!box) return;
-  box.innerHTML = rows.length ? rows.map((r,i)=>`
-    <div class="item">
-      <div>
-        <div class="name">${medal(i)} ${esc(r.name)}</div>
-        <div class="meta">Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> · Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> · Streak <b>${r.curStreak}</b> (best ${r.bestStreak})</div>
+
+  box.innerHTML = rows.length
+    ? rows.map((r,i)=>`
+      <div class="item">
+        <div>
+          <div class="name">${medal(i)} ${esc(r.name)}</div>
+          <div class="meta">
+            Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> ·
+            Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> ·
+            Streak <b>${r.curStreak}</b> (best ${r.bestStreak})
+          </div>
+        </div>
       </div>
-    </div>`).join("")
+    `).join("")
     : `<div class="note">No players yet.</div>`;
 }
 
-function renderTable(stats){
+function renderTable(stats) {
   const sortBy = $("tableSort")?.value || "winPct";
   const rows = buildRows(stats).sort(sorter(sortBy));
   const body = $("tableBody");
   if (!body) return;
-  body.innerHTML = rows.length ? rows.map((r,idx)=>`
-    <tr>
-      <td>${idx+1}</td><td>${esc(r.name)}</td><td>${r.matches}</td><td>${r.wins}</td><td>${r.goals}</td>
-      <td>${fmtPct(r.winPct)}</td><td>${fmt2(r.gpm)}</td><td>${r.curStreak}</td><td>${r.bestStreak}</td>
-    </tr>`).join("")
+
+  body.innerHTML = rows.length
+    ? rows.map((r,idx)=>`
+      <tr>
+        <td>${idx+1}</td>
+        <td>${esc(r.name)}</td>
+        <td>${r.matches}</td>
+        <td>${r.wins}</td>
+        <td>${r.goals}</td>
+        <td>${fmtPct(r.winPct)}</td>
+        <td>${fmt2(r.gpm)}</td>
+        <td>${r.curStreak}</td>
+        <td>${r.bestStreak}</td>
+      </tr>
+    `).join("")
     : `<tr><td colspan="9" class="noteCell">No players yet.</td></tr>`;
 }
 
-function renderPlayersAdmin(stats){
+function renderPlayersAdmin(stats) {
   const box = $("playersList");
   if (!box) return;
-  const html = players.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(p=>{
-    const s=stats[p.id]||blankStats();
-    return `<div class="item"><div><div class="name">${esc(p.name||"")}</div>
-      <div class="meta">Matches <b>${s.matches}</b> · Wins <b>${s.wins}</b> · Goals <b>${s.goals}</b> · Win% <b>${fmtPct(s.winPct)}</b> · G/Match <b>${fmt2(s.gpm)}</b> · Streak <b>${s.current}</b> (best ${s.best})</div>
-    </div></div>`;
-  }).join("");
+
+  const html = players
+    .slice()
+    .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
+    .map(p => {
+      const s = stats[p.id] || blankStats();
+      return `
+        <div class="item">
+          <div>
+            <div class="name">${esc(p.name||"")}</div>
+            <div class="meta">
+              Matches <b>${s.matches}</b> · Wins <b>${s.wins}</b> · Goals <b>${s.goals}</b> ·
+              Win% <b>${fmtPct(s.winPct)}</b> · G/Match <b>${fmt2(s.gpm)}</b> ·
+              Streak <b>${s.current}</b> (best ${s.best})
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
   box.innerHTML = html || `<div class="note">No players yet.</div>`;
 }
 
-function renderLogs(){
+function renderLogs() {
   const box = $("logsList");
   if (!box) return;
-  box.innerHTML = logs.slice(0,30).map(l=>{
+
+  box.innerHTML = logs.slice(0,30).map(l => {
     const p = players.find(x=>x.id===l.playerId);
-    const name = p? p.name : "(Unknown)";
-    return `<div class="item"><div><div class="name">${esc(name)} — ${l.win?"✅ Win":"❌ Loss"}</div><div class="meta">${esc(l.date||"")} · Goals: <b>${Number(l.goals||0)}</b></div></div></div>`;
+    const name = p ? p.name : "(Unknown)";
+    const result = normalizeResult(l);
+    const side = normalizeSide(l);
+    const own = isOwnGoal(l);
+
+    return `
+      <div class="item">
+        <div>
+          <div class="name">${esc(name)} — ${result.toUpperCase()}${own ? " · OWN GOAL" : ""}</div>
+          <div class="meta">${esc(l.date||"")} · Team ${side} · Goals: <b>${Number(l.goals||0)}</b></div>
+        </div>
+      </div>
+    `;
   }).join("") || `<div class="note">No entries yet.</div>`;
 }
 
-/* backup/reset */
-function exportJSON(){
-  const data={exportedAt:new Date().toISOString(),players,logs};
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url; a.download=`ftbll_backup_${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a); a.click(); a.remove();
+function exportJSON() {
+  const data = { exportedAt:new Date().toISOString(), players, logs };
+  const blob = new Blob([JSON.stringify(data,null,2)], { type:"application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ftbll_backup_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
 
-async function resetAllData(){
-  const logsSnap=await getDocs(logsRef);
-  for(const d of logsSnap.docs) await deleteDoc(doc(db,"logs",d.id));
-  const playersSnap=await getDocs(playersRef);
-  for(const d of playersSnap.docs) await deleteDoc(doc(db,"players",d.id));
+async function resetAllData() {
+  const logsSnap = await getDocs(logsRef);
+  for (const d of logsSnap.docs) await deleteDoc(doc(db,"logs",d.id));
+
+  const playersSnap = await getDocs(playersRef);
+  for (const d of playersSnap.docs) await deleteDoc(doc(db,"players",d.id));
 }
 
-/* helpers */
-function buildRows(stats){
-  return players.map(p=>{
-    const s=stats[p.id]||blankStats();
-    return { name:p.name||"", matches:s.matches,wins:s.wins,goals:s.goals,winPct:s.winPct,gpm:s.gpm,curStreak:s.current,bestStreak:s.best };
+function buildRows(stats) {
+  return players.map(p => {
+    const s = stats[p.id] || blankStats();
+    return {
+      name: p.name || "",
+      matches: s.matches,
+      wins: s.wins,
+      goals: s.goals,
+      winPct: s.winPct,
+      gpm: s.gpm,
+      curStreak: s.current,
+      bestStreak: s.best
+    };
   });
 }
-function sorter(k){
-  if(k==="name") return (a,b)=>a.name.localeCompare(b.name);
-  const key=({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[k])||"winPct";
+
+function sorter(k) {
+  if (k === "name") return (a,b)=>a.name.localeCompare(b.name);
+  const key = ({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[k]) || "winPct";
   return (a,b)=> (Number(b[key]||0)-Number(a[key]||0)) || (b.goals-a.goals) || a.name.localeCompare(b.name);
 }
-function clampInt(v,min,max){ const n=Math.floor(Number(v)); if(!Number.isFinite(n)) return min; return Math.max(min,Math.min(max,n)); }
+
+function clampInt(v,min,max) {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
 function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
 function fmt2(x){ return (Number(x)||0).toFixed(2); }
 function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
 function dashItem(t,m){ return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`; }
 function esc(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
-/* =========================================================
-   ✅ Admin Rename Tool (NO HTML CHANGES)
-   - Adds a floating button for admins only
-   - Lets you rename a player by typing old name -> new name
-   - Updates Firestore collection: players
-========================================================= */
-
-(function adminRenameTool(){
-  // Create floating button once
-  const btnId = "adminRenameBtnFloating";
-  if (document.getElementById(btnId)) return;
-
-  const btn = document.createElement("button");
-  btn.id = btnId;
-  btn.type = "button";
-  btn.textContent = "✏️ Rename Player";
-  btn.style.cssText = `
-    position: fixed;
-    right: 14px;
-    bottom: 92px;
-    z-index: 999999;
-    padding: 10px 12px;
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,.12);
-    background: rgba(20,20,25,.75);
-    color: #fff;
-    font-weight: 800;
-    font-size: 13px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    box-shadow: 0 12px 30px rgba(0,0,0,.35);
-    display: none;
-  `;
-  document.body.appendChild(btn);
-
-  // Show button only if admin (we detect by body class)
-  setInterval(() => {
-    const admin = document.body.classList.contains("is-admin");
-    btn.style.display = admin ? "block" : "none";
-  }, 800);
-
-  btn.addEventListener("click", async () => {
-    try {
-      // Ask inputs
-      const oldNameRaw = prompt("Old name (exact):", "Bssel");
-      if (!oldNameRaw) return;
-      const newNameRaw = prompt("New name:", "Basel");
-      if (!newNameRaw) return;
-
-      const oldName = oldNameRaw.trim();
-      const newName = newNameRaw.trim();
-      if (!oldName || !newName) return alert("Names cannot be empty.");
-
-      // Use existing db from your app.js (should already exist)
-      if (typeof db === "undefined") {
-        alert("DB not found. This tool needs the Firestore db variable in app.js.");
-        return;
-      }
-
-      const {
-        collection, query, where, getDocs, doc, updateDoc
-      } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-
-      // Find player(s) by exact name
-      const q = query(collection(db, "players"), where("name", "==", oldName));
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
-        alert(`No player found with name: "${oldName}"\n\nTip: must match exactly (case/spaces).`);
-        return;
-      }
-
-      // If multiple, update first and warn
-      const first = snap.docs[0];
-      await updateDoc(doc(db, "players", first.id), { name: newName });
-
-      const extra = snap.docs.length > 1 ? `\n\nNote: Found ${snap.docs.length} players with same name; updated the first one.` : "";
-      alert(`✅ Renamed: "${oldName}" → "${newName}"${extra}`);
-
-    } catch (e) {
-      console.error(e);
-      alert("Rename failed. Check console for details.");
-    }
-  });
-})();
