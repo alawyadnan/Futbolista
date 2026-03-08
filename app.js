@@ -847,12 +847,12 @@ function renderCompare(){
     <div class="card">
       <div class="card-title">Individual Stats</div>
       <div class="compareTable">
-        ${compareStatLine("Matches", aStats.matches, bStats.matches)}
-        ${compareStatLine("Goals", aStats.goals, bStats.goals)}
-        ${compareStatLine("Wins", aStats.wins, bStats.wins)}
+        ${compareStatLine("Matches", aStats.matches, bStats.matches, aStats.matches, bStats.matches)}
+        ${compareStatLine("Goals", aStats.goals, bStats.goals, aStats.goals, bStats.goals)}
+        ${compareStatLine("Wins", aStats.wins, bStats.wins, aStats.wins, bStats.wins)}
         ${compareStatLine("Win %", fmtPct(aStats.winPct), fmtPct(bStats.winPct), aStats.winPct, bStats.winPct)}
         ${compareStatLine("Goals / Match", fmt2(aStats.gpm), fmt2(bStats.gpm), aStats.gpm, bStats.gpm)}
-        ${compareStatLine("Best Win Streak", aStats.best, bStats.best)}
+        ${compareStatLine("Best Win Streak", aStats.best, bStats.best, aStats.best, bStats.best)}
         ${compareFormStatLine("Form", aForm.formIcons || "—", bForm.formIcons || "—", aForm.formPoints, bForm.formPoints)}
       </div>
     </div>
