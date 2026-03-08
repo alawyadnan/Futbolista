@@ -93,6 +93,9 @@ document.addEventListener("DOMContentLoaded", () => {
     setActiveNav("playerstats");
   });
 
+  $("cmpPlayerA")?.addEventListener("change", renderCompare);
+  $("cmpPlayerB")?.addEventListener("change", renderCompare);
+
   $("btnAddPlayer")?.addEventListener("click", async () => {
     if (!isAdmin) return alert("Read only");
     const name = ($("playerName")?.value || "").trim();
@@ -251,17 +254,20 @@ function computeAllStats() {
       }
     });
 
-    let current = 0;
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const result = normalizeResult(arr[i]);
-      if (result === "win") current++;
-      else break;
-    }
-
-    byId[p.id] = { matches, wins, goals, winPct, gpm, current, best };
+    byId[p.id] = { matches, wins, goals, winPct, gpm, current: getCurrentStreak(arr), best };
   });
 
   return byId;
+}
+
+function getCurrentStreak(arr){
+  let current = 0;
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const result = normalizeResult(arr[i]);
+    if (result === "win") current++;
+    else break;
+  }
+  return current;
 }
 
 function getPlayerFormData(playerId, statsMap){
@@ -314,6 +320,8 @@ function renderAll() {
     if (cur && players.some(p => p.id === cur)) sel.value = cur;
   }
 
+  renderCompareOptions();
+
   const stats = computeAllStats();
   renderDashboard(stats);
   renderInForm(stats);
@@ -323,6 +331,7 @@ function renderAll() {
   renderLogs();
   renderMatchHistory();
   renderPlayerCardsNameOnly();
+  renderCompare();
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
 }
 
@@ -749,6 +758,199 @@ function renderLogs() {
       </div>
     `;
   }).join("") || `<div class="note">No entries yet.</div>`;
+}
+
+/* =========================
+   Compare
+========================= */
+
+function renderCompareOptions(){
+  const a = $("cmpPlayerA");
+  const b = $("cmpPlayerB");
+  if (!a || !b) return;
+
+  const sorted = players.slice().sort((x,y)=>(x.name||"").localeCompare(y.name||""));
+  const aCur = a.value;
+  const bCur = b.value;
+
+  const options = sorted.map(p => `<option value="${p.id}">${esc(p.name||"")}</option>`).join("");
+  a.innerHTML = options;
+  b.innerHTML = options;
+
+  if (aCur && sorted.some(p => p.id === aCur)) a.value = aCur;
+  else if (sorted[0]) a.value = sorted[0].id;
+
+  if (bCur && sorted.some(p => p.id === bCur)) b.value = bCur;
+  else if (sorted[1]) b.value = sorted[1].id;
+  else if (sorted[0]) b.value = sorted[0].id;
+
+  if (a.value === b.value && sorted.length > 1) {
+    const second = sorted.find(p => p.id !== a.value);
+    if (second) b.value = second.id;
+  }
+}
+
+function renderCompare(){
+  const aId = $("cmpPlayerA")?.value || "";
+  const bId = $("cmpPlayerB")?.value || "";
+  const box = $("compareResult");
+  if (!box) return;
+
+  if (!aId || !bId) {
+    box.innerHTML = `<div class="card"><div class="note">Select two players.</div></div>`;
+    return;
+  }
+
+  if (aId === bId) {
+    box.innerHTML = `<div class="card"><div class="note">Select two different players.</div></div>`;
+    return;
+  }
+
+  const aPlayer = players.find(p => p.id === aId);
+  const bPlayer = players.find(p => p.id === bId);
+  if (!aPlayer || !bPlayer) {
+    box.innerHTML = `<div class="card"><div class="note">Players not found.</div></div>`;
+    return;
+  }
+
+  const stats = computeAllStats();
+  const aStats = stats[aId] || blankStats();
+  const bStats = stats[bId] || blankStats();
+  const aForm = getPlayerFormData(aId, stats);
+  const bForm = getPlayerFormData(bId, stats);
+
+  const h2h = computeHeadToHead(aId, bId);
+
+  box.innerHTML = `
+    <div class="card">
+      <div class="compareHeader">
+        <div class="compareName">${esc(aPlayer.name)}</div>
+        <div class="compareVs">vs</div>
+        <div class="compareName">${esc(bPlayer.name)}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Head-to-Head</div>
+      <div class="compareRows">
+        ${compareRow("Matches against each other", h2h.againstMatches, "")}
+        ${compareRow(`${esc(aPlayer.name)} wins`, h2h.aWinsAgainst, h2h.bWinsAgainst)}
+        ${compareRow("Draws", h2h.drawsAgainst, "")}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Teammates Record</div>
+      <div class="compareRows">
+        ${compareRow("Matches together", h2h.togetherMatches, "")}
+        ${compareRow("Wins together", h2h.togetherWins, "")}
+        ${compareRow("Losses together", h2h.togetherLosses, "")}
+        ${compareRow("Draws together", h2h.togetherDraws, "")}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Individual Stats</div>
+      <div class="compareTable">
+        ${compareStatLine("Matches", aStats.matches, bStats.matches)}
+        ${compareStatLine("Goals", aStats.goals, bStats.goals)}
+        ${compareStatLine("Wins", aStats.wins, bStats.wins)}
+        ${compareStatLine("Win %", fmtPct(aStats.winPct), fmtPct(bStats.winPct), aStats.winPct, bStats.winPct)}
+        ${compareStatLine("Goals / Match", fmt2(aStats.gpm), fmt2(bStats.gpm), aStats.gpm, bStats.gpm)}
+        ${compareStatLine("Best Win Streak", aStats.best, bStats.best)}
+        ${compareStatLine("Form (Last 5)", aForm.formIcons || "—", bForm.formIcons || "—", aForm.formPoints, bForm.formPoints)}
+      </div>
+    </div>
+  `;
+}
+
+function computeHeadToHead(aId, bId){
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "").trim();
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  let againstMatches = 0;
+  let aWinsAgainst = 0;
+  let bWinsAgainst = 0;
+  let drawsAgainst = 0;
+
+  let togetherMatches = 0;
+  let togetherWins = 0;
+  let togetherLosses = 0;
+  let togetherDraws = 0;
+
+  Object.keys(byDate).forEach(date => {
+    const arr = byDate[date];
+    const aEntry = arr.find(x => String(x.playerId) === String(aId));
+    const bEntry = arr.find(x => String(x.playerId) === String(bId));
+
+    if (!aEntry || !bEntry) return;
+
+    const aSide = normalizeSide(aEntry);
+    const bSide = normalizeSide(bEntry);
+    const aRes = normalizeResult(aEntry);
+    const bRes = normalizeResult(bEntry);
+
+    if (aSide !== bSide) {
+      againstMatches += 1;
+
+      if (aRes === "win" && bRes === "loss") aWinsAgainst += 1;
+      else if (bRes === "win" && aRes === "loss") bWinsAgainst += 1;
+      else drawsAgainst += 1;
+    } else {
+      togetherMatches += 1;
+
+      if (aRes === "win" && bRes === "win") togetherWins += 1;
+      else if (aRes === "draw" && bRes === "draw") togetherDraws += 1;
+      else togetherLosses += 1;
+    }
+  });
+
+  return {
+    againstMatches,
+    aWinsAgainst,
+    bWinsAgainst,
+    drawsAgainst,
+    togetherMatches,
+    togetherWins,
+    togetherLosses,
+    togetherDraws
+  };
+}
+
+function compareRow(label, leftVal, rightVal){
+  if (rightVal === "") {
+    return `
+      <div class="compareRow single">
+        <div class="compareLabel">${esc(label)}</div>
+        <div class="compareMidVal">${esc(leftVal)}</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="compareRow">
+      <div class="compareVal">${esc(leftVal)}</div>
+      <div class="compareLabel">${esc(label)}</div>
+      <div class="compareVal">${esc(rightVal)}</div>
+    </div>
+  `;
+}
+
+function compareStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null){
+  const leftBetter = aRaw !== null && bRaw !== null && Number(aRaw) > Number(bRaw);
+  const rightBetter = aRaw !== null && bRaw !== null && Number(bRaw) > Number(aRaw);
+
+  return `
+    <div class="compareStatLine">
+      <div class="compareSide ${leftBetter ? "better" : ""}">${esc(aDisplay)}</div>
+      <div class="compareCenter">${esc(label)}</div>
+      <div class="compareSide ${rightBetter ? "better" : ""}">${esc(bDisplay)}</div>
+    </div>
+  `;
 }
 
 function exportJSON() {
