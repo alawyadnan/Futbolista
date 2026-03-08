@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=180001" />
+  <link rel="stylesheet" href="./styles.css?v=190001" />
 </head>
 <body>
 
@@ -34,6 +34,12 @@
   <!-- DASHBOARD -->
   <section id="screen-dashboard" class="screen">
     <div class="card">
+      <div class="card-title">In Form Player 🔥</div>
+      <div class="subnote">Last 5 matches · Win = 1 · Draw = 0.5 · Loss = 0</div>
+      <div id="inFormList" class="list note">No data yet.</div>
+    </div>
+
+    <div class="card">
       <div class="card-title">Top Scorers (Top 3)</div>
       <div id="dashTopScorers" class="list note">No data yet.</div>
     </div>
@@ -52,20 +58,14 @@
 
   <!-- LEADERBOARD -->
   <section id="screen-leaderboard" class="screen hidden">
-
-    <div class="card">
-      <div class="card-title">In Form Player 🔥</div>
-      <div class="subnote">Last 5 matches · Win = 1 · Draw = 0.5 · Loss = 0</div>
-      <div id="inFormList" class="list note">No data yet.</div>
-    </div>
-
     <div class="card">
       <div class="card-h">
         <div class="card-title">Leaderboard</div>
         <div class="row">
           <label class="label">Sort by</label>
           <select id="lbSort" class="select">
-            <option value="winPct" selected>Win %</option>
+            <option value="form" selected>Form</option>
+            <option value="winPct">Win %</option>
             <option value="goals">Goals</option>
             <option value="gpm">Goals per Match</option>
             <option value="wins">Wins</option>
@@ -77,7 +77,6 @@
       </div>
       <div id="leaderboardList" class="list note">No players yet.</div>
     </div>
-
   </section>
 
   <!-- TABLE -->
@@ -295,6 +294,6 @@
   </div>
 </nav>
 
-<script type="module" src="./app.js?v=180001"></script>
+<script type="module" src="./app.js?v=190001"></script>
 </body>
 </html>
