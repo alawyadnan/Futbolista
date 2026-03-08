@@ -348,3 +348,8 @@ body:not(.is-admin) [data-admin="1"]{ display:none !important; }
 .pCardNameOnly .pName{
   text-align:center;
 }
+.formRow{
+  font-size:22px;
+  letter-spacing:6px;
+  padding-top:6px;
+}
