@@ -289,6 +289,24 @@ function renderAll() {
   renderMatchHistory();
   renderPlayerCardsNameOnly();
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
+  /* Player Form */
+const playerLogs = logs
+  .filter(l => l.playerId === pid)
+  .sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+
+const last5 = playerLogs.slice(0,5);
+
+const icons = last5.map(l=>{
+  const r = normalizeResult(l);
+  if (r === "win") return "🟢";
+  if (r === "draw") return "🟡";
+  return "🔴";
+});
+
+const formBox = $("profileForm");
+if (formBox) {
+  formBox.textContent = icons.length ? icons.join(" ") : "No matches yet";
+}
 }
 
 /* PUBLIC Players */
