@@ -773,20 +773,20 @@ function renderCompareOptions(){
   const aCur = a.value;
   const bCur = b.value;
 
-  const options = sorted.map(p => `<option value="${p.id}">${esc(p.name||"")}</option>`).join("");
+  const placeholder = `<option value="">Select player</option>`;
+  const options = placeholder + sorted.map(p => `<option value="${p.id}">${esc(p.name||"")}</option>`).join("");
+
   a.innerHTML = options;
   b.innerHTML = options;
 
   if (aCur && sorted.some(p => p.id === aCur)) a.value = aCur;
-  else if (sorted[0]) a.value = sorted[0].id;
+  else a.value = "";
 
   if (bCur && sorted.some(p => p.id === bCur)) b.value = bCur;
-  else if (sorted[1]) b.value = sorted[1].id;
-  else if (sorted[0]) b.value = sorted[0].id;
+  else b.value = "";
 
-  if (a.value === b.value && sorted.length > 1) {
-    const second = sorted.find(p => p.id !== a.value);
-    if (second) b.value = second.id;
+  if (a.value && b.value && a.value === b.value) {
+    b.value = "";
   }
 }
 
@@ -797,7 +797,7 @@ function renderCompare(){
   if (!box) return;
 
   if (!aId || !bId) {
-    box.innerHTML = `<div class="card"><div class="note">Select two players.</div></div>`;
+    box.innerHTML = `<div class="card"><div class="note">Select two different players.</div></div>`;
     return;
   }
 
@@ -833,19 +833,19 @@ function renderCompare(){
     <div class="card">
       <div class="card-title">Head-to-Head</div>
       <div class="compareRows">
-        ${compareRow("Matches against each other", h2h.againstMatches, "")}
-        ${compareRow(`${esc(aPlayer.name)} wins`, h2h.aWinsAgainst, h2h.bWinsAgainst)}
-        ${compareRow("Draws", h2h.drawsAgainst, "")}
+        ${compareCenterValueRow("Matches against each other", h2h.againstMatches)}
+        ${compareDualRow("Wins", h2h.aWinsAgainst, h2h.bWinsAgainst)}
+        ${compareCenterValueRow("Draws", h2h.drawsAgainst)}
       </div>
     </div>
 
     <div class="card">
       <div class="card-title">Teammates Record</div>
       <div class="compareRows">
-        ${compareRow("Matches together", h2h.togetherMatches, "")}
-        ${compareRow("Wins together", h2h.togetherWins, "")}
-        ${compareRow("Losses together", h2h.togetherLosses, "")}
-        ${compareRow("Draws together", h2h.togetherDraws, "")}
+        ${compareCenterValueRow("Matches together", h2h.togetherMatches)}
+        ${compareCenterValueRow("Wins together", h2h.togetherWins)}
+        ${compareCenterValueRow("Losses together", h2h.togetherLosses)}
+        ${compareCenterValueRow("Draws together", h2h.togetherDraws)}
       </div>
     </div>
 
@@ -858,7 +858,7 @@ function renderCompare(){
         ${compareStatLine("Win %", fmtPct(aStats.winPct), fmtPct(bStats.winPct), aStats.winPct, bStats.winPct)}
         ${compareStatLine("Goals / Match", fmt2(aStats.gpm), fmt2(bStats.gpm), aStats.gpm, bStats.gpm)}
         ${compareStatLine("Best Win Streak", aStats.best, bStats.best)}
-        ${compareStatLine("Form (Last 5)", aForm.formIcons || "—", bForm.formIcons || "—", aForm.formPoints, bForm.formPoints)}
+        ${compareFormStatLine("Form (Last 5)", aForm.formIcons || "—", bForm.formIcons || "—", aForm.formPoints, bForm.formPoints)}
       </div>
     </div>
   `;
@@ -921,21 +921,23 @@ function computeHeadToHead(aId, bId){
   };
 }
 
-function compareRow(label, leftVal, rightVal){
-  if (rightVal === "") {
-    return `
-      <div class="compareRow single">
-        <div class="compareLabel">${esc(label)}</div>
-        <div class="compareMidVal">${esc(leftVal)}</div>
-      </div>
-    `;
-  }
-
+function compareDualRow(label, leftVal, rightVal){
   return `
     <div class="compareRow">
       <div class="compareVal">${esc(leftVal)}</div>
       <div class="compareLabel">${esc(label)}</div>
       <div class="compareVal">${esc(rightVal)}</div>
+    </div>
+  `;
+}
+
+function compareCenterValueRow(label, value){
+  return `
+    <div class="compareRow compareRowCenterOnly">
+      <div class="compareSingleWrap">
+        <span class="compareSingleLabel">${esc(label)}</span>
+        <span class="compareSingleVal">${esc(value)}</span>
+      </div>
     </div>
   `;
 }
@@ -949,6 +951,22 @@ function compareStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null){
       <div class="compareSide ${leftBetter ? "better" : ""}">${esc(aDisplay)}</div>
       <div class="compareCenter">${esc(label)}</div>
       <div class="compareSide ${rightBetter ? "better" : ""}">${esc(bDisplay)}</div>
+    </div>
+  `;
+}
+
+function compareFormStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null){
+  const leftBetter = aRaw !== null && bRaw !== null && Number(aRaw) > Number(bRaw);
+  const rightBetter = aRaw !== null && bRaw !== null && Number(bRaw) > Number(aRaw);
+
+  const aCompact = String(aDisplay).replaceAll(" ", "");
+  const bCompact = String(bDisplay).replaceAll(" ", "");
+
+  return `
+    <div class="compareStatLine compareStatLineForm">
+      <div class="compareSide compareFormSide ${leftBetter ? "better" : ""}">${esc(aCompact)}</div>
+      <div class="compareCenter">${esc(label)}</div>
+      <div class="compareSide compareFormSide ${rightBetter ? "better" : ""}">${esc(bCompact)}</div>
     </div>
   `;
 }
