@@ -264,6 +264,44 @@ function computeAllStats() {
   return byId;
 }
 
+function getPlayerFormData(playerId, statsMap){
+  const playerLogs = logs
+    .filter(l => String(l.playerId) === String(playerId))
+    .sort((a,b) => {
+      const da = String(a.date || "");
+      const db = String(b.date || "");
+      if (da < db) return 1;
+      if (da > db) return -1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+
+  const last5 = playerLogs.slice(0, 5);
+
+  let formPoints = 0;
+  last5.forEach(l => {
+    const r = normalizeResult(l);
+    if (r === "win") formPoints += 1;
+    else if (r === "draw") formPoints += 0.5;
+  });
+
+  const formIcons = last5
+    .slice()
+    .reverse()
+    .map(l => {
+      const r = normalizeResult(l);
+      if (r === "win") return "🟢";
+      if (r === "draw") return "🟡";
+      return "🔴";
+    })
+    .join(" ");
+
+  return {
+    formPoints,
+    formIcons,
+    totalPlayerMatches: statsMap[playerId]?.matches || 0
+  };
+}
+
 function renderAll() {
   const sel = $("logPlayer");
   if (sel) {
@@ -296,42 +334,13 @@ function renderInForm(stats){
   const minEligibleMatches = Math.max(1, Math.floor(totalMatchesInSystem / 2));
 
   const rows = players.map(p => {
-    const playerLogs = logs
-      .filter(l => String(l.playerId) === String(p.id))
-      .sort((a,b) => {
-        const da = String(a.date || "");
-        const db = String(b.date || "");
-        if (da < db) return 1;
-        if (da > db) return -1;
-        return (b.createdAt || 0) - (a.createdAt || 0);
-      });
-
-    const last5 = playerLogs.slice(0, 5);
-    let formPoints = 0;
-
-    last5.forEach(l => {
-      const r = normalizeResult(l);
-      if (r === "win") formPoints += 1;
-      else if (r === "draw") formPoints += 0.5;
-    });
-
-    const formIcons = last5
-      .slice()
-      .reverse()
-      .map(l => {
-        const r = normalizeResult(l);
-        if (r === "win") return "🟢";
-        if (r === "draw") return "🟡";
-        return "🔴";
-      })
-      .join(" ");
-
+    const form = getPlayerFormData(p.id, stats);
     return {
       id: p.id,
       name: p.name || "",
-      totalPlayerMatches: stats[p.id]?.matches || 0,
-      formPoints,
-      formIcons,
+      totalPlayerMatches: form.totalPlayerMatches,
+      formPoints: form.formPoints,
+      formIcons: form.formIcons,
       goals: stats[p.id]?.goals || 0,
       winPct: stats[p.id]?.winPct || 0
     };
@@ -429,28 +438,10 @@ function renderPlayerProfile(stats, pid) {
     ].join("");
   }
 
-  const playerLogs = logs
-    .filter(l => String(l.playerId) === String(pid))
-    .sort((a,b) => {
-      const da = String(a.date || "");
-      const db = String(b.date || "");
-      if (da < db) return 1;
-      if (da > db) return -1;
-      return (b.createdAt || 0) - (a.createdAt || 0);
-    });
-
-  const last5 = playerLogs.slice(0, 5).reverse();
-
-  const icons = last5.map(l => {
-    const r = normalizeResult(l);
-    if (r === "win") return "🟢";
-    if (r === "draw") return "🟡";
-    return "🔴";
-  });
-
+  const form = getPlayerFormData(pid, stats);
   const formBox = $("profileForm");
   if (formBox) {
-    formBox.textContent = icons.length ? icons.join(" ") : "No matches yet";
+    formBox.textContent = form.formIcons || "No matches yet";
   }
 
   const counts = computeTeammates(pid);
@@ -649,8 +640,25 @@ function renderDashboard(stats) {
 }
 
 function renderLeaderboard(stats) {
-  const sortBy = $("lbSort")?.value || "winPct";
-  const rows = buildRows(stats).sort(sorter(sortBy));
+  const sortBy = $("lbSort")?.value || "form";
+  const rows = players.map(p => {
+    const s = stats[p.id] || blankStats();
+    const form = getPlayerFormData(p.id, stats);
+    return {
+      id: p.id,
+      name: p.name || "",
+      matches: s.matches,
+      wins: s.wins,
+      goals: s.goals,
+      winPct: s.winPct,
+      gpm: s.gpm,
+      curStreak: s.current,
+      bestStreak: s.best,
+      formPoints: form.formPoints,
+      formIcons: form.formIcons
+    };
+  }).sort(sorter(sortBy));
+
   const box = $("leaderboardList");
   if (!box) return;
 
@@ -660,6 +668,8 @@ function renderLeaderboard(stats) {
         <div>
           <div class="name">${medal(i)} ${esc(r.name)}</div>
           <div class="meta">
+            Form <b>${formatFormPoints(r.formPoints)}</b> ·
+            Last 5 <b>${r.formIcons || "—"}</b> ·
             Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> ·
             Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> ·
             Streak <b>${r.curStreak}</b> (best ${r.bestStreak})
@@ -780,8 +790,15 @@ function buildRows(stats) {
 
 function sorter(k) {
   if (k === "name") return (a,b)=>a.name.localeCompare(b.name);
+  if (k === "form") {
+    return (a,b)=>
+      (Number(b.formPoints||0)-Number(a.formPoints||0)) ||
+      (Number(b.winPct||0)-Number(a.winPct||0)) ||
+      (Number(b.goals||0)-Number(a.goals||0)) ||
+      a.name.localeCompare(b.name);
+  }
   const key = ({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[k]) || "winPct";
-  return (a,b)=> (Number(b[key]||0)-Number(a[key]||0)) || (b.goals-a.goals) || a.name.localeCompare(b.name);
+  return (a,b)=> (Number(b[key]||0)-Number(a[key]||0)) || (Number(b.goals||0)-Number(a.goals||0)) || a.name.localeCompare(b.name);
 }
 
 function clampInt(v,min,max) {
