@@ -278,6 +278,7 @@ function renderAll() {
 
   const stats = computeAllStats();
   renderDashboard(stats);
+  renderInForm(stats);
   renderLeaderboard(stats);
   renderTable(stats);
   renderPlayersAdmin(stats);
@@ -285,6 +286,97 @@ function renderAll() {
   renderMatchHistory();
   renderPlayerCardsNameOnly();
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
+}
+
+function renderInForm(stats){
+  const box = $("inFormList");
+  if (!box) return;
+
+  const totalMatchesInSystem = getTotalUniqueMatchDates();
+  const minEligibleMatches = Math.max(1, Math.floor(totalMatchesInSystem / 2));
+
+  const rows = players.map(p => {
+    const playerLogs = logs
+      .filter(l => String(l.playerId) === String(p.id))
+      .sort((a,b) => {
+        const da = String(a.date || "");
+        const db = String(b.date || "");
+        if (da < db) return 1;
+        if (da > db) return -1;
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      });
+
+    const last5 = playerLogs.slice(0, 5);
+    let formPoints = 0;
+
+    last5.forEach(l => {
+      const r = normalizeResult(l);
+      if (r === "win") formPoints += 1;
+      else if (r === "draw") formPoints += 0.5;
+    });
+
+    const formIcons = last5
+      .slice()
+      .reverse()
+      .map(l => {
+        const r = normalizeResult(l);
+        if (r === "win") return "🟢";
+        if (r === "draw") return "🟡";
+        return "🔴";
+      })
+      .join(" ");
+
+    return {
+      id: p.id,
+      name: p.name || "",
+      totalPlayerMatches: stats[p.id]?.matches || 0,
+      formPoints,
+      formIcons,
+      goals: stats[p.id]?.goals || 0,
+      winPct: stats[p.id]?.winPct || 0
+    };
+  });
+
+  const eligible = rows
+    .filter(r => r.totalPlayerMatches >= minEligibleMatches)
+    .sort((a,b) =>
+      (b.formPoints - a.formPoints) ||
+      (b.winPct - a.winPct) ||
+      (b.goals - a.goals) ||
+      a.name.localeCompare(b.name)
+    )
+    .slice(0, 3);
+
+  if (!eligible.length){
+    box.innerHTML = `<div class="note">No eligible players yet. Minimum matches required: ${minEligibleMatches}.</div>`;
+    return;
+  }
+
+  box.innerHTML = eligible.map((r, i) => `
+    <div class="item">
+      <div>
+        <div class="name">${medal(i)} ${esc(r.name)}</div>
+        <div class="meta">
+          Form points: <b>${formatFormPoints(r.formPoints)}</b> ·
+          Last 5: <b>${r.formIcons || "—"}</b> ·
+          Matches: <b>${r.totalPlayerMatches}</b>
+        </div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function getTotalUniqueMatchDates(){
+  const set = new Set(
+    logs
+      .map(l => String(l.date || "").trim())
+      .filter(Boolean)
+  );
+  return set.size;
+}
+
+function formatFormPoints(n){
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
 function renderPlayerCardsNameOnly() {
@@ -337,7 +429,6 @@ function renderPlayerProfile(stats, pid) {
     ].join("");
   }
 
-  // Form last 5
   const playerLogs = logs
     .filter(l => String(l.playerId) === String(pid))
     .sort((a,b) => {
@@ -348,7 +439,8 @@ function renderPlayerProfile(stats, pid) {
       return (b.createdAt || 0) - (a.createdAt || 0);
     });
 
-  const last5 = playerLogs.slice(0, 5);
+  const last5 = playerLogs.slice(0, 5).reverse();
+
   const icons = last5.map(l => {
     const r = normalizeResult(l);
     if (r === "win") return "🟢";
@@ -361,7 +453,6 @@ function renderPlayerProfile(stats, pid) {
     formBox.textContent = icons.length ? icons.join(" ") : "No matches yet";
   }
 
-  // Teammates
   const counts = computeTeammates(pid);
   const matesBox = $("profileMates");
   const neverBox = $("profileNever");
