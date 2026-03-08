@@ -117,9 +117,9 @@ document.addEventListener("DOMContentLoaded", () => {
     await addDoc(logsRef, {
       playerId,
       goals,
-      result,   // win / draw / loss
-      side,     // A / B
-      ownGoal,  // true / false
+      result,
+      side,
+      ownGoal,
       date,
       createdAt: Date.now()
     });
@@ -190,14 +190,12 @@ function setActiveNav(name) {
 
 function normalizeResult(l) {
   if (l?.result === "win" || l?.result === "draw" || l?.result === "loss") return l.result;
-  if (typeof l?.win === "boolean") return l.win ? "win" : "loss"; // old logs support
+  if (typeof l?.win === "boolean") return l.win ? "win" : "loss";
   return "loss";
 }
 
 function normalizeSide(l) {
   if (l?.side === "A" || l?.side === "B") return l.side;
-
-  // old logs fallback:
   const r = normalizeResult(l);
   if (r === "win") return "A";
   if (r === "loss") return "B";
@@ -235,8 +233,6 @@ function computeAllStats() {
     arr.forEach(l => {
       const result = normalizeResult(l);
       if (result === "win") wins += 1;
-
-      // own goals DO NOT count as personal goals
       if (!isOwnGoal(l)) goals += Number(l.goals || 0);
     });
 
@@ -251,7 +247,7 @@ function computeAllStats() {
         run++;
         best = Math.max(best, run);
       } else {
-        run = 0; // draw and loss both break streak
+        run = 0;
       }
     });
 
@@ -289,27 +285,8 @@ function renderAll() {
   renderMatchHistory();
   renderPlayerCardsNameOnly();
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
-  /* Player Form */
-const playerLogs = logs
-  .filter(l => l.playerId === pid)
-  .sort((a,b)=> (b.date||"").localeCompare(a.date||""));
-
-const last5 = playerLogs.slice(0,5);
-
-const icons = last5.map(l=>{
-  const r = normalizeResult(l);
-  if (r === "win") return "🟢";
-  if (r === "draw") return "🟡";
-  return "🔴";
-});
-
-const formBox = $("profileForm");
-if (formBox) {
-  formBox.textContent = icons.length ? icons.join(" ") : "No matches yet";
-}
 }
 
-/* PUBLIC Players */
 function renderPlayerCardsNameOnly() {
   const box = $("playerCards");
   if (!box) return;
@@ -360,6 +337,31 @@ function renderPlayerProfile(stats, pid) {
     ].join("");
   }
 
+  // Form last 5
+  const playerLogs = logs
+    .filter(l => String(l.playerId) === String(pid))
+    .sort((a,b) => {
+      const da = String(a.date || "");
+      const db = String(b.date || "");
+      if (da < db) return 1;
+      if (da > db) return -1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+
+  const last5 = playerLogs.slice(0, 5);
+  const icons = last5.map(l => {
+    const r = normalizeResult(l);
+    if (r === "win") return "🟢";
+    if (r === "draw") return "🟡";
+    return "🔴";
+  });
+
+  const formBox = $("profileForm");
+  if (formBox) {
+    formBox.textContent = icons.length ? icons.join(" ") : "No matches yet";
+  }
+
+  // Teammates
   const counts = computeTeammates(pid);
   const matesBox = $("profileMates");
   const neverBox = $("profileNever");
@@ -416,15 +418,12 @@ function computeTeammates(pid) {
   });
 
   const counts = {};
-
   Object.keys(byDate).forEach(date => {
     const arr = byDate[date];
+    const playerEntry = arr.find(x => x.playerId === pid);
+    if (!playerEntry) return;
 
-    // same team based on side (new logs)
-    const playerSideEntry = arr.find(x => x.playerId === pid);
-    if (!playerSideEntry) return;
-
-    const side = normalizeSide(playerSideEntry);
+    const side = normalizeSide(playerEntry);
     arr.filter(x => normalizeSide(x) === side).forEach(x => {
       if (x.playerId === pid) return;
       counts[x.playerId] = (counts[x.playerId] || 0) + 1;
@@ -434,7 +433,6 @@ function computeTeammates(pid) {
   return counts;
 }
 
-/* Match History */
 function renderMatchHistory() {
   const box = $("matchHistoryList");
   if (!box) return;
@@ -516,7 +514,7 @@ function sideLines(entries, idToName) {
     .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
 
   const others = arr
-    .filter(x => (!x.ownGoal && x.goals <= 0))
+    .filter(x => !x.ownGoal && x.goals <= 0)
     .sort((a,b)=> a.name.localeCompare(b.name));
 
   const lines = [];
@@ -537,7 +535,6 @@ function sideLines(entries, idToName) {
   return lines;
 }
 
-/* Dashboard / Leaderboard / Table / Admin Players / Logs */
 function renderDashboard(stats) {
   const rows = players.map(p=>({p,s:stats[p.id]||blankStats()}));
 
