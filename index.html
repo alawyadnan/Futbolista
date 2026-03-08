@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=160001" />
+  <link rel="stylesheet" href="./styles.css?v=170001" />
 </head>
 <body>
 
@@ -95,10 +95,17 @@
       <div class="tablewrap">
         <table class="table">
           <thead>
-          <tr>
-            <th>#</th><th>Name</th><th>Matches</th><th>Wins</th><th>Goals</th>
-            <th>Win %</th><th>Goals/Match</th><th>Current Streak</th><th>Best Streak</th>
-          </tr>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Matches</th>
+              <th>Wins</th>
+              <th>Goals</th>
+              <th>Win %</th>
+              <th>Goals/Match</th>
+              <th>Current Streak</th>
+              <th>Best Streak</th>
+            </tr>
           </thead>
           <tbody id="tableBody">
             <tr><td colspan="9" class="noteCell">No players yet.</td></tr>
@@ -108,7 +115,7 @@
     </div>
   </section>
 
-  <!-- PLAYER STATS (PUBLIC) -->
+  <!-- PLAYER STATS -->
   <section id="screen-playerstats" class="screen hidden">
     <div class="card">
       <div class="card-h">
@@ -119,7 +126,7 @@
     </div>
   </section>
 
-  <!-- PLAYER PROFILE (PUBLIC) -->
+  <!-- PLAYER PROFILE -->
   <section id="screen-playerprofile" class="screen hidden">
     <div class="card">
       <div class="profileTop">
@@ -131,10 +138,11 @@
       </div>
 
       <div id="profileStatsGrid" class="statGrid"></div>
-      <div class="card">
-  <div class="card-title">Form (Last 5 Matches)</div>
-  <div id="profileForm" class="formRow">—</div>
-</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Form (Last 5 Matches)</div>
+      <div id="profileForm" class="formRow">—</div>
     </div>
 
     <div class="card">
@@ -148,7 +156,7 @@
     </div>
   </section>
 
-  <!-- MATCH HISTORY (PUBLIC) -->
+  <!-- MATCH HISTORY -->
   <section id="screen-history" class="screen hidden">
     <div class="card">
       <div class="card-title">Match History</div>
@@ -279,6 +287,6 @@
   </div>
 </nav>
 
-<script type="module" src="./app.js?v=160001"></script>
+<script type="module" src="./app.js?v=170001"></script>
 </body>
 </html>
