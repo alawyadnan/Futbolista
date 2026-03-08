@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=190001" />
+  <link rel="stylesheet" href="./styles.css?v=200001" />
 </head>
 <body>
 
@@ -131,6 +131,25 @@
       </div>
       <div id="playerCards" class="playerCards note">No players yet.</div>
     </div>
+  </section>
+
+  <!-- COMPARE -->
+  <section id="screen-compare" class="screen hidden">
+    <div class="card">
+      <div class="card-title">Compare</div>
+      <div class="gridForm compareSelectors">
+        <div>
+          <div class="label">Player A</div>
+          <select id="cmpPlayerA" class="select"></select>
+        </div>
+        <div>
+          <div class="label">Player B</div>
+          <select id="cmpPlayerB" class="select"></select>
+        </div>
+      </div>
+    </div>
+
+    <div id="compareResult" class="compareWrap note">Select two different players.</div>
   </section>
 
   <!-- PLAYER PROFILE -->
@@ -276,6 +295,10 @@
       <span class="ico">👥</span><span class="txt">Players</span>
     </button>
 
+    <button type="button" class="navbtn" data-nav="compare">
+      <span class="ico">⚔️</span><span class="txt">Compare</span>
+    </button>
+
     <button type="button" class="navbtn" data-nav="history">
       <span class="ico">🗓️</span><span class="txt">History</span>
     </button>
@@ -294,6 +317,6 @@
   </div>
 </nav>
 
-<script type="module" src="./app.js?v=190001"></script>
+<script type="module" src="./app.js?v=200001"></script>
 </body>
 </html>
