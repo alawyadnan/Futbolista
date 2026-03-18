@@ -213,13 +213,13 @@ function blankStats() {
   return { matches:0, wins:0, goals:0, winPct:0, gpm:0, current:0, best:0 };
 }
 
-function computeAllStats() {
+function computeAllStats(sourceLogs = logs) {
   const byId = {};
   players.forEach(p => byId[p.id] = blankStats());
 
   const grouped = {};
   players.forEach(p => grouped[p.id] = []);
-  logs.forEach(l => { if (grouped[l.playerId]) grouped[l.playerId].push(l); });
+  sourceLogs.forEach(l => { if (grouped[l.playerId]) grouped[l.playerId].push(l); });
 
   players.forEach(p => {
     const arr = (grouped[p.id] || []).slice().sort((a,b) => {
@@ -270,8 +270,8 @@ function getCurrentStreak(arr){
   return current;
 }
 
-function getPlayerFormData(playerId, statsMap){
-  const playerLogs = logs
+function getPlayerFormData(playerId, statsMap, sourceLogs = logs){
+  const playerLogs = sourceLogs
     .filter(l => String(l.playerId) === String(playerId))
     .sort((a,b) => {
       const da = String(a.date || "");
@@ -650,9 +650,90 @@ function renderDashboard(stats) {
 
 function renderLeaderboard(stats) {
   const sortBy = $("lbSort")?.value || "form";
+
   const rows = players.map(p => {
     const s = stats[p.id] || blankStats();
     const form = getPlayerFormData(p.id, stats);
+    const move = getLeaderboardMovementForPlayer(p.id, sortBy);
+
+    return {
+      id: p.id,
+      name: p.name || "",
+      matches: s.matches,
+      wins: s.wins,
+      goals: s.goals,
+      winPct: s.winPct,
+      gpm: s.gpm,
+      curStreak: s.current,
+      bestStreak: s.best,
+      formPoints: form.formPoints,
+      formIcons: form.formIcons,
+      move
+    };
+  }).sort(sorter(sortBy));
+
+  const box = $("leaderboardList");
+  if (!box) return;
+
+  box.innerHTML = rows.length
+    ? rows.map((r,i)=>`
+      <div class="item">
+        <div>
+          <div class="name">
+            ${medal(i)} ${esc(r.name)}
+            <span class="lbMove ${r.move.className}">${r.move.text}</span>
+          </div>
+          <div class="meta">
+            Form <b>${formatFormPoints(r.formPoints)}</b> ·
+            Last 5 <b>${r.formIcons || "—"}</b> ·
+            Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> ·
+            Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> ·
+            Streak <b>${r.curStreak}</b> (best ${r.bestStreak})
+          </div>
+        </div>
+      </div>
+    `).join("")
+    : `<div class="note">No players yet.</div>`;
+}
+
+function getLeaderboardMovementForPlayer(playerId, sortBy){
+  const currentRows = buildLeaderboardRowsForSort(sortBy, logs);
+  const currentIndex = currentRows.findIndex(r => r.id === playerId);
+
+  const latestPlayerLog = logs
+    .filter(l => String(l.playerId) === String(playerId))
+    .sort((a,b) => {
+      const da = String(a.date || "");
+      const db = String(b.date || "");
+      if (da < db) return 1;
+      if (da > db) return -1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    })[0];
+
+  if (!latestPlayerLog || currentIndex === -1) {
+    return { text: "—", className: "neutral" };
+  }
+
+  const prevLogs = logs.filter(l => l !== latestPlayerLog && l.id !== latestPlayerLog.id);
+  const prevRows = buildLeaderboardRowsForSort(sortBy, prevLogs);
+  const prevIndex = prevRows.findIndex(r => r.id === playerId);
+
+  if (prevIndex === -1) {
+    return { text: "—", className: "neutral" };
+  }
+
+  const diff = prevIndex - currentIndex; // positive => moved up
+  if (diff > 0) return { text: `↑ ${diff}`, className: "up" };
+  if (diff < 0) return { text: `↓ ${Math.abs(diff)}`, className: "down" };
+  return { text: "—", className: "neutral" };
+}
+
+function buildLeaderboardRowsForSort(sortBy, sourceLogs){
+  const sourceStats = computeAllStats(sourceLogs);
+
+  return players.map(p => {
+    const s = sourceStats[p.id] || blankStats();
+    const form = getPlayerFormData(p.id, sourceStats, sourceLogs);
     return {
       id: p.id,
       name: p.name || "",
@@ -667,26 +748,6 @@ function renderLeaderboard(stats) {
       formIcons: form.formIcons
     };
   }).sort(sorter(sortBy));
-
-  const box = $("leaderboardList");
-  if (!box) return;
-
-  box.innerHTML = rows.length
-    ? rows.map((r,i)=>`
-      <div class="item">
-        <div>
-          <div class="name">${medal(i)} ${esc(r.name)}</div>
-          <div class="meta">
-            Form <b>${formatFormPoints(r.formPoints)}</b> ·
-            Last 5 <b>${r.formIcons || "—"}</b> ·
-            Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> ·
-            Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> ·
-            Streak <b>${r.curStreak}</b> (best ${r.bestStreak})
-          </div>
-        </div>
-      </div>
-    `).join("")
-    : `<div class="note">No players yet.</div>`;
 }
 
 function renderTable(stats) {
@@ -760,9 +821,7 @@ function renderLogs() {
   }).join("") || `<div class="note">No entries yet.</div>`;
 }
 
-/* =========================
-   Compare
-========================= */
+/* Compare */
 
 function renderCompareOptions(){
   const a = $("cmpPlayerA");
