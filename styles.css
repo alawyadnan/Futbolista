@@ -836,3 +836,15 @@ body:not(.is-admin) [data-admin="1"]{
     font-size:11px;
   }
 }
+
+.lbMove{
+  display:inline-block;
+  margin-inline-start:8px;
+  font-size:12px;
+  font-weight:1000;
+  vertical-align:middle;
+}
+
+.lbMove.up{ color: var(--green); }
+.lbMove.down{ color: var(--red); }
+.lbMove.neutral{ color: var(--muted); }
