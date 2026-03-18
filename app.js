@@ -322,11 +322,6 @@ function getEligibleMinMatches(sourceLogs = logs){
   return Math.max(1, Math.floor(totalMatches / 2));
 }
 
-function isEligiblePlayer(playerId, statsMap, sourceLogs = logs){
-  const minEligible = getEligibleMinMatches(sourceLogs);
-  return (statsMap[playerId]?.matches || 0) >= minEligible;
-}
-
 function getEligiblePlayerIds(statsMap, sourceLogs = logs){
   const minEligible = getEligibleMinMatches(sourceLogs);
   return new Set(
@@ -334,6 +329,10 @@ function getEligiblePlayerIds(statsMap, sourceLogs = logs){
       .filter(p => (statsMap[p.id]?.matches || 0) >= minEligible)
       .map(p => p.id)
   );
+}
+
+function formatFormPoints(n){
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
 function renderAll() {
@@ -402,17 +401,13 @@ function renderInForm(stats){
       <div>
         <div class="name">${medal(i)} ${esc(r.name)}</div>
         <div class="meta">
-          Form points: <b>${formatFormPoints(r.formPoints)}</b> ·
+          Points: <b>${formatFormPoints(r.formPoints)}</b> ·
           Last 5: <b>${r.formIcons || "—"}</b> ·
           Matches: <b>${r.totalPlayerMatches}</b>
         </div>
       </div>
     </div>
   `).join("");
-}
-
-function formatFormPoints(n){
-  return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
 function renderPlayerCardsNameOnly() {
@@ -662,7 +657,7 @@ function renderDashboard(stats) {
       ? topStreak.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`)).join("")
       : `<div class="note">No eligible players yet.</div>`);
 
-  const topWin = rows.filter(x=>x.s.matches>=2).sort((a,b)=>(b.s.winPct-a.s.winPct)||(b.s.wins-a.s.wins)).slice(0,3);
+  const topWin = rows.slice().sort((a,b)=>(b.s.winPct-a.s.winPct)||(b.s.wins-a.s.wins)).slice(0,3);
   $("dashTopWinPct") && ($("dashTopWinPct").innerHTML =
     topWin.length
       ? topWin.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`)).join("")
@@ -721,24 +716,18 @@ function renderLeaderboard(stats) {
 }
 
 function getLeaderboardMovementForPlayer(playerId, sortBy){
+  const latestGlobalLog = logs
+    .slice()
+    .sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+
   const currentRows = buildLeaderboardRowsForSort(sortBy, logs);
   const currentIndex = currentRows.findIndex(r => r.id === playerId);
 
-  const latestPlayerLog = logs
-    .filter(l => String(l.playerId) === String(playerId))
-    .sort((a,b) => {
-      const da = String(a.date || "");
-      const db = String(b.date || "");
-      if (da < db) return 1;
-      if (da > db) return -1;
-      return (b.createdAt || 0) - (a.createdAt || 0);
-    })[0];
-
-  if (!latestPlayerLog || currentIndex === -1) {
+  if (!latestGlobalLog || currentIndex === -1) {
     return { text: "•", className: "neutral" };
   }
 
-  const prevLogs = logs.filter(l => l.id !== latestPlayerLog.id);
+  const prevLogs = logs.filter(l => l.id !== latestGlobalLog.id);
   const prevRows = buildLeaderboardRowsForSort(sortBy, prevLogs);
   const prevIndex = prevRows.findIndex(r => r.id === playerId);
 
