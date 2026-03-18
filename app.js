@@ -308,6 +308,34 @@ function getPlayerFormData(playerId, statsMap, sourceLogs = logs){
   };
 }
 
+function getTotalUniqueMatchDates(sourceLogs = logs){
+  const set = new Set(
+    sourceLogs
+      .map(l => String(l.date || "").trim())
+      .filter(Boolean)
+  );
+  return set.size;
+}
+
+function getEligibleMinMatches(sourceLogs = logs){
+  const totalMatches = getTotalUniqueMatchDates(sourceLogs);
+  return Math.max(1, Math.floor(totalMatches / 2));
+}
+
+function isEligiblePlayer(playerId, statsMap, sourceLogs = logs){
+  const minEligible = getEligibleMinMatches(sourceLogs);
+  return (statsMap[playerId]?.matches || 0) >= minEligible;
+}
+
+function getEligiblePlayerIds(statsMap, sourceLogs = logs){
+  const minEligible = getEligibleMinMatches(sourceLogs);
+  return new Set(
+    players
+      .filter(p => (statsMap[p.id]?.matches || 0) >= minEligible)
+      .map(p => p.id)
+  );
+}
+
 function renderAll() {
   const sel = $("logPlayer");
   if (sel) {
@@ -339,8 +367,7 @@ function renderInForm(stats){
   const box = $("inFormList");
   if (!box) return;
 
-  const totalMatchesInSystem = getTotalUniqueMatchDates();
-  const minEligibleMatches = Math.max(1, Math.floor(totalMatchesInSystem / 2));
+  const minEligibleMatches = getEligibleMinMatches(logs);
 
   const rows = players.map(p => {
     const form = getPlayerFormData(p.id, stats);
@@ -382,15 +409,6 @@ function renderInForm(stats){
       </div>
     </div>
   `).join("");
-}
-
-function getTotalUniqueMatchDates(){
-  const set = new Set(
-    logs
-      .map(l => String(l.date || "").trim())
-      .filter(Boolean)
-  );
-  return set.size;
 }
 
 function formatFormPoints(n){
@@ -627,50 +645,56 @@ function sideLines(entries, idToName) {
 }
 
 function renderDashboard(stats) {
-  const rows = players.map(p=>({p,s:stats[p.id]||blankStats()}));
+  const eligibleIds = getEligiblePlayerIds(stats, logs);
+  const rows = players
+    .filter(p => eligibleIds.has(p.id))
+    .map(p=>({p,s:stats[p.id]||blankStats()}));
 
   const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
   $("dashTopScorers") && ($("dashTopScorers").innerHTML =
     topGoals.length
       ? topGoals.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `${x.s.goals} goals · G/Match ${fmt2(x.s.gpm)} · Win% ${fmtPct(x.s.winPct)}`)).join("")
-      : `<div class="note">No data yet.</div>`);
+      : `<div class="note">No eligible players yet.</div>`);
 
   const topStreak = rows.slice().sort((a,b)=>(b.s.current-a.s.current)||(b.s.best-a.s.best)).slice(0,3);
   $("dashTopStreaks") && ($("dashTopStreaks").innerHTML =
     topStreak.length
       ? topStreak.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`)).join("")
-      : `<div class="note">No data yet.</div>`);
+      : `<div class="note">No eligible players yet.</div>`);
 
   const topWin = rows.filter(x=>x.s.matches>=2).sort((a,b)=>(b.s.winPct-a.s.winPct)||(b.s.wins-a.s.wins)).slice(0,3);
   $("dashTopWinPct") && ($("dashTopWinPct").innerHTML =
     topWin.length
       ? topWin.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`)).join("")
-      : `<div class="note">Need at least 2 matches per player.</div>`);
+      : `<div class="note">No eligible players yet.</div>`);
 }
 
 function renderLeaderboard(stats) {
   const sortBy = $("lbSort")?.value || "form";
+  const eligibleIds = getEligiblePlayerIds(stats, logs);
 
-  const rows = players.map(p => {
-    const s = stats[p.id] || blankStats();
-    const form = getPlayerFormData(p.id, stats);
-    const move = getLeaderboardMovementForPlayer(p.id, sortBy);
+  const rows = players
+    .filter(p => eligibleIds.has(p.id))
+    .map(p => {
+      const s = stats[p.id] || blankStats();
+      const form = getPlayerFormData(p.id, stats);
+      const move = getLeaderboardMovementForPlayer(p.id, sortBy);
 
-    return {
-      id: p.id,
-      name: p.name || "",
-      matches: s.matches,
-      wins: s.wins,
-      goals: s.goals,
-      winPct: s.winPct,
-      gpm: s.gpm,
-      curStreak: s.current,
-      bestStreak: s.best,
-      formPoints: form.formPoints,
-      formIcons: form.formIcons,
-      move
-    };
-  }).sort(sorter(sortBy));
+      return {
+        id: p.id,
+        name: p.name || "",
+        matches: s.matches,
+        wins: s.wins,
+        goals: s.goals,
+        winPct: s.winPct,
+        gpm: s.gpm,
+        curStreak: s.current,
+        bestStreak: s.best,
+        formPoints: form.formPoints,
+        formIcons: form.formIcons,
+        move
+      };
+    }).sort(sorter(sortBy));
 
   const box = $("leaderboardList");
   if (!box) return;
@@ -693,7 +717,7 @@ function renderLeaderboard(stats) {
         </div>
       </div>
     `).join("")
-    : `<div class="note">No players yet.</div>`;
+    : `<div class="note">No eligible players yet.</div>`;
 }
 
 function getLeaderboardMovementForPlayer(playerId, sortBy){
@@ -711,48 +735,69 @@ function getLeaderboardMovementForPlayer(playerId, sortBy){
     })[0];
 
   if (!latestPlayerLog || currentIndex === -1) {
-    return { text: "—", className: "neutral" };
+    return { text: "•", className: "neutral" };
   }
 
-  const prevLogs = logs.filter(l => l !== latestPlayerLog && l.id !== latestPlayerLog.id);
+  const prevLogs = logs.filter(l => l.id !== latestPlayerLog.id);
   const prevRows = buildLeaderboardRowsForSort(sortBy, prevLogs);
   const prevIndex = prevRows.findIndex(r => r.id === playerId);
 
   if (prevIndex === -1) {
-    return { text: "—", className: "neutral" };
+    return { text: "•", className: "neutral" };
   }
 
-  const diff = prevIndex - currentIndex; // positive => moved up
-  if (diff > 0) return { text: `↑ ${diff}`, className: "up" };
-  if (diff < 0) return { text: `↓ ${Math.abs(diff)}`, className: "down" };
-  return { text: "—", className: "neutral" };
+  const diff = prevIndex - currentIndex;
+  if (diff > 0) return { text: `▲ ${diff}`, className: "up" };
+  if (diff < 0) return { text: `▼ ${Math.abs(diff)}`, className: "down" };
+  return { text: "•", className: "neutral" };
 }
 
 function buildLeaderboardRowsForSort(sortBy, sourceLogs){
   const sourceStats = computeAllStats(sourceLogs);
+  const eligibleIds = getEligiblePlayerIds(sourceStats, sourceLogs);
 
-  return players.map(p => {
-    const s = sourceStats[p.id] || blankStats();
-    const form = getPlayerFormData(p.id, sourceStats, sourceLogs);
-    return {
-      id: p.id,
-      name: p.name || "",
-      matches: s.matches,
-      wins: s.wins,
-      goals: s.goals,
-      winPct: s.winPct,
-      gpm: s.gpm,
-      curStreak: s.current,
-      bestStreak: s.best,
-      formPoints: form.formPoints,
-      formIcons: form.formIcons
-    };
-  }).sort(sorter(sortBy));
+  return players
+    .filter(p => eligibleIds.has(p.id))
+    .map(p => {
+      const s = sourceStats[p.id] || blankStats();
+      const form = getPlayerFormData(p.id, sourceStats, sourceLogs);
+      return {
+        id: p.id,
+        name: p.name || "",
+        matches: s.matches,
+        wins: s.wins,
+        goals: s.goals,
+        winPct: s.winPct,
+        gpm: s.gpm,
+        curStreak: s.current,
+        bestStreak: s.best,
+        formPoints: form.formPoints,
+        formIcons: form.formIcons
+      };
+    }).sort(sorter(sortBy));
 }
 
 function renderTable(stats) {
   const sortBy = $("tableSort")?.value || "winPct";
-  const rows = buildRows(stats).sort(sorter(sortBy));
+  const eligibleIds = getEligiblePlayerIds(stats, logs);
+
+  const rows = players
+    .filter(p => eligibleIds.has(p.id))
+    .map(p => {
+      const s = stats[p.id] || blankStats();
+      return {
+        name: p.name || "",
+        matches: s.matches,
+        wins: s.wins,
+        goals: s.goals,
+        winPct: s.winPct,
+        gpm: s.gpm,
+        curStreak: s.current,
+        bestStreak: s.best
+      };
+    })
+    .sort(sorter(sortBy));
+
   const body = $("tableBody");
   if (!body) return;
 
@@ -770,7 +815,7 @@ function renderTable(stats) {
         <td>${r.bestStreak}</td>
       </tr>
     `).join("")
-    : `<tr><td colspan="9" class="noteCell">No players yet.</td></tr>`;
+    : `<tr><td colspan="9" class="noteCell">No eligible players yet.</td></tr>`;
 }
 
 function renderPlayersAdmin(stats) {
