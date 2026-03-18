@@ -673,83 +673,7 @@ function renderLeaderboard(stats) {
     .map(p => {
       const s = stats[p.id] || blankStats();
       const form = getPlayerFormData(p.id, stats);
-      const move = getLeaderboardMovementForPlayer(p.id, sortBy);
 
-      return {
-        id: p.id,
-        name: p.name || "",
-        matches: s.matches,
-        wins: s.wins,
-        goals: s.goals,
-        winPct: s.winPct,
-        gpm: s.gpm,
-        curStreak: s.current,
-        bestStreak: s.best,
-        formPoints: form.formPoints,
-        formIcons: form.formIcons,
-        move
-      };
-    }).sort(sorter(sortBy));
-
-  const box = $("leaderboardList");
-  if (!box) return;
-
-  box.innerHTML = rows.length
-    ? rows.map((r,i)=>`
-      <div class="item">
-        <div>
-          <div class="name">
-            ${medal(i)} ${esc(r.name)}
-            <span class="lbMove ${r.move.className}">${r.move.text}</span>
-          </div>
-          <div class="meta">
-            Form <b>${formatFormPoints(r.formPoints)}</b> ·
-            Last 5 <b>${r.formIcons || "—"}</b> ·
-            Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> ·
-            Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> ·
-            Streak <b>${r.curStreak}</b> (best ${r.bestStreak})
-          </div>
-        </div>
-      </div>
-    `).join("")
-    : `<div class="note">No eligible players yet.</div>`;
-}
-
-function getLeaderboardMovementForPlayer(playerId, sortBy){
-  const latestGlobalLog = logs
-    .slice()
-    .sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-
-  const currentRows = buildLeaderboardRowsForSort(sortBy, logs);
-  const currentIndex = currentRows.findIndex(r => r.id === playerId);
-
-  if (!latestGlobalLog || currentIndex === -1) {
-    return { text: "•", className: "neutral" };
-  }
-
-  const prevLogs = logs.filter(l => l.id !== latestGlobalLog.id);
-  const prevRows = buildLeaderboardRowsForSort(sortBy, prevLogs);
-  const prevIndex = prevRows.findIndex(r => r.id === playerId);
-
-  if (prevIndex === -1) {
-    return { text: "•", className: "neutral" };
-  }
-
-  const diff = prevIndex - currentIndex;
-  if (diff > 0) return { text: `▲ ${diff}`, className: "up" };
-  if (diff < 0) return { text: `▼ ${Math.abs(diff)}`, className: "down" };
-  return { text: "•", className: "neutral" };
-}
-
-function buildLeaderboardRowsForSort(sortBy, sourceLogs){
-  const sourceStats = computeAllStats(sourceLogs);
-  const eligibleIds = getEligiblePlayerIds(sourceStats, sourceLogs);
-
-  return players
-    .filter(p => eligibleIds.has(p.id))
-    .map(p => {
-      const s = sourceStats[p.id] || blankStats();
-      const form = getPlayerFormData(p.id, sourceStats, sourceLogs);
       return {
         id: p.id,
         name: p.name || "",
@@ -764,6 +688,28 @@ function buildLeaderboardRowsForSort(sortBy, sourceLogs){
         formIcons: form.formIcons
       };
     }).sort(sorter(sortBy));
+
+  const box = $("leaderboardList");
+  if (!box) return;
+
+  box.innerHTML = rows.length
+    ? rows.map((r,i)=>`
+      <div class="item">
+        <div>
+          <div class="name">
+            ${medal(i)} ${esc(r.name)}
+          </div>
+          <div class="meta">
+            Form <b>${formatFormPoints(r.formPoints)}</b> ·
+            Last 5 <b>${r.formIcons || "—"}</b> ·
+            Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> ·
+            Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> ·
+            Streak <b>${r.curStreak}</b> (best ${r.bestStreak})
+          </div>
+        </div>
+      </div>
+    `).join("")
+    : `<div class="note">No eligible players yet.</div>`;
 }
 
 function renderTable(stats) {
