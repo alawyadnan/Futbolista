@@ -363,6 +363,10 @@ function renderAll() {
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
 }
 
+/* =========================
+   Player of the Month
+========================= */
+
 function renderPlayerOfMonth() {
   const monthEl = $("potmCurrentMonth");
   const listEl = $("potmCurrentList");
@@ -378,6 +382,7 @@ function renderPlayerOfMonth() {
     monthEl.textContent = "—";
     listEl.innerHTML = `<div class="note">No monthly data yet.</div>`;
     pastEl.innerHTML = `<div class="note">No past months yet.</div>`;
+    detailsEl.open = false;
     return;
   }
 
@@ -481,15 +486,14 @@ function computeMonthlyAwards(sourceLogs = logs) {
       (b.matches - a.matches) ||
       (b.wins - a.wins) ||
       (b.draws - a.draws) ||
+      (a.losses - b.losses) ||
       (b.goals - a.goals) ||
       a.name.localeCompare(b.name)
     );
 
-    const topRaw = rows[0]?.rawScore || 0;
-
     const withRatings = rows.map(r => ({
       ...r,
-      rating10: topRaw > 0 ? (r.rawScore / topRaw) * 10 : 0
+      rating10: Math.min(10, r.rawScore)
     }));
 
     result[monthKey] = {
@@ -536,6 +540,10 @@ function formatMonthLabel(monthKey) {
 function potmMedal(i) {
   return i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "•";
 }
+
+/* =========================
+   Dashboard / Leaderboard / Table
+========================= */
 
 function renderInForm(stats){
   const box = $("inFormList");
@@ -697,6 +705,10 @@ function renderTable(stats) {
     : `<tr><td colspan="9" class="noteCell">No eligible players yet.</td></tr>`;
 }
 
+/* =========================
+   Other screens
+========================= */
+
 function renderPlayersAdmin(stats) {
   const box = $("playersList");
   if (!box) return;
@@ -721,28 +733,6 @@ function renderPlayersAdmin(stats) {
     }).join("");
 
   box.innerHTML = html || `<div class="note">No players yet.</div>`;
-}
-
-function renderLogs() {
-  const box = $("logsList");
-  if (!box) return;
-
-  box.innerHTML = logs.slice(0,30).map(l => {
-    const p = players.find(x=>x.id===l.playerId);
-    const name = p ? p.name : "(Unknown)";
-    const result = normalizeResult(l);
-    const side = normalizeSide(l);
-    const own = isOwnGoal(l);
-
-    return `
-      <div class="item">
-        <div>
-          <div class="name">${esc(name)} — ${result.toUpperCase()}${own ? " · OWN GOAL" : ""}</div>
-          <div class="meta">${esc(l.date||"")} · Team ${side} · Goals: <b>${Number(l.goals||0)}</b></div>
-        </div>
-      </div>
-    `;
-  }).join("") || `<div class="note">No entries yet.</div>`;
 }
 
 function renderPlayerCardsNameOnly() {
@@ -772,6 +762,211 @@ function openProfile(pid) {
   const stats = computeAllStats();
   renderPlayerProfile(stats, pid);
 }
+
+function renderPlayerProfile(stats, pid) {
+  const p = players.find(x=>x.id===pid);
+  if (!p) return;
+
+  const s = stats[pid] || blankStats();
+
+  $("profileName") && ($("profileName").textContent = p.name || "Player");
+  $("profileSub") && ($("profileSub").textContent = "");
+
+  const grid = $("profileStatsGrid");
+  if (grid) {
+    grid.innerHTML = [
+      tile("Matches", s.matches),
+      tile("Goals", s.goals),
+      tile("Wins", s.wins),
+      tile("Win %", fmtPct(s.winPct)),
+      tile("Goals per Match", fmt2(s.gpm)),
+      tile("Current Win Streak", s.current),
+      tile("Best Win Streak", s.best),
+    ].join("");
+  }
+
+  const form = getPlayerFormData(pid, stats);
+  const formBox = $("profileForm");
+  if (formBox) {
+    formBox.textContent = form.formIcons || "No matches yet";
+  }
+
+  const counts = computeTeammates(pid);
+  const matesBox = $("profileMates");
+  const neverBox = $("profileNever");
+
+  const sorted = Object.entries(counts)
+    .sort((a,b)=> b[1]-a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
+
+  const playedIds = new Set(sorted.map(([id])=>id));
+  const never = players
+    .filter(x => x.id !== pid && !playedIds.has(x.id))
+    .map(x => x.name || "Unknown")
+    .sort((a,b)=>a.localeCompare(b));
+
+  if (matesBox) {
+    if (!sorted.length) {
+      matesBox.classList.add("note");
+      matesBox.textContent = "No teammate data yet.";
+    } else {
+      matesBox.classList.remove("note");
+      matesBox.innerHTML = sorted.map(([id,c])=>`
+        <div class="mateRow">
+          <div class="playerName">${esc(nameOf(id))}</div>
+          <div class="playerGoals">${c}</div>
+        </div>
+      `).join("");
+    }
+  }
+
+  if (neverBox) {
+    if (!never.length) {
+      neverBox.classList.add("note");
+      neverBox.textContent = "—";
+    } else {
+      neverBox.classList.remove("note");
+      neverBox.textContent = never.join(" - ");
+    }
+  }
+
+  function nameOf(id) {
+    return (players.find(x=>x.id===id)?.name) || "Unknown";
+  }
+}
+
+function tile(label, value) {
+  return `<div class="statTile"><div class="stLabel">${esc(label)}</div><div class="stValue">${esc(value)}</div></div>`;
+}
+
+function computeTeammates(pid) {
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "");
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  const counts = {};
+  Object.keys(byDate).forEach(date => {
+    const arr = byDate[date];
+    const playerEntry = arr.find(x => x.playerId === pid);
+    if (!playerEntry) return;
+
+    const side = normalizeSide(playerEntry);
+    arr.filter(x => normalizeSide(x) === side).forEach(x => {
+      if (x.playerId === pid) return;
+      counts[x.playerId] = (counts[x.playerId] || 0) + 1;
+    });
+  });
+
+  return counts;
+}
+
+function renderMatchHistory() {
+  const box = $("matchHistoryList");
+  if (!box) return;
+
+  const idToName = {};
+  players.forEach(p => idToName[p.id] = p.name || "Unknown");
+
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "");
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  const dates = Object.keys(byDate).sort((a,b)=> b.localeCompare(a));
+  if (!dates.length) {
+    box.innerHTML = `<div class="note">No matches yet.</div>`;
+    return;
+  }
+
+  box.innerHTML = dates.map(date => {
+    const arr = byDate[date];
+    const teamA = arr.filter(x => normalizeSide(x) === "A");
+    const teamB = arr.filter(x => normalizeSide(x) === "B");
+
+    const scoreA = calcTeamScore(teamA, teamB);
+    const scoreB = calcTeamScore(teamB, teamA);
+
+    const titleA = scoreA > scoreB ? "Winners" : scoreA < scoreB ? "Losers" : "Draw";
+    const titleB = scoreB > scoreA ? "Winners" : scoreB < scoreA ? "Losers" : "Draw";
+
+    const linesA = sideLines(teamA, idToName);
+    const linesB = sideLines(teamB, idToName);
+
+    return `
+      <div class="item">
+        <div class="matchCard">
+          <div class="matchTop">
+            <div class="matchDate">${esc(date)}</div>
+            <div class="matchScore">${scoreA} : ${scoreB}</div>
+          </div>
+
+          <div class="matchGrid">
+            <div class="teamBox">
+              <div class="teamTitle">${titleA}</div>
+              ${linesA.length ? linesA.join("") : `<div class="meta">—</div>`}
+            </div>
+
+            <div class="teamBox">
+              <div class="teamTitle">${titleB}</div>
+              ${linesB.length ? linesB.join("") : `<div class="meta">—</div>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function calcTeamScore(teamEntries, oppositeEntries) {
+  const normalGoals = teamEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? 0 : Number(x.goals || 0)), 0);
+  const oppOwnGoals = oppositeEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? Number(x.goals || 0) : 0), 0);
+  return normalGoals + oppOwnGoals;
+}
+
+function sideLines(entries, idToName) {
+  const arr = entries.map(e => ({
+    name: idToName[e.playerId] || "Unknown",
+    goals: Number(e.goals || 0),
+    ownGoal: isOwnGoal(e)
+  }));
+
+  const scorers = arr
+    .filter(x => !x.ownGoal && x.goals > 0)
+    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+
+  const owns = arr
+    .filter(x => x.ownGoal && x.goals > 0)
+    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+
+  const others = arr
+    .filter(x => !x.ownGoal && x.goals <= 0)
+    .sort((a,b)=> a.name.localeCompare(b.name));
+
+  const lines = [];
+
+  scorers.forEach(x => {
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals">(${x.goals})</div></div>`);
+  });
+
+  owns.forEach(x => {
+    const label = x.goals === 1 ? "own goal" : `own goals x${x.goals}`;
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)} (${label})</div><div class="playerGoals"></div></div>`);
+  });
+
+  others.forEach(x => {
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals"></div></div>`);
+  });
+
+  return lines;
+}
+
+/* =========================
+   Compare
+========================= */
 
 function renderCompareOptions(){
   const a = $("cmpPlayerA");
@@ -972,6 +1167,10 @@ function compareFormStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null
   `;
 }
 
+/* =========================
+   Helpers
+========================= */
+
 function exportJSON() {
   const data = { exportedAt:new Date().toISOString(), players, logs };
   const blob = new Blob([JSON.stringify(data,null,2)], { type:"application/json" });
@@ -993,12 +1192,31 @@ async function resetAllData() {
   for (const d of playersSnap.docs) await deleteDoc(doc(db,"players",d.id));
 }
 
+function clampInt(v,min,max) {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
 function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
 function fmt2(x){ return (Number(x)||0).toFixed(2); }
 function fmt1(x){ return (Number(x)||0).toFixed(1); }
 function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
-function dashItem(t,m){ return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`; }
-function esc(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
+function potmMedal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":"•"; }
+
+function dashItem(t,m){
+  return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`;
+}
+
+function esc(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
 function sorter(k) {
   if (k === "name") return (a,b)=>a.name.localeCompare(b.name);
   if (k === "form") {
@@ -1008,11 +1226,18 @@ function sorter(k) {
       (Number(b.goals||0)-Number(a.goals||0)) ||
       a.name.localeCompare(b.name);
   }
-  const key = ({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[k]) || "winPct";
-  return (a,b)=> (Number(b[key]||0)-Number(a[key]||0)) || (Number(b.goals||0)-Number(a.goals||0)) || a.name.localeCompare(b.name);
-}
-function clampInt(v,min,max) {
-  const n = Math.floor(Number(v));
-  if (!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, n));
+  const key = ({
+    winPct:"winPct",
+    goals:"goals",
+    gpm:"gpm",
+    wins:"wins",
+    matches:"matches",
+    curStreak:"curStreak",
+    bestStreak:"bestStreak"
+  }[k]) || "winPct";
+
+  return (a,b)=>
+    (Number(b[key]||0)-Number(a[key]||0)) ||
+    (Number(b.goals||0)-Number(a.goals||0)) ||
+    a.name.localeCompare(b.name);
 }
