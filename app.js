@@ -350,7 +350,6 @@ function renderAll() {
   renderCompareOptions();
 
   const stats = computeAllStats();
-  renderPlayerOfMonth();
   renderDashboard(stats);
   renderInForm(stats);
   renderLeaderboard(stats);
@@ -362,185 +361,6 @@ function renderAll() {
   renderCompare();
   if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
 }
-
-/* =========================
-   Player of the Month
-========================= */
-
-function renderPlayerOfMonth() {
-  const monthEl = $("potmCurrentMonth");
-  const listEl = $("potmCurrentList");
-  const pastEl = $("potmPastMonths");
-  const detailsEl = $("potmPastDetails");
-
-  if (!monthEl || !listEl || !pastEl || !detailsEl) return;
-
-  const monthly = computeMonthlyAwards(logs);
-  const monthKeys = Object.keys(monthly).sort((a,b) => b.localeCompare(a));
-
-  if (!monthKeys.length) {
-    monthEl.textContent = "—";
-    listEl.innerHTML = `<div class="note">No monthly data yet.</div>`;
-    pastEl.innerHTML = `<div class="note">No past months yet.</div>`;
-    detailsEl.open = false;
-    return;
-  }
-
-  const currentMonthKey = monthKeys[0];
-  const currentMonth = monthly[currentMonthKey];
-  monthEl.textContent = formatMonthLabel(currentMonthKey);
-  listEl.innerHTML = renderPotmCards(currentMonth.top3);
-
-  const pastKeys = monthKeys.slice(1);
-
-  if (!pastKeys.length) {
-    detailsEl.open = false;
-    pastEl.innerHTML = `<div class="note">No past months yet.</div>`;
-    return;
-  }
-
-  pastEl.innerHTML = pastKeys.map(key => {
-    const data = monthly[key];
-    return `
-      <div class="potmPastMonthBlock">
-        <div class="potmPastMonthTitle">${esc(formatMonthLabel(key))}</div>
-        ${renderPotmCards(data.top3)}
-      </div>
-    `;
-  }).join("");
-}
-
-function computeMonthlyAwards(sourceLogs = logs) {
-  const byDate = {};
-  sourceLogs.forEach(l => {
-    const d = String(l.date || "").trim();
-    if (!d) return;
-    (byDate[d] ||= []).push(l);
-  });
-
-  const monthlyStats = {};
-
-  Object.keys(byDate).forEach(date => {
-    const entries = byDate[date];
-    const monthKey = date.slice(0, 7);
-
-    const teamA = entries.filter(x => normalizeSide(x) === "A");
-    const teamB = entries.filter(x => normalizeSide(x) === "B");
-
-    const scoreA = calcTeamScore(teamA, teamB);
-    const scoreB = calcTeamScore(teamB, teamA);
-
-    entries.forEach(entry => {
-      const pid = entry.playerId;
-      if (!pid) return;
-
-      const side = normalizeSide(entry);
-      const result = normalizeResult(entry);
-      const teamScored = side === "A" ? scoreA : scoreB;
-      const teamConceded = side === "A" ? scoreB : scoreA;
-      const personalGoals = isOwnGoal(entry) ? 0 : Number(entry.goals || 0);
-
-      (monthlyStats[monthKey] ||= {});
-      (monthlyStats[monthKey][pid] ||= {
-        playerId: pid,
-        name: players.find(p => p.id === pid)?.name || "Unknown",
-        matches: 0,
-        wins: 0,
-        draws: 0,
-        losses: 0,
-        goals: 0,
-        rawScore: 0
-      });
-
-      const s = monthlyStats[monthKey][pid];
-
-      s.matches += 1;
-      if (result === "win") s.wins += 1;
-      else if (result === "draw") s.draws += 1;
-      else s.losses += 1;
-
-      s.goals += personalGoals;
-
-      let points = 0;
-      points += 0.5; // attendance
-      points += personalGoals * 0.1;
-
-      if (result === "win") points += 1;
-      else if (result === "draw") points += 0.5;
-      else points -= 0.5;
-
-      if (teamScored >= 10) points += 0.5;
-      else if (teamScored >= 5) points += 0.2;
-
-      if (teamConceded <= 3) points += 0.8;
-      else if (teamConceded < 5) points += 0.5;
-
-      s.rawScore += points;
-    });
-  });
-
-  const output = {};
-
-  Object.keys(monthlyStats).forEach(monthKey => {
-    const rows = Object.values(monthlyStats[monthKey]).sort((a,b) =>
-      (b.rawScore - a.rawScore) ||
-      (b.matches - a.matches) ||
-      (b.wins - a.wins) ||
-      (b.draws - a.draws) ||
-      (a.losses - b.losses) ||
-      (b.goals - a.goals) ||
-      a.name.localeCompare(b.name)
-    );
-
-    const rated = rows.map(r => ({
-      ...r,
-      rating10: Math.min(10, r.rawScore)
-    }));
-
-    output[monthKey] = {
-      all: rated,
-      top3: rated.slice(0, 3)
-    };
-  });
-
-  return output;
-}
-
-function renderPotmCards(rows) {
-  if (!rows?.length) return `<div class="note">No data for this month.</div>`;
-
-  return `
-    <div class="potmGrid">
-      ${rows.map((r, idx) => `
-        <div class="potmCard ${idx === 0 ? "potmFirst" : ""}">
-          <div class="potmTop">
-            <div class="potmPlace">${potmMedal(idx)}</div>
-            <div class="potmScore">${fmt1(r.rating10)}/10</div>
-          </div>
-          <div class="potmName">${esc(r.name)}</div>
-          <div class="potmMeta">
-            ${r.matches} Matches | ${r.wins} Wins | ${r.draws} Draws | ${r.losses} Losses | ${r.goals} Goal${r.goals === 1 ? "" : "s"}
-          </div>
-          <div class="potmRaw">Monthly score: ${fmt1(r.rawScore)}</div>
-        </div>
-      `).join("")}
-    </div>
-  `;
-}
-
-function formatMonthLabel(monthKey) {
-  const [year, month] = monthKey.split("-");
-  const date = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC"
-  }).format(date);
-}
-
-/* =========================
-   Dashboard / Leaderboard / Table
-========================= */
 
 function renderInForm(stats){
   const box = $("inFormList");
@@ -588,6 +408,235 @@ function renderInForm(stats){
       </div>
     </div>
   `).join("");
+}
+
+function renderPlayerCardsNameOnly() {
+  const box = $("playerCards");
+  if (!box) return;
+
+  if (!players.length) {
+    box.classList.add("note");
+    box.textContent = "No players yet.";
+    return;
+  }
+
+  box.classList.remove("note");
+
+  const sorted = players.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  box.innerHTML = sorted.map(p => `
+    <div class="pCard pCardNameOnly" data-player-id="${p.id}">
+      <div class="pName">${esc(p.name||"")}</div>
+    </div>
+  `).join("");
+}
+
+function openProfile(pid) {
+  currentProfileId = pid;
+  showScreen("playerprofile");
+  setActiveNav("playerstats");
+  const stats = computeAllStats();
+  renderPlayerProfile(stats, pid);
+}
+
+function renderPlayerProfile(stats, pid) {
+  const p = players.find(x=>x.id===pid);
+  if (!p) return;
+
+  const s = stats[pid] || blankStats();
+
+  $("profileName") && ($("profileName").textContent = p.name || "Player");
+  $("profileSub") && ($("profileSub").textContent = "");
+
+  const grid = $("profileStatsGrid");
+  if (grid) {
+    grid.innerHTML = [
+      tile("Matches", s.matches),
+      tile("Goals", s.goals),
+      tile("Wins", s.wins),
+      tile("Win %", fmtPct(s.winPct)),
+      tile("Goals per Match", fmt2(s.gpm)),
+      tile("Current Win Streak", s.current),
+      tile("Best Win Streak", s.best),
+    ].join("");
+  }
+
+  const form = getPlayerFormData(pid, stats);
+  const formBox = $("profileForm");
+  if (formBox) {
+    formBox.textContent = form.formIcons || "No matches yet";
+  }
+
+  const counts = computeTeammates(pid);
+  const matesBox = $("profileMates");
+  const neverBox = $("profileNever");
+
+  const sorted = Object.entries(counts)
+    .sort((a,b)=> b[1]-a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
+
+  const playedIds = new Set(sorted.map(([id])=>id));
+  const never = players
+    .filter(x => x.id !== pid && !playedIds.has(x.id))
+    .map(x => x.name || "Unknown")
+    .sort((a,b)=>a.localeCompare(b));
+
+  if (matesBox) {
+    if (!sorted.length) {
+      matesBox.classList.add("note");
+      matesBox.textContent = "No teammate data yet.";
+    } else {
+      matesBox.classList.remove("note");
+      matesBox.innerHTML = sorted.map(([id,c])=>`
+        <div class="mateRow">
+          <div class="playerName">${esc(nameOf(id))}</div>
+          <div class="playerGoals">${c}</div>
+        </div>
+      `).join("");
+    }
+  }
+
+  if (neverBox) {
+    if (!never.length) {
+      neverBox.classList.add("note");
+      neverBox.textContent = "—";
+    } else {
+      neverBox.classList.remove("note");
+      neverBox.textContent = never.join(" - ");
+    }
+  }
+
+  function nameOf(id) {
+    return (players.find(x=>x.id===id)?.name) || "Unknown";
+  }
+}
+
+function tile(label, value) {
+  return `<div class="statTile"><div class="stLabel">${esc(label)}</div><div class="stValue">${esc(value)}</div></div>`;
+}
+
+function computeTeammates(pid) {
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "");
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  const counts = {};
+  Object.keys(byDate).forEach(date => {
+    const arr = byDate[date];
+    const playerEntry = arr.find(x => x.playerId === pid);
+    if (!playerEntry) return;
+
+    const side = normalizeSide(playerEntry);
+    arr.filter(x => normalizeSide(x) === side).forEach(x => {
+      if (x.playerId === pid) return;
+      counts[x.playerId] = (counts[x.playerId] || 0) + 1;
+    });
+  });
+
+  return counts;
+}
+
+function renderMatchHistory() {
+  const box = $("matchHistoryList");
+  if (!box) return;
+
+  const idToName = {};
+  players.forEach(p => idToName[p.id] = p.name || "Unknown");
+
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "");
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  const dates = Object.keys(byDate).sort((a,b)=> b.localeCompare(a));
+  if (!dates.length) {
+    box.innerHTML = `<div class="note">No matches yet.</div>`;
+    return;
+  }
+
+  box.innerHTML = dates.map(date => {
+    const arr = byDate[date];
+    const teamA = arr.filter(x => normalizeSide(x) === "A");
+    const teamB = arr.filter(x => normalizeSide(x) === "B");
+
+    const scoreA = calcTeamScore(teamA, teamB);
+    const scoreB = calcTeamScore(teamB, teamA);
+
+    const titleA = scoreA > scoreB ? "Winners" : scoreA < scoreB ? "Losers" : "Draw";
+    const titleB = scoreB > scoreA ? "Winners" : scoreB < scoreA ? "Losers" : "Draw";
+
+    const linesA = sideLines(teamA, idToName);
+    const linesB = sideLines(teamB, idToName);
+
+    return `
+      <div class="item">
+        <div class="matchCard">
+          <div class="matchTop">
+            <div class="matchDate">${esc(date)}</div>
+            <div class="matchScore">${scoreA} : ${scoreB}</div>
+          </div>
+
+          <div class="matchGrid">
+            <div class="teamBox">
+              <div class="teamTitle">${titleA}</div>
+              ${linesA.length ? linesA.join("") : `<div class="meta">—</div>`}
+            </div>
+
+            <div class="teamBox">
+              <div class="teamTitle">${titleB}</div>
+              ${linesB.length ? linesB.join("") : `<div class="meta">—</div>`}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function calcTeamScore(teamEntries, oppositeEntries) {
+  const normalGoals = teamEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? 0 : Number(x.goals || 0)), 0);
+  const oppOwnGoals = oppositeEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? Number(x.goals || 0) : 0), 0);
+  return normalGoals + oppOwnGoals;
+}
+
+function sideLines(entries, idToName) {
+  const arr = entries.map(e => ({
+    name: idToName[e.playerId] || "Unknown",
+    goals: Number(e.goals || 0),
+    ownGoal: isOwnGoal(e)
+  }));
+
+  const scorers = arr
+    .filter(x => !x.ownGoal && x.goals > 0)
+    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+
+  const owns = arr
+    .filter(x => x.ownGoal && x.goals > 0)
+    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+
+  const others = arr
+    .filter(x => !x.ownGoal && x.goals <= 0)
+    .sort((a,b)=> a.name.localeCompare(b.name));
+
+  const lines = [];
+
+  scorers.forEach(x => {
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals">(${x.goals})</div></div>`);
+  });
+
+  owns.forEach(x => {
+    const label = x.goals === 1 ? "own goal" : `own goals x${x.goals}`;
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)} (${label})</div><div class="playerGoals"></div></div>`);
+  });
+
+  others.forEach(x => {
+    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals"></div></div>`);
+  });
+
+  return lines;
 }
 
 function renderDashboard(stats) {
@@ -647,7 +696,9 @@ function renderLeaderboard(stats) {
     ? rows.map((r,i)=>`
       <div class="item">
         <div>
-          <div class="name">${medal(i)} ${esc(r.name)}</div>
+          <div class="name">
+            ${medal(i)} ${esc(r.name)}
+          </div>
           <div class="meta">
             Form <b>${formatFormPoints(r.formPoints)}</b> ·
             Last 5 <b>${r.formIcons || "—"}</b> ·
@@ -702,10 +753,6 @@ function renderTable(stats) {
     : `<tr><td colspan="9" class="noteCell">No eligible players yet.</td></tr>`;
 }
 
-/* =========================
-   Remaining screens
-========================= */
-
 function renderPlayersAdmin(stats) {
   const box = $("playersList");
   if (!box) return;
@@ -754,6 +801,160 @@ function renderLogs() {
   }).join("") || `<div class="note">No entries yet.</div>`;
 }
 
+/* Compare */
+
+function renderCompareOptions(){
+  const a = $("cmpPlayerA");
+  const b = $("cmpPlayerB");
+  if (!a || !b) return;
+
+  const sorted = players.slice().sort((x,y)=>(x.name||"").localeCompare(y.name||""));
+  const aCur = a.value;
+  const bCur = b.value;
+
+  const placeholder = `<option value="">Select player</option>`;
+  const options = placeholder + sorted.map(p => `<option value="${p.id}">${esc(p.name||"")}</option>`).join("");
+
+  a.innerHTML = options;
+  b.innerHTML = options;
+
+  if (aCur && sorted.some(p => p.id === aCur)) a.value = aCur;
+  else a.value = "";
+
+  if (bCur && sorted.some(p => p.id === bCur)) b.value = bCur;
+  else b.value = "";
+
+  if (a.value && b.value && a.value === b.value) {
+    b.value = "";
+  }
+}
+
+function renderCompare(){
+  const aId = $("cmpPlayerA")?.value || "";
+  const bId = $("cmpPlayerB")?.value || "";
+  const box = $("compareResult");
+  if (!box) return;
+
+  if (!aId || !bId || aId === bId) {
+    box.innerHTML = `<div class="card"><div class="note">Select two different players.</div></div>`;
+    return;
+  }
+
+  const aPlayer = players.find(p => p.id === aId);
+  const bPlayer = players.find(p => p.id === bId);
+  if (!aPlayer || !bPlayer) {
+    box.innerHTML = `<div class="card"><div class="note">Players not found.</div></div>`;
+    return;
+  }
+
+  const stats = computeAllStats();
+  const aStats = stats[aId] || blankStats();
+  const bStats = stats[bId] || blankStats();
+  const aForm = getPlayerFormData(aId, stats);
+  const bForm = getPlayerFormData(bId, stats);
+
+  const h2h = computeHeadToHead(aId, bId);
+
+  box.innerHTML = `
+    <div class="card">
+      <div class="compareHeader horizontal">
+        <div class="compareName">${esc(aPlayer.name)}</div>
+        <div class="compareVs">vs</div>
+        <div class="compareName">${esc(bPlayer.name)}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Head-to-Head</div>
+      <div class="compareRows">
+        ${compareCenterValueRow("Matches against each other", h2h.againstMatches)}
+        ${compareCompactDualRow("Wins", h2h.aWinsAgainst, h2h.bWinsAgainst)}
+        ${compareCenterValueRow("Draws", h2h.drawsAgainst)}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Teammates Record</div>
+      <div class="compareRows">
+        ${compareCenterValueRow("Matches", h2h.togetherMatches)}
+        ${compareCenterValueRow("Wins", h2h.togetherWins)}
+        ${compareCenterValueRow("Losses", h2h.togetherLosses)}
+        ${compareCenterValueRow("Draws", h2h.togetherDraws)}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Individual Stats</div>
+      <div class="compareTable">
+        ${compareStatLine("Matches", aStats.matches, bStats.matches, aStats.matches, bStats.matches)}
+        ${compareStatLine("Goals", aStats.goals, bStats.goals, aStats.goals, bStats.goals)}
+        ${compareStatLine("Wins", aStats.wins, bStats.wins, aStats.wins, bStats.wins)}
+        ${compareStatLine("Win %", fmtPct(aStats.winPct), fmtPct(bStats.winPct), aStats.winPct, bStats.winPct)}
+        ${compareStatLine("Goals / Match", fmt2(aStats.gpm), fmt2(bStats.gpm), aStats.gpm, bStats.gpm)}
+        ${compareStatLine("Best Win Streak", aStats.best, bStats.best, aStats.best, bStats.best)}
+        ${compareFormStatLine("Form", aForm.formIcons || "—", bForm.formIcons || "—", aForm.formPoints, bForm.formPoints)}
+      </div>
+    </div>
+  `;
+}
+
+function computeHeadToHead(aId, bId){
+  const byDate = {};
+  logs.forEach(l => {
+    const d = String(l.date || "").trim();
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  let againstMatches = 0;
+  let aWinsAgainst = 0;
+  let bWinsAgainst = 0;
+  let drawsAgainst = 0;
+
+  let togetherMatches = 0;
+  let togetherWins = 0;
+  let togetherLosses = 0;
+  let togetherDraws = 0;
+
+  Object.keys(byDate).forEach(date => {
+    const arr = byDate[date];
+    const aEntry = arr.find(x => String(x.playerId) === String(aId));
+    const bEntry = arr.find(x => String(x.playerId) === String(bId));
+
+    if (!aEntry || !bEntry) return;
+
+    const aSide = normalizeSide(aEntry);
+    const bSide = normalizeSide(bEntry);
+    const aRes = normalizeResult(aEntry);
+    const bRes = normalizeResult(bEntry);
+
+    if (aSide !== bSide) {
+      againstMatches += 1;
+
+      if (aRes === "win" && bRes === "loss") aWinsAgainst += 1;
+      else if (bRes === "win" && aRes === "loss") bWinsAgainst += 1;
+      else drawsAgainst += 1;
+    } else {
+      togetherMatches += 1;
+
+      if (aRes === "win" && bRes === "win") togetherWins += 1;
+      else if (aRes === "draw" && bRes === "draw") togetherDraws += 1;
+      else togetherLosses += 1;
+    }
+  });
+
+  return {
+    againstMatches,
+    aWinsAgainst,
+    bWinsAgainst,
+    drawsAgainst,
+    togetherMatches,
+    togetherWins,
+    togetherLosses,
+    togetherDraws
+  };
+}
+
 function compareCenterValueRow(label, value){
   return `
     <div class="compareRow compareRowCenterOnly">
@@ -771,6 +972,32 @@ function compareCompactDualRow(label, leftVal, rightVal){
       <div class="compareCompactSide">${esc(leftVal)}</div>
       <div class="compareCompactLabel">${esc(label)}</div>
       <div class="compareCompactSide">${esc(rightVal)}</div>
+    </div>
+  `;
+}
+
+function compareStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null){
+  const leftBetter = aRaw !== null && bRaw !== null && Number(aRaw) > Number(bRaw);
+  const rightBetter = aRaw !== null && bRaw !== null && Number(bRaw) > Number(aRaw);
+
+  return `
+    <div class="compareStatLine">
+      <div class="compareSide ${leftBetter ? "better" : ""}">${esc(aDisplay)}</div>
+      <div class="compareCenter">${esc(label)}</div>
+      <div class="compareSide ${rightBetter ? "better" : ""}">${esc(bDisplay)}</div>
+    </div>
+  `;
+}
+
+function compareFormStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null){
+  const leftBetter = aRaw !== null && bRaw !== null && Number(aRaw) > Number(bRaw);
+  const rightBetter = aRaw !== null && bRaw !== null && Number(bRaw) > Number(aRaw);
+
+  return `
+    <div class="compareStatLine compareStatLineForm">
+      <div class="compareSide compareFormSide ${leftBetter ? "better" : ""}">${esc(aDisplay)}</div>
+      <div class="compareCenter">${esc(label)}</div>
+      <div class="compareSide compareFormSide ${rightBetter ? "better" : ""}">${esc(bDisplay)}</div>
     </div>
   `;
 }
@@ -796,26 +1023,20 @@ async function resetAllData() {
   for (const d of playersSnap.docs) await deleteDoc(doc(db,"players",d.id));
 }
 
-function clampInt(v,min,max) {
-  const n = Math.floor(Number(v));
-  if (!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, n));
-}
-
-function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
-function fmt2(x){ return (Number(x)||0).toFixed(2); }
-function fmt1(x){ return (Number(x)||0).toFixed(1); }
-
-function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
-function dashItem(t,m){ return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`; }
-
-function esc(s){
-  return String(s)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+function buildRows(stats) {
+  return players.map(p => {
+    const s = stats[p.id] || blankStats();
+    return {
+      name: p.name || "",
+      matches: s.matches,
+      wins: s.wins,
+      goals: s.goals,
+      winPct: s.winPct,
+      gpm: s.gpm,
+      curStreak: s.current,
+      bestStreak: s.best
+    };
+  });
 }
 
 function sorter(k) {
@@ -827,19 +1048,18 @@ function sorter(k) {
       (Number(b.goals||0)-Number(a.goals||0)) ||
       a.name.localeCompare(b.name);
   }
-
-  const key = ({
-    winPct:"winPct",
-    goals:"goals",
-    gpm:"gpm",
-    wins:"wins",
-    matches:"matches",
-    curStreak:"curStreak",
-    bestStreak:"bestStreak"
-  }[k]) || "winPct";
-
-  return (a,b)=>
-    (Number(b[key]||0)-Number(a[key]||0)) ||
-    (Number(b.goals||0)-Number(a.goals||0)) ||
-    a.name.localeCompare(b.name);
+  const key = ({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[k]) || "winPct";
+  return (a,b)=> (Number(b[key]||0)-Number(a[key]||0)) || (Number(b.goals||0)-Number(a.goals||0)) || a.name.localeCompare(b.name);
 }
+
+function clampInt(v,min,max) {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
+function fmt2(x){ return (Number(x)||0).toFixed(2); }
+function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
+function dashItem(t,m){ return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`; }
+function esc(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
