@@ -335,6 +335,186 @@ function formatFormPoints(n){
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
+function formatMonthLabel(monthKey){
+  const d = new Date(`${monthKey}-01T00:00:00`);
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function round1(n){
+  return Math.round(n * 10) / 10;
+}
+
+function buildMatchSummaryMap(sourceLogs = logs){
+  const byDate = {};
+  sourceLogs.forEach(l => {
+    const d = String(l.date || "").trim();
+    if (!d) return;
+    (byDate[d] ||= []).push(l);
+  });
+
+  const summary = {};
+
+  Object.keys(byDate).forEach(date => {
+    const arr = byDate[date];
+    const teamA = arr.filter(x => normalizeSide(x) === "A");
+    const teamB = arr.filter(x => normalizeSide(x) === "B");
+
+    const scoreA = calcTeamScore(teamA, teamB);
+    const scoreB = calcTeamScore(teamB, teamA);
+
+    summary[date] = {
+      A: { goalsFor: scoreA, goalsAgainst: scoreB },
+      B: { goalsFor: scoreB, goalsAgainst: scoreA }
+    };
+  });
+
+  return summary;
+}
+
+function computeMonthlyAwards(sourceLogs = logs){
+  const matchMap = buildMatchSummaryMap(sourceLogs);
+  const monthPlayer = {};
+
+  sourceLogs.forEach(l => {
+    const monthKey = String(l.date || "").slice(0, 7);
+    if (!monthKey) return;
+
+    const playerId = String(l.playerId || "");
+    if (!playerId) return;
+
+    monthPlayer[monthKey] ||= {};
+    monthPlayer[monthKey][playerId] ||= {
+      playerId,
+      matches: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goals: 0,
+      scoreRaw: 0,
+      score: 0
+    };
+
+    const row = monthPlayer[monthKey][playerId];
+    const result = normalizeResult(l);
+    const side = normalizeSide(l);
+    const goals = isOwnGoal(l) ? 0 : Number(l.goals || 0);
+
+    row.matches += 1;
+    row.goals += goals;
+
+    if (result === "win") row.wins += 1;
+    else if (result === "draw") row.draws += 1;
+    else row.losses += 1;
+
+    let score = 0;
+
+    score += 0.5; // attendance
+    score += goals * 0.1;
+
+    if (result === "win") score += 1;
+    else if (result === "draw") score += 0.5;
+    else score -= 0.5;
+
+    const matchInfo = matchMap[String(l.date || "")]?.[side];
+    if (matchInfo) {
+      if (matchInfo.goalsFor >= 10) score += 0.5;
+      else if (matchInfo.goalsFor >= 5) score += 0.2;
+
+      if (matchInfo.goalsAgainst <= 3) score += 0.8;
+      else if (matchInfo.goalsAgainst < 5) score += 0.5;
+    }
+
+    row.scoreRaw += score;
+  });
+
+  const result = Object.keys(monthPlayer)
+    .sort((a,b) => b.localeCompare(a))
+    .map(monthKey => {
+      const rows = Object.values(monthPlayer[monthKey]).map(r => {
+        const player = players.find(p => p.id === r.playerId);
+        const score = Math.min(10, round1(r.scoreRaw));
+
+        return {
+          ...r,
+          name: player?.name || "Unknown",
+          score
+        };
+      }).sort((a,b) =>
+        (b.score - a.score) ||
+        (b.matches - a.matches) ||
+        (b.wins - a.wins) ||
+        (b.draws - a.draws) ||
+        (b.goals - a.goals) ||
+        a.name.localeCompare(b.name)
+      );
+
+      return { monthKey, rows };
+    });
+
+  return result;
+}
+
+function renderMonthlyAwards(){
+  const box = $("monthlyAwards");
+  if (!box) return;
+
+  const months = computeMonthlyAwards(logs);
+
+  if (!months.length){
+    box.innerHTML = `<div class="note">No monthly data yet.</div>`;
+    return;
+  }
+
+  const current = months[0];
+  const past = months.slice(1);
+
+  box.innerHTML = `
+    <div class="potmMonthLabel">${esc(formatMonthLabel(current.monthKey))}</div>
+    <div class="list">
+      ${current.rows.slice(0,3).map((r,i) => `
+        <div class="item potmItem">
+          <div>
+            <div class="name">${medal(i)} ${esc(r.name)}</div>
+            <div class="meta">
+              ${r.matches} Matches | ${r.wins} Wins | ${r.draws} Draws | ${r.losses} Losses | ${r.goals} Goal${r.goals === 1 ? "" : "s"}
+            </div>
+          </div>
+          <div class="potmScore">${r.score}/10</div>
+        </div>
+      `).join("")}
+    </div>
+    ${
+      past.length
+        ? `
+          <details class="potmPast">
+            <summary>Show past months</summary>
+            <div class="potmPastWrap">
+              ${past.map(month => `
+                <div class="potmPastMonth">
+                  <div class="potmMonthLabel small">${esc(formatMonthLabel(month.monthKey))}</div>
+                  <div class="list">
+                    ${month.rows.slice(0,3).map((r,i) => `
+                      <div class="item potmItem">
+                        <div>
+                          <div class="name">${medal(i)} ${esc(r.name)}</div>
+                          <div class="meta">
+                            ${r.matches} Matches | ${r.wins} Wins | ${r.draws} Draws | ${r.losses} Losses | ${r.goals} Goal${r.goals === 1 ? "" : "s"}
+                          </div>
+                        </div>
+                        <div class="potmScore">${r.score}/10</div>
+                      </div>
+                    `).join("")}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </details>
+        `
+        : ""
+    }
+  `;
+}
+
 function renderAll() {
   const sel = $("logPlayer");
   if (sel) {
@@ -352,6 +532,7 @@ function renderAll() {
   const stats = computeAllStats();
   renderDashboard(stats);
   renderInForm(stats);
+  renderMonthlyAwards();
   renderLeaderboard(stats);
   renderTable(stats);
   renderPlayersAdmin(stats);
@@ -402,8 +583,7 @@ function renderInForm(stats){
         <div class="name">${medal(i)} ${esc(r.name)}</div>
         <div class="meta">
           Points: <b>${formatFormPoints(r.formPoints)}</b> ·
-          Last 5: <b>${r.formIcons || "—"}</b> ·
-          Matches: <b>${r.totalPlayerMatches}</b>
+          Last 5: <b>${r.formIcons || "—"}</b>
         </div>
       </div>
     </div>
@@ -696,9 +876,7 @@ function renderLeaderboard(stats) {
     ? rows.map((r,i)=>`
       <div class="item">
         <div>
-          <div class="name">
-            ${medal(i)} ${esc(r.name)}
-          </div>
+          <div class="name">${medal(i)} ${esc(r.name)}</div>
           <div class="meta">
             Form <b>${formatFormPoints(r.formPoints)}</b> ·
             Last 5 <b>${r.formIcons || "—"}</b> ·
@@ -801,8 +979,6 @@ function renderLogs() {
   }).join("") || `<div class="note">No entries yet.</div>`;
 }
 
-/* Compare */
-
 function renderCompareOptions(){
   const a = $("cmpPlayerA");
   const b = $("cmpPlayerB");
@@ -852,7 +1028,6 @@ function renderCompare(){
   const bStats = stats[bId] || blankStats();
   const aForm = getPlayerFormData(aId, stats);
   const bForm = getPlayerFormData(bId, stats);
-
   const h2h = computeHeadToHead(aId, bId);
 
   box.innerHTML = `
