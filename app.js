@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
 import {
   getFirestore,
   collection,
@@ -6,9 +7,7 @@ import {
   getDocs,
   deleteDoc,
   doc,
-  onSnapshot,
-  query,
-  orderBy
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import {
@@ -20,6 +19,11 @@ import {
   signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+
+/* =========================================================
+   FIREBASE
+========================================================= */
+
 const firebaseConfig = {
   apiKey: "AIzaSyA6rH6OY8e-qr3-jaJX0irmOjoySiL8VAg",
   authDomain: "el-futbolistas.firebaseapp.com",
@@ -27,1214 +31,6394 @@ const firebaseConfig = {
   storageBucket: "el-futbolistas.appspot.com"
 };
 
-const ADMIN_EMAIL = "admin@ftbll.live"; // <-- غيّره
+const ADMIN_EMAIL = "admin@ftbll.live";
+
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch(console.warn);
 
-const playersRef = collection(db, "players");
-const logsRef = collection(db, "logs");
+const db = getFirestore(app);
+
+const auth = getAuth(app);
+
+
+setPersistence(
+  auth,
+  browserLocalPersistence
+).catch(console.warn);
+
+
+const playersRef = collection(
+  db,
+  "players"
+);
+
+const logsRef = collection(
+  db,
+  "logs"
+);
+
+
+/* =========================================================
+   STATE
+========================================================= */
 
 let players = [];
-let logs = [];
+
+let rawLogs = [];
+
 let isAdmin = false;
+
 let currentProfileId = null;
 
-const $ = (id) => document.getElementById(id);
+let renderQueued = false;
+
+let addPlayerBusy = false;
+
+let addLogBusy = false;
+
+let showPastMonths = false;
+
+let compareOptionsSignature = "";
+
+let logPlayerOptionsSignature = "";
+
+let model = emptyModel();
+
+
+const $ = (id) => (
+  document.getElementById(id)
+);
+
+
+/* =========================================================
+   ADMIN LOGIN
+========================================================= */
 
 window.__adminLogin = async () => {
+
   try {
+
     if (auth.currentUser) {
+
       await signOut(auth);
+
       return;
+
     }
 
-    const email = prompt("Admin Email:");
-    if (!email) return;
 
-    const password = prompt("Admin Password:");
-    if (!password) return;
+    const email = prompt(
+      "Admin Email:"
+    );
 
-    await signInWithEmailAndPassword(auth, email.trim(), password);
+
+    if (!email) {
+
+      return;
+
+    }
+
+
+    const password = prompt(
+      "Admin Password:"
+    );
+
+
+    if (!password) {
+
+      return;
+
+    }
+
+
+    await signInWithEmailAndPassword(
+      auth,
+      email.trim(),
+      password
+    );
+
+
   } catch (e) {
-    alert("Login failed:\n" + (e?.message || e));
+
+    alert(
+      "Login failed:\n" +
+      (e?.message || e)
+    );
+
     console.error(e);
+
   }
+
 };
+
 
 window.__exportNow = () => {
-  if (isAdmin) exportJSON();
+
+  if (isAdmin) {
+
+    exportJSON();
+
+  }
+
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  if ($("logDate")) $("logDate").value = new Date().toISOString().slice(0, 10);
 
-  document.querySelectorAll(".navbtn").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const target = btn.dataset.nav;
-      if (btn.dataset.admin === "1" && !isAdmin) return;
-      showScreen(target);
-      setActiveNav(target);
-    });
-  });
+/* =========================================================
+   STARTUP
+========================================================= */
 
-  $("playerCards")?.addEventListener("click", (e) => {
-    const card = e.target.closest("[data-player-id]");
-    if (!card) return;
-    openProfile(card.getAttribute("data-player-id"));
-  });
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
 
-  $("btnProfileBack")?.addEventListener("click", () => {
-    currentProfileId = null;
-    showScreen("playerstats");
-    setActiveNav("playerstats");
-  });
+    if ($("logDate")) {
 
-  $("cmpPlayerA")?.addEventListener("change", renderCompare);
-  $("cmpPlayerB")?.addEventListener("change", renderCompare);
+      $("logDate").value =
+        localISODate();
 
-  $("btnAddPlayer")?.addEventListener("click", async () => {
-    if (!isAdmin) return alert("Read only");
-    const name = ($("playerName")?.value || "").trim();
-    if (!name) return alert("Enter a name");
-    await addDoc(playersRef, { name, createdAt: Date.now() });
-    $("playerName").value = "";
-  });
-
-  $("btnAddLog")?.addEventListener("click", async () => {
-    if (!isAdmin) return alert("Read only");
-
-    const playerId = $("logPlayer")?.value;
-    if (!playerId) return alert("Pick a player");
-
-    const goals = clampInt($("logGoals")?.value, 0, 99);
-    const result = $("logResult")?.value || "win";
-    const side = $("logSide")?.value || "A";
-    const goalType = $("logGoalType")?.value || "normal";
-    const ownGoal = goalType === "own";
-    const date = $("logDate")?.value || new Date().toISOString().slice(0, 10);
-
-    await addDoc(logsRef, {
-      playerId,
-      goals,
-      result,
-      side,
-      ownGoal,
-      date,
-      createdAt: Date.now()
-    });
-  });
-
-  $("lbSort")?.addEventListener("change", renderAll);
-  $("tableSort")?.addEventListener("change", renderAll);
-
-  $("btnExport")?.addEventListener("click", () => {
-    if (isAdmin) exportJSON();
-  });
-
-  $("btnReset")?.addEventListener("click", async () => {
-    if (!isAdmin) return alert("Read only");
-    const ok = confirm("Delete ALL data? This cannot be undone.");
-    if (!ok) return;
-    await resetAllData();
-  });
-
-  onAuthStateChanged(auth, (user) => {
-    const email = (user?.email || "").trim().toLowerCase();
-    isAdmin = !!user && email === ADMIN_EMAIL.trim().toLowerCase();
-
-    document.body.classList.toggle("is-admin", isAdmin);
-
-    const btn = $("btnAdminLogin");
-    if (btn) btn.textContent = isAdmin ? "Logout" : "Admin Login";
-
-    const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
-    if (openAdminScreen && !isAdmin) {
-      showScreen("dashboard");
-      setActiveNav("dashboard");
     }
-  });
 
-  onSnapshot(query(playersRef, orderBy("createdAt", "asc")), snap => {
-    players = [];
-    snap.forEach(d => players.push({ id: d.id, ...d.data() }));
-    renderAll();
-  });
 
-  onSnapshot(query(logsRef, orderBy("createdAt", "desc")), snap => {
-    logs = [];
-    snap.forEach(d => logs.push({ id: d.id, ...d.data() }));
-    renderAll();
-  });
+    document
+      .querySelectorAll(".navbtn")
+      .forEach(btn => {
 
-  showScreen("dashboard");
-  setActiveNav("dashboard");
-});
+        btn.addEventListener(
+          "click",
+          (e) => {
 
-function showScreen(name) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.add("hidden"));
-  document.getElementById(`screen-${name}`)?.classList.remove("hidden");
-}
+            e.preventDefault();
 
-function setActiveNav(name) {
-  document.querySelectorAll(".navbtn").forEach(b => b.classList.remove("active"));
-  const el = document.querySelector(`.navbtn[data-nav="${name}"]`);
-  el?.classList.add("active");
 
-  const scroller = document.querySelector(".bottomnav-inner");
-  if (scroller && el && scroller.scrollWidth > scroller.clientWidth) {
-    const left = el.offsetLeft - (scroller.clientWidth / 2) + (el.clientWidth / 2);
-    scroller.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
-  }
-}
+            const target =
+              btn.dataset.nav;
 
-function normalizeResult(l) {
-  if (l?.result === "win" || l?.result === "draw" || l?.result === "loss") return l.result;
-  if (typeof l?.win === "boolean") return l.win ? "win" : "loss";
-  return "loss";
-}
 
-function normalizeSide(l) {
-  if (l?.side === "A" || l?.side === "B") return l.side;
-  const r = normalizeResult(l);
-  if (r === "win") return "A";
-  if (r === "loss") return "B";
-  return "A";
-}
+            if (
+              btn.dataset.admin === "1" &&
+              !isAdmin
+            ) {
 
-function isOwnGoal(l) {
-  return !!l?.ownGoal;
-}
+              return;
 
-function blankStats() {
-  return { matches:0, wins:0, goals:0, winPct:0, gpm:0, current:0, best:0 };
-}
+            }
 
-function computeAllStats(sourceLogs = logs) {
-  const byId = {};
-  players.forEach(p => byId[p.id] = blankStats());
 
-  const grouped = {};
-  players.forEach(p => grouped[p.id] = []);
-  sourceLogs.forEach(l => { if (grouped[l.playerId]) grouped[l.playerId].push(l); });
+            showScreen(target);
 
-  players.forEach(p => {
-    const arr = (grouped[p.id] || []).slice().sort((a,b) => {
-      const da = String(a.date || ""), db = String(b.date || "");
-      if (da < db) return -1;
-      if (da > db) return 1;
-      return (a.createdAt || 0) - (b.createdAt || 0);
-    });
+            setActiveNav(target);
 
-    const matches = arr.length;
-    let wins = 0;
-    let goals = 0;
+          }
+        );
 
-    arr.forEach(l => {
-      const result = normalizeResult(l);
-      if (result === "win") wins += 1;
-      if (!isOwnGoal(l)) goals += Number(l.goals || 0);
-    });
+      });
 
-    const winPct = matches ? wins / matches : 0;
-    const gpm = matches ? goals / matches : 0;
 
-    let best = 0;
-    let run = 0;
-    arr.forEach(l => {
-      const result = normalizeResult(l);
-      if (result === "win") {
-        run++;
-        best = Math.max(best, run);
-      } else {
-        run = 0;
+    $("playerCards")?.addEventListener(
+      "click",
+      (e) => {
+
+        const card =
+          e.target.closest(
+            "[data-player-id]"
+          );
+
+
+        if (!card) {
+
+          return;
+
+        }
+
+
+        openProfile(
+          card.getAttribute(
+            "data-player-id"
+          )
+        );
+
       }
-    });
+    );
 
-    byId[p.id] = { matches, wins, goals, winPct, gpm, current: getCurrentStreak(arr), best };
-  });
 
-  return byId;
-}
+    $("btnProfileBack")?.addEventListener(
+      "click",
+      () => {
 
-function getCurrentStreak(arr){
-  let current = 0;
-  for (let i = arr.length - 1; i >= 0; i--) {
-    const result = normalizeResult(arr[i]);
-    if (result === "win") current++;
-    else break;
+        currentProfileId = null;
+
+        showScreen(
+          "playerstats"
+        );
+
+        setActiveNav(
+          "playerstats"
+        );
+
+      }
+    );
+
+
+    $("cmpPlayerA")?.addEventListener(
+      "change",
+      renderCompare
+    );
+
+
+    $("cmpPlayerB")?.addEventListener(
+      "change",
+      renderCompare
+    );
+
+
+    $("btnAddPlayer")?.addEventListener(
+      "click",
+      addPlayerSafely
+    );
+
+
+    $("btnAddLog")?.addEventListener(
+      "click",
+      addLogSafely
+    );
+
+
+    $("lbSort")?.addEventListener(
+      "change",
+      () => {
+
+        renderLeaderboard();
+
+      }
+    );
+
+
+    $("tableSort")?.addEventListener(
+      "change",
+      () => {
+
+        renderTable();
+
+      }
+    );
+
+
+    $("btnExport")?.addEventListener(
+      "click",
+      () => {
+
+        if (isAdmin) {
+
+          exportJSON();
+
+        }
+
+      }
+    );
+
+
+    $("btnReset")?.addEventListener(
+      "click",
+      async () => {
+
+        if (!isAdmin) {
+
+          return alert(
+            "Read only"
+          );
+
+        }
+
+
+        const ok = confirm(
+          "Delete ALL data? This cannot be undone."
+        );
+
+
+        if (!ok) {
+
+          return;
+
+        }
+
+
+        await resetAllData();
+
+      }
+    );
+
+
+    onAuthStateChanged(
+      auth,
+      (user) => {
+
+        const email =
+          (
+            user?.email || ""
+          )
+          .trim()
+          .toLowerCase();
+
+
+        isAdmin =
+          !!user &&
+          email ===
+          ADMIN_EMAIL
+            .trim()
+            .toLowerCase();
+
+
+        document.body.classList.toggle(
+          "is-admin",
+          isAdmin
+        );
+
+
+        const btn =
+          $("btnAdminLogin");
+
+
+        if (btn) {
+
+          btn.textContent =
+            isAdmin
+              ? "Logout"
+              : "Admin Login";
+
+        }
+
+
+        const openAdminScreen =
+          document.querySelector(
+            ".screen:not(.hidden)[data-admin='1']"
+          );
+
+
+        if (
+          openAdminScreen &&
+          !isAdmin
+        ) {
+
+          showScreen(
+            "dashboard"
+          );
+
+          setActiveNav(
+            "dashboard"
+          );
+
+        }
+
+      }
+    );
+
+
+    /*
+      IMPORTANT:
+
+      We intentionally do NOT use
+      orderBy("createdAt").
+
+      This means old Firestore documents
+      without createdAt are still loaded.
+    */
+
+    onSnapshot(
+      playersRef,
+
+      (snap) => {
+
+        players =
+          snap.docs
+            .map(d => ({
+              id: d.id,
+              ...d.data()
+            }))
+            .sort(
+              (a, b) =>
+
+                Number(
+                  a.createdAt || 0
+                )
+                -
+                Number(
+                  b.createdAt || 0
+                )
+
+                ||
+
+                String(
+                  a.name || ""
+                )
+                .localeCompare(
+                  String(
+                    b.name || ""
+                  )
+                )
+
+            );
+
+
+        scheduleRender();
+
+      },
+
+      handleSnapshotError
+    );
+
+
+    onSnapshot(
+      logsRef,
+
+      (snap) => {
+
+        rawLogs =
+          snap.docs
+            .map(d => ({
+              id: d.id,
+              ...d.data()
+            }))
+            .sort(
+              compareRawLogsNewestFirst
+            );
+
+
+        scheduleRender();
+
+      },
+
+      handleSnapshotError
+    );
+
+
+    showScreen(
+      "dashboard"
+    );
+
+
+    setActiveNav(
+      "dashboard"
+    );
+
   }
-  return current;
-}
+);
 
-function getPlayerFormData(playerId, statsMap, sourceLogs = logs){
-  const playerLogs = sourceLogs
-    .filter(l => String(l.playerId) === String(playerId))
-    .sort((a,b) => {
-      const da = String(a.date || "");
-      const db = String(b.date || "");
-      if (da < db) return 1;
-      if (da > db) return -1;
-      return (b.createdAt || 0) - (a.createdAt || 0);
-    });
 
-  const last5 = playerLogs.slice(0, 5);
+/* =========================================================
+   SAFE INPUT
+========================================================= */
 
-  let formPoints = 0;
-  last5.forEach(l => {
-    const r = normalizeResult(l);
-    if (r === "win") formPoints += 1;
-    else if (r === "draw") formPoints += 0.5;
-  });
+async function addPlayerSafely() {
 
-  const formIcons = last5
-    .slice()
-    .reverse()
-    .map(l => {
-      const r = normalizeResult(l);
-      if (r === "win") return "🟢";
-      if (r === "draw") return "🟡";
-      return "🔴";
-    })
-    .join(" ");
+  if (!isAdmin) {
 
-  return {
-    formPoints,
-    formIcons,
-    totalPlayerMatches: statsMap[playerId]?.matches || 0
-  };
-}
+    return alert(
+      "Read only"
+    );
 
-function getTotalUniqueMatchDates(sourceLogs = logs){
-  const set = new Set(
-    sourceLogs
-      .map(l => String(l.date || "").trim())
-      .filter(Boolean)
+  }
+
+
+  if (addPlayerBusy) {
+
+    return;
+
+  }
+
+
+  const name =
+    (
+      $("playerName")?.value || ""
+    )
+    .trim();
+
+
+  if (!name) {
+
+    return alert(
+      "Enter a name"
+    );
+
+  }
+
+
+  const exists =
+    players.some(
+      p =>
+
+        String(
+          p.name || ""
+        )
+        .trim()
+        .toLowerCase()
+
+        ===
+
+        name.toLowerCase()
+    );
+
+
+  if (exists) {
+
+    return alert(
+      "A player with this name already exists."
+    );
+
+  }
+
+
+  const btn =
+    $("btnAddPlayer");
+
+
+  addPlayerBusy = true;
+
+
+  setButtonBusy(
+    btn,
+    true,
+    "Adding..."
   );
-  return set.size;
-}
 
-function getEligibleMinMatches(sourceLogs = logs){
-  const totalMatches = getTotalUniqueMatchDates(sourceLogs);
-  return Math.max(1, Math.floor(totalMatches / 2));
-}
 
-function getEligiblePlayerIds(statsMap, sourceLogs = logs){
-  const minEligible = getEligibleMinMatches(sourceLogs);
-  return new Set(
-    players
-      .filter(p => (statsMap[p.id]?.matches || 0) >= minEligible)
-      .map(p => p.id)
-  );
-}
+  try {
 
-function formatFormPoints(n){
-  return Number.isInteger(n) ? String(n) : n.toFixed(1);
-}
+    await addDoc(
+      playersRef,
+      {
+        name,
+        createdAt: Date.now()
+      }
+    );
 
-function formatMonthLabel(monthKey){
-  const d = new Date(`${monthKey}-01T00:00:00`);
-  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
 
-function round1(n){
-  return Math.round(n * 10) / 10;
-}
+    if ($("playerName")) {
 
-function buildMatchSummaryMap(sourceLogs = logs){
-  const byDate = {};
-  sourceLogs.forEach(l => {
-    const d = String(l.date || "").trim();
-    if (!d) return;
-    (byDate[d] ||= []).push(l);
-  });
+      $("playerName").value = "";
 
-  const summary = {};
-
-  Object.keys(byDate).forEach(date => {
-    const arr = byDate[date];
-    const teamA = arr.filter(x => normalizeSide(x) === "A");
-    const teamB = arr.filter(x => normalizeSide(x) === "B");
-
-    const scoreA = calcTeamScore(teamA, teamB);
-    const scoreB = calcTeamScore(teamB, teamA);
-
-    summary[date] = {
-      A: { goalsFor: scoreA, goalsAgainst: scoreB },
-      B: { goalsFor: scoreB, goalsAgainst: scoreA }
-    };
-  });
-
-  return summary;
-}
-
-function computeMonthlyAwards(sourceLogs = logs){
-  const matchMap = buildMatchSummaryMap(sourceLogs);
-  const monthPlayer = {};
-
-  sourceLogs.forEach(l => {
-    const monthKey = String(l.date || "").slice(0, 7);
-    if (!monthKey) return;
-
-    const playerId = String(l.playerId || "");
-    if (!playerId) return;
-
-    monthPlayer[monthKey] ||= {};
-    monthPlayer[monthKey][playerId] ||= {
-      playerId,
-      matches: 0,
-      wins: 0,
-      draws: 0,
-      losses: 0,
-      goals: 0,
-      scoreRaw: 0,
-      score: 0
-    };
-
-    const row = monthPlayer[monthKey][playerId];
-    const result = normalizeResult(l);
-    const side = normalizeSide(l);
-    const goals = isOwnGoal(l) ? 0 : Number(l.goals || 0);
-
-    row.matches += 1;
-    row.goals += goals;
-
-    if (result === "win") row.wins += 1;
-    else if (result === "draw") row.draws += 1;
-    else row.losses += 1;
-
-    let score = 0;
-
-    score += 0.5; // attendance
-    score += goals * 0.1;
-
-    if (result === "win") score += 1;
-    else if (result === "draw") score += 0.5;
-    else score -= 0.5;
-
-    const matchInfo = matchMap[String(l.date || "")]?.[side];
-    if (matchInfo) {
-      if (matchInfo.goalsFor >= 10) score += 0.5;
-      else if (matchInfo.goalsFor >= 5) score += 0.2;
-
-      if (matchInfo.goalsAgainst <= 3) score += 0.8;
-      else if (matchInfo.goalsAgainst < 5) score += 0.5;
     }
 
-    row.scoreRaw += score;
-  });
 
-  const result = Object.keys(monthPlayer)
-    .sort((a,b) => b.localeCompare(a))
-    .map(monthKey => {
-      const rows = Object.values(monthPlayer[monthKey]).map(r => {
-        const player = players.find(p => p.id === r.playerId);
-        const score = Math.min(10, round1(r.scoreRaw));
+  } catch (e) {
 
-        return {
-          ...r,
-          name: player?.name || "Unknown",
-          score
-        };
-      }).sort((a,b) =>
-        (b.score - a.score) ||
-        (b.matches - a.matches) ||
-        (b.wins - a.wins) ||
-        (b.draws - a.draws) ||
-        (b.goals - a.goals) ||
-        a.name.localeCompare(b.name)
+    console.error(e);
+
+
+    alert(
+      "Could not add player. Please try again."
+    );
+
+
+  } finally {
+
+    addPlayerBusy = false;
+
+
+    setButtonBusy(
+      btn,
+      false,
+      "Add"
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   SAFE MATCH ENTRY
+========================================================= */
+
+async function addLogSafely() {
+
+  if (!isAdmin) {
+
+    return alert(
+      "Read only"
+    );
+
+  }
+
+
+  /*
+    Protect against rapid double-click
+    creating duplicate Firestore docs.
+  */
+
+  if (addLogBusy) {
+
+    return;
+
+  }
+
+
+  const playerId =
+    $("logPlayer")?.value || "";
+
+
+  if (!playerId) {
+
+    return alert(
+      "Pick a player"
+    );
+
+  }
+
+
+  const goals =
+    clampInt(
+      $("logGoals")?.value,
+      0,
+      99
+    );
+
+
+  const result =
+    $("logResult")?.value
+    ||
+    "win";
+
+
+  const side =
+    $("logSide")?.value
+    ||
+    "A";
+
+
+  const ownGoal =
+    (
+      $("logGoalType")?.value
+      ||
+      "normal"
+    )
+    ===
+    "own";
+
+
+  const date =
+    $("logDate")?.value
+    ||
+    localISODate();
+
+
+  /*
+    Existing raw entries for
+    this player + match.
+  */
+
+  const samePlayerMatch =
+    rawLogs.filter(
+      l =>
+
+        String(
+          l.playerId
+        )
+        ===
+        String(
+          playerId
+        )
+
+        &&
+
+        String(
+          l.date || ""
+        )
+        .trim()
+
+        ===
+        date
+    );
+
+
+  /*
+    Normal + Own Goal is allowed.
+
+    Normal + Normal is NOT allowed.
+
+    Own Goal + Own Goal is NOT allowed.
+  */
+
+  const sameTypeExists =
+    samePlayerMatch.some(
+      l =>
+        isOwnGoal(l)
+        ===
+        ownGoal
+    );
+
+
+  if (sameTypeExists) {
+
+    const typeName =
+      ownGoal
+        ? "Own Goal"
+        : "Normal";
+
+
+    return alert(
+      `${typeName} entry already exists for this player in this match.`
+    );
+
+  }
+
+
+  /*
+    If the other goal type
+    already exists, result/team
+    must remain identical.
+  */
+
+  if (samePlayerMatch.length) {
+
+    const existing =
+      samePlayerMatch
+        .slice()
+        .sort(
+          compareRawLogsNewestFirst
+        )[0];
+
+
+    if (
+      normalizeResult(existing)
+      !==
+      result
+
+      ||
+
+      normalizeSide(existing)
+      !==
+      side
+    ) {
+
+      return alert(
+        "This player already has an entry for this match. Team and result must match the existing entry."
       );
 
-      return { monthKey, rows };
-    });
+    }
 
-  return result;
-}
-
-function renderMonthlyAwards(){
-  const box = $("monthlyAwards");
-  if (!box) return;
-
-  const months = computeMonthlyAwards(logs);
-
-  if (!months.length){
-    box.innerHTML = `<div class="note">No monthly data yet.</div>`;
-    return;
   }
 
-  const current = months[0];
-  const past = months.slice(1);
 
-  box.innerHTML = `
-    <div class="potmMonthLabel">${esc(formatMonthLabel(current.monthKey))}</div>
-    <div class="list">
-      ${current.rows.slice(0,3).map((r,i) => `
-        <div class="item potmItem">
-          <div>
-            <div class="name">${medal(i)} ${esc(r.name)}</div>
-            <div class="meta">
-              ${r.matches} Matches | ${r.wins} Wins | ${r.draws} Draws | ${r.losses} Losses | ${r.goals} Goal${r.goals === 1 ? "" : "s"}
-            </div>
-          </div>
-          <div class="potmScore">${r.score}/10</div>
-        </div>
-      `).join("")}
-    </div>
-    ${
-      past.length
-        ? `
-          <details class="potmPast">
-            <summary>Show past months</summary>
-            <div class="potmPastWrap">
-              ${past.map(month => `
-                <div class="potmPastMonth">
-                  <div class="potmMonthLabel small">${esc(formatMonthLabel(month.monthKey))}</div>
-                  <div class="list">
-                    ${month.rows.slice(0,3).map((r,i) => `
-                      <div class="item potmItem">
-                        <div>
-                          <div class="name">${medal(i)} ${esc(r.name)}</div>
-                          <div class="meta">
-                            ${r.matches} Matches | ${r.wins} Wins | ${r.draws} Draws | ${r.losses} Losses | ${r.goals} Goal${r.goals === 1 ? "" : "s"}
-                          </div>
-                        </div>
-                        <div class="potmScore">${r.score}/10</div>
-                      </div>
-                    `).join("")}
-                  </div>
-                </div>
-              `).join("")}
-            </div>
-          </details>
-        `
-        : ""
-    }
-  `;
+  const btn =
+    $("btnAddLog");
+
+
+  addLogBusy = true;
+
+
+  setButtonBusy(
+    btn,
+    true,
+    "Saving..."
+  );
+
+
+  try {
+
+    await addDoc(
+      logsRef,
+      {
+        playerId,
+        goals,
+        result,
+        side,
+        ownGoal,
+        date,
+        createdAt: Date.now()
+      }
+    );
+
+
+  } catch (e) {
+
+    console.error(e);
+
+
+    alert(
+      "Could not add entry. Please try again."
+    );
+
+
+  } finally {
+
+    addLogBusy = false;
+
+
+    setButtonBusy(
+      btn,
+      false,
+      "Add Entry"
+    );
+
+  }
+
 }
+
+
+function setButtonBusy(
+  btn,
+  busy,
+  text
+) {
+
+  if (!btn) {
+
+    return;
+
+  }
+
+
+  btn.disabled =
+    busy;
+
+
+  btn.textContent =
+    text;
+
+}
+
+
+/* =========================================================
+   FIREBASE ERROR
+========================================================= */
+
+function handleSnapshotError(
+  error
+) {
+
+  console.error(
+    "Firebase snapshot error:",
+    error
+  );
+
+}
+
+
+/* =========================================================
+   RENDER QUEUE
+========================================================= */
+
+function scheduleRender() {
+
+  if (renderQueued) {
+
+    return;
+
+  }
+
+
+  renderQueued = true;
+
+
+  const run = () => {
+
+    renderQueued = false;
+
+    renderAll();
+
+  };
+
+
+  /*
+    Coalesce multiple Firebase updates
+    into one UI render.
+  */
+
+  if (
+    typeof requestAnimationFrame
+    ===
+    "function"
+  ) {
+
+    requestAnimationFrame(
+      run
+    );
+
+  } else {
+
+    setTimeout(
+      run,
+      0
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+function showScreen(
+  name
+) {
+
+  document
+    .querySelectorAll(".screen")
+    .forEach(
+      s =>
+        s.classList.add(
+          "hidden"
+        )
+    );
+
+
+  document
+    .getElementById(
+      `screen-${name}`
+    )
+    ?.classList
+    .remove(
+      "hidden"
+    );
+
+}
+
+
+function setActiveNav(
+  name
+) {
+
+  document
+    .querySelectorAll(
+      ".navbtn"
+    )
+    .forEach(
+      b =>
+        b.classList.remove(
+          "active"
+        )
+    );
+
+
+  const el =
+    document.querySelector(
+      `.navbtn[data-nav="${name}"]`
+    );
+
+
+  el?.classList.add(
+    "active"
+  );
+
+
+  const scroller =
+    document.querySelector(
+      ".bottomnav-inner"
+    );
+
+
+  if (
+    scroller &&
+    el &&
+    scroller.scrollWidth >
+    scroller.clientWidth
+  ) {
+
+    const left =
+      el.offsetLeft
+      -
+      (
+        scroller.clientWidth
+        /
+        2
+      )
+      +
+      (
+        el.clientWidth
+        /
+        2
+      );
+
+
+    scroller.scrollTo(
+      {
+        left:
+          Math.max(
+            0,
+            left
+          ),
+
+        behavior:
+          "smooth"
+      }
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   LEGACY SUPPORT
+========================================================= */
+
+function normalizeResult(
+  l
+) {
+
+  if (
+    l?.result === "win"
+    ||
+    l?.result === "draw"
+    ||
+    l?.result === "loss"
+  ) {
+
+    return l.result;
+
+  }
+
+
+  /*
+    Old logs used:
+    win: true / false
+  */
+
+  if (
+    typeof l?.win
+    ===
+    "boolean"
+  ) {
+
+    return l.win
+      ? "win"
+      : "loss";
+
+  }
+
+
+  return "loss";
+
+}
+
+
+function normalizeSide(
+  l
+) {
+
+  if (
+    l?.side === "A"
+    ||
+    l?.side === "B"
+  ) {
+
+    return l.side;
+
+  }
+
+
+  /*
+    Legacy fallback.
+  */
+
+  const r =
+    normalizeResult(l);
+
+
+  if (
+    r === "win"
+  ) {
+
+    return "A";
+
+  }
+
+
+  if (
+    r === "loss"
+  ) {
+
+    return "B";
+
+  }
+
+
+  return "A";
+
+}
+
+
+function isOwnGoal(
+  l
+) {
+
+  return !!l?.ownGoal;
+
+}
+
+
+/* =========================================================
+   MATCH ID
+========================================================= */
+
+function matchKeyOf(
+  l
+) {
+
+  const date =
+    String(
+      l?.date || ""
+    )
+    .trim();
+
+
+  /*
+    Forward compatible.
+
+    If matchId is added someday,
+    the engine already supports it.
+
+    Current data continues using date.
+  */
+
+  const matchId =
+    String(
+      l?.matchId || ""
+    )
+    .trim();
+
+
+  return (
+    matchId
+    ||
+    date
+  );
+
+}
+
+
+/* =========================================================
+   STATS MODEL
+========================================================= */
+
+function emptyStats() {
+
+  return {
+
+    matches: 0,
+
+    wins: 0,
+
+    draws: 0,
+
+    losses: 0,
+
+    goals: 0,
+
+    winPct: 0,
+
+    gpm: 0,
+
+    current: 0,
+
+    best: 0
+
+  };
+
+}
+
+
+function emptyModel() {
+
+  return {
+
+    participations: [],
+
+    byPlayer:
+      new Map(),
+
+    byMatch:
+      new Map(),
+
+    matchSummaries:
+      new Map(),
+
+    stats: {},
+
+    forms: {},
+
+    totalMatches: 0,
+
+    minEligibleMatches: 1,
+
+    eligibleIds:
+      new Set()
+
+  };
+
+}
+
+
+/* =========================================================
+   CORE DATA ENGINE
+========================================================= */
+
+function buildDataModel() {
+
+  /*
+    This is the most important change.
+
+    Firestore RAW entries are converted
+    into one Participation per:
+
+    MATCH + PLAYER
+
+    Example:
+
+    Ali normal goal entry
+    +
+    Ali own goal entry
+
+    becomes:
+
+    ONE match participation
+    for Ali.
+  */
+
+  const participationMap =
+    new Map();
+
+
+  /*
+    Oldest → newest.
+
+    If old duplicate entries contain
+    conflicting metadata, latest metadata
+    becomes authoritative.
+  */
+
+  const ordered =
+    rawLogs
+      .slice()
+      .sort(
+        compareRawLogsOldestFirst
+      );
+
+
+  for (
+    const log
+    of
+    ordered
+  ) {
+
+    const playerId =
+      String(
+        log.playerId || ""
+      )
+      .trim();
+
+
+    const date =
+      String(
+        log.date || ""
+      )
+      .trim();
+
+
+    const matchKey =
+      matchKeyOf(log);
+
+
+    if (
+      !playerId
+      ||
+      !date
+      ||
+      !matchKey
+    ) {
+
+      continue;
+
+    }
+
+
+    const key =
+      `${matchKey}::${playerId}`;
+
+
+    let part =
+      participationMap.get(
+        key
+      );
+
+
+    if (!part) {
+
+      part = {
+
+        playerId,
+
+        date,
+
+        matchKey,
+
+        result:
+          normalizeResult(
+            log
+          ),
+
+        side:
+          normalizeSide(
+            log
+          ),
+
+        normalGoals: 0,
+
+        ownGoals: 0,
+
+        createdAt:
+          Number(
+            log.createdAt || 0
+          ),
+
+        rawCount: 0
+
+      };
+
+
+      participationMap.set(
+        key,
+        part
+      );
+
+    }
+
+
+    const goals =
+      clampInt(
+        log.goals,
+        0,
+        99
+      );
+
+
+    /*
+      IMPORTANT:
+
+      We use MAX rather than SUM
+      for entries of the SAME TYPE.
+
+      Why?
+
+      Normal 2 goals
+      +
+      accidental duplicate Normal 2 goals
+
+      should remain 2 goals,
+      not become 4.
+
+      But:
+
+      Normal 2
+      +
+      Own Goal 1
+
+      correctly becomes:
+
+      normalGoals = 2
+      ownGoals = 1
+    */
+
+    if (
+      isOwnGoal(log)
+    ) {
+
+      part.ownGoals =
+        Math.max(
+          part.ownGoals,
+          goals
+        );
+
+    } else {
+
+      part.normalGoals =
+        Math.max(
+          part.normalGoals,
+          goals
+        );
+
+    }
+
+
+    part.rawCount += 1;
+
+
+    const createdAt =
+      Number(
+        log.createdAt || 0
+      );
+
+
+    if (
+      createdAt >=
+      part.createdAt
+    ) {
+
+      part.createdAt =
+        createdAt;
+
+
+      part.result =
+        normalizeResult(
+          log
+        );
+
+
+      part.side =
+        normalizeSide(
+          log
+        );
+
+    }
+
+  }
+
+
+  const participations =
+    Array
+      .from(
+        participationMap.values()
+      )
+      .sort(
+        compareParticipationsOldestFirst
+      );
+
+
+  const byPlayer =
+    new Map();
+
+
+  const byMatch =
+    new Map();
+
+
+  players.forEach(
+    p =>
+
+      byPlayer.set(
+        String(p.id),
+        []
+      )
+
+  );
+
+
+  for (
+    const part
+    of
+    participations
+  ) {
+
+    if (
+      !byPlayer.has(
+        part.playerId
+      )
+    ) {
+
+      byPlayer.set(
+        part.playerId,
+        []
+      );
+
+    }
+
+
+    byPlayer
+      .get(
+        part.playerId
+      )
+      .push(
+        part
+      );
+
+
+    if (
+      !byMatch.has(
+        part.matchKey
+      )
+    ) {
+
+      byMatch.set(
+        part.matchKey,
+        []
+      );
+
+    }
+
+
+    byMatch
+      .get(
+        part.matchKey
+      )
+      .push(
+        part
+      );
+
+  }
+
+
+  /*
+    Calculate each match once.
+  */
+
+  const matchSummaries =
+    new Map();
+
+
+  for (
+    const [
+      matchKey,
+      parts
+    ]
+    of
+    byMatch.entries()
+  ) {
+
+    const teamA =
+      parts.filter(
+        x =>
+          x.side === "A"
+      );
+
+
+    const teamB =
+      parts.filter(
+        x =>
+          x.side === "B"
+      );
+
+
+    /*
+      Team A score:
+
+      Team A normal goals
+      +
+      Team B own goals
+    */
+
+    const scoreA =
+
+      teamA.reduce(
+        (
+          s,
+          x
+        ) =>
+          s +
+          x.normalGoals,
+
+        0
+      )
+
+      +
+
+      teamB.reduce(
+        (
+          s,
+          x
+        ) =>
+          s +
+          x.ownGoals,
+
+        0
+      );
+
+
+    /*
+      Team B score:
+
+      Team B normal goals
+      +
+      Team A own goals
+    */
+
+    const scoreB =
+
+      teamB.reduce(
+        (
+          s,
+          x
+        ) =>
+          s +
+          x.normalGoals,
+
+        0
+      )
+
+      +
+
+      teamA.reduce(
+        (
+          s,
+          x
+        ) =>
+          s +
+          x.ownGoals,
+
+        0
+      );
+
+
+    const date =
+      parts
+        .map(
+          x =>
+            x.date
+        )
+        .sort()
+        .at(-1)
+      ||
+      "";
+
+
+    matchSummaries.set(
+      matchKey,
+      {
+
+        matchKey,
+
+        date,
+
+        parts,
+
+        teamA,
+
+        teamB,
+
+        scoreA,
+
+        scoreB
+
+      }
+    );
+
+  }
+
+
+  /*
+    PLAYER STATS
+  */
+
+  const stats = {};
+
+  const forms = {};
+
+
+  for (
+    const p
+    of
+    players
+  ) {
+
+    const pid =
+      String(
+        p.id
+      );
+
+
+    const arr =
+      (
+        byPlayer.get(pid)
+        ||
+        []
+      )
+      .slice()
+      .sort(
+        compareParticipationsOldestFirst
+      );
+
+
+    const s =
+      emptyStats();
+
+
+    s.matches =
+      arr.length;
+
+
+    let run = 0;
+
+
+    for (
+      const part
+      of
+      arr
+    ) {
+
+      /*
+        OWN GOALS are excluded
+        from personal goals.
+      */
+
+      s.goals +=
+        part.normalGoals;
+
+
+      if (
+        part.result
+        ===
+        "win"
+      ) {
+
+        s.wins += 1;
+
+        run += 1;
+
+
+        s.best =
+          Math.max(
+            s.best,
+            run
+          );
+
+      } else {
+
+        if (
+          part.result
+          ===
+          "draw"
+        ) {
+
+          s.draws += 1;
+
+        } else {
+
+          s.losses += 1;
+
+        }
+
+
+        /*
+          Draw and loss both
+          break a win streak.
+        */
+
+        run = 0;
+
+      }
+
+    }
+
+
+    /*
+      Current streak.
+    */
+
+    for (
+      let i =
+        arr.length - 1;
+
+      i >= 0;
+
+      i--
+    ) {
+
+      if (
+        arr[i].result
+        ===
+        "win"
+      ) {
+
+        s.current += 1;
+
+      } else {
+
+        break;
+
+      }
+
+    }
+
+
+    s.winPct =
+      s.matches
+        ?
+        s.wins
+        /
+        s.matches
+        :
+        0;
+
+
+    s.gpm =
+      s.matches
+        ?
+        s.goals
+        /
+        s.matches
+        :
+        0;
+
+
+    stats[pid] =
+      s;
+
+
+    /*
+      Last FIVE ACTUAL MATCHES.
+
+      Not last 5 Firestore entries.
+    */
+
+    const last5 =
+      arr.slice(-5);
+
+
+    const points =
+      last5.reduce(
+        (
+          sum,
+          part
+        ) => {
+
+          if (
+            part.result
+            ===
+            "win"
+          ) {
+
+            return (
+              sum + 1
+            );
+
+          }
+
+
+          if (
+            part.result
+            ===
+            "draw"
+          ) {
+
+            return (
+              sum + 0.5
+            );
+
+          }
+
+
+          return sum;
+
+        },
+
+        0
+      );
+
+
+    /*
+      last5 is chronological.
+
+      OLD → NEW
+
+      therefore newest icon
+      is always RIGHT.
+    */
+
+    forms[pid] = {
+
+      formPoints:
+        points,
+
+      formIcons:
+        last5
+          .map(
+            part =>
+              resultIcon(
+                part.result
+              )
+          )
+          .join(" "),
+
+      totalPlayerMatches:
+        s.matches
+
+    };
+
+  }
+
+
+  /*
+    Eligibility:
+
+    Total matches 6 -> 3
+    Total matches 7 -> 3
+    Total matches 8 -> 4
+  */
+
+  const totalMatches =
+    byMatch.size;
+
+
+  const minEligibleMatches =
+    Math.max(
+      1,
+      Math.floor(
+        totalMatches
+        /
+        2
+      )
+    );
+
+
+  const eligibleIds =
+    new Set(
+
+      players
+
+        .filter(
+          p =>
+
+            (
+              stats[
+                String(
+                  p.id
+                )
+              ]
+              ?.matches
+              ||
+              0
+            )
+
+            >=
+
+            minEligibleMatches
+        )
+
+        .map(
+          p =>
+            String(
+              p.id
+            )
+        )
+
+    );
+
+
+  return {
+
+    participations,
+
+    byPlayer,
+
+    byMatch,
+
+    matchSummaries,
+
+    stats,
+
+    forms,
+
+    totalMatches,
+
+    minEligibleMatches,
+
+    eligibleIds
+
+  };
+
+}
+
+
+/* =========================================================
+   MAIN RENDER
+========================================================= */
 
 function renderAll() {
-  const sel = $("logPlayer");
-  if (sel) {
-    const cur = sel.value;
-    sel.innerHTML = players
-      .slice()
-      .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
-      .map(p => `<option value="${p.id}">${esc(p.name||"")}</option>`)
-      .join("");
-    if (cur && players.some(p => p.id === cur)) sel.value = cur;
-  }
+
+  /*
+    One model calculation
+    for the entire app.
+  */
+
+  model =
+    buildDataModel();
+
+
+  renderLogPlayerOptions();
 
   renderCompareOptions();
 
-  const stats = computeAllStats();
-  renderDashboard(stats);
-  renderInForm(stats);
-  renderMonthlyAwards();
-  renderLeaderboard(stats);
-  renderTable(stats);
-  renderPlayersAdmin(stats);
+  renderInForm();
+
+  renderPlayerOfMonth();
+
+  renderDashboard();
+
+  renderLeaderboard();
+
+  renderTable();
+
+  renderPlayersAdmin();
+
   renderLogs();
+
   renderMatchHistory();
+
   renderPlayerCardsNameOnly();
+
   renderCompare();
-  if (currentProfileId) renderPlayerProfile(stats, currentProfileId);
-}
 
-function renderInForm(stats){
-  const box = $("inFormList");
-  if (!box) return;
 
-  const minEligibleMatches = getEligibleMinMatches(logs);
+  if (
+    currentProfileId
+  ) {
 
-  const rows = players.map(p => {
-    const form = getPlayerFormData(p.id, stats);
-    return {
-      id: p.id,
-      name: p.name || "",
-      totalPlayerMatches: form.totalPlayerMatches,
-      formPoints: form.formPoints,
-      formIcons: form.formIcons,
-      goals: stats[p.id]?.goals || 0,
-      winPct: stats[p.id]?.winPct || 0
-    };
-  });
+    renderPlayerProfile(
+      currentProfileId
+    );
 
-  const eligible = rows
-    .filter(r => r.totalPlayerMatches >= minEligibleMatches)
-    .sort((a,b) =>
-      (b.formPoints - a.formPoints) ||
-      (b.winPct - a.winPct) ||
-      (b.goals - a.goals) ||
-      a.name.localeCompare(b.name)
-    )
-    .slice(0, 3);
-
-  if (!eligible.length){
-    box.innerHTML = `<div class="note">No eligible players yet. Minimum matches required: ${minEligibleMatches}.</div>`;
-    return;
   }
 
-  box.innerHTML = eligible.map((r, i) => `
-    <div class="item">
-      <div>
-        <div class="name">${medal(i)} ${esc(r.name)}</div>
-        <div class="meta">
-          Points: <b>${formatFormPoints(r.formPoints)}</b> ·
-          Last 5: <b>${r.formIcons || "—"}</b>
-        </div>
-      </div>
-    </div>
-  `).join("");
 }
+
+
+/* =========================================================
+   ENTRY PLAYER SELECT
+========================================================= */
+
+function renderLogPlayerOptions() {
+
+  const sel =
+    $("logPlayer");
+
+
+  if (!sel) {
+
+    return;
+
+  }
+
+
+  const sorted =
+    players
+      .slice()
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          String(
+            a.name || ""
+          )
+          .localeCompare(
+            String(
+              b.name || ""
+            )
+          )
+
+      );
+
+
+  const signature =
+    sorted
+      .map(
+        p =>
+          `${p.id}:${p.name}`
+      )
+      .join("|");
+
+
+  /*
+    Don't rebuild the select
+    after every stats render.
+  */
+
+  if (
+    signature
+    ===
+    logPlayerOptionsSignature
+  ) {
+
+    return;
+
+  }
+
+
+  const cur =
+    sel.value;
+
+
+  sel.innerHTML =
+    sorted
+      .map(
+        p =>
+
+          `<option value="${esc(p.id)}">${esc(p.name || "")}</option>`
+
+      )
+      .join("");
+
+
+  if (
+    cur
+    &&
+    sorted.some(
+      p =>
+        String(p.id)
+        ===
+        String(cur)
+    )
+  ) {
+
+    sel.value =
+      cur;
+
+  }
+
+
+  logPlayerOptionsSignature =
+    signature;
+
+}
+
+
+/* =========================================================
+   COMPARE OPTIONS
+========================================================= */
+
+function renderCompareOptions() {
+
+  const a =
+    $("cmpPlayerA");
+
+
+  const b =
+    $("cmpPlayerB");
+
+
+  if (
+    !a ||
+    !b
+  ) {
+
+    return;
+
+  }
+
+
+  const sorted =
+    players
+      .slice()
+      .sort(
+        (
+          x,
+          y
+        ) =>
+
+          String(
+            x.name || ""
+          )
+          .localeCompare(
+            String(
+              y.name || ""
+            )
+          )
+
+      );
+
+
+  const signature =
+    sorted
+      .map(
+        p =>
+          `${p.id}:${p.name}`
+      )
+      .join("|");
+
+
+  if (
+    signature
+    ===
+    compareOptionsSignature
+  ) {
+
+    return;
+
+  }
+
+
+  const aCur =
+    a.value;
+
+
+  const bCur =
+    b.value;
+
+
+  const options =
+
+    `<option value="">Select player</option>`
+
+    +
+
+    sorted
+      .map(
+        p =>
+
+          `<option value="${esc(p.id)}">${esc(p.name || "")}</option>`
+
+      )
+      .join("");
+
+
+  a.innerHTML =
+    options;
+
+
+  b.innerHTML =
+    options;
+
+
+  if (
+    aCur
+    &&
+    sorted.some(
+      p =>
+        String(p.id)
+        ===
+        String(aCur)
+    )
+  ) {
+
+    a.value =
+      aCur;
+
+  }
+
+
+  if (
+    bCur
+    &&
+    sorted.some(
+      p =>
+        String(p.id)
+        ===
+        String(bCur)
+    )
+  ) {
+
+    b.value =
+      bCur;
+
+  }
+
+
+  if (
+    a.value
+    &&
+    b.value
+    &&
+    a.value ===
+    b.value
+  ) {
+
+    b.value = "";
+
+  }
+
+
+  compareOptionsSignature =
+    signature;
+
+}
+
+
+/* =========================================================
+   IN FORM PLAYERS
+========================================================= */
+
+function renderInForm() {
+
+  const box =
+    $("inFormList");
+
+
+  if (!box) {
+
+    return;
+
+  }
+
+
+  const rows =
+    players
+
+      .filter(
+        p =>
+          model
+            .eligibleIds
+            .has(
+              String(
+                p.id
+              )
+            )
+      )
+
+      .map(
+        p => {
+
+          const pid =
+            String(
+              p.id
+            );
+
+
+          const form =
+            model.forms[pid]
+            ||
+            {
+              formPoints: 0,
+              formIcons: "",
+              totalPlayerMatches: 0
+            };
+
+
+          const s =
+            model.stats[pid]
+            ||
+            emptyStats();
+
+
+          return {
+
+            name:
+              p.name || "",
+
+            formPoints:
+              form.formPoints,
+
+            formIcons:
+              form.formIcons,
+
+            matches:
+              s.matches,
+
+            goals:
+              s.goals,
+
+            winPct:
+              s.winPct
+
+          };
+
+        }
+      )
+
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          (
+            b.formPoints
+            -
+            a.formPoints
+          )
+
+          ||
+
+          (
+            b.winPct
+            -
+            a.winPct
+          )
+
+          ||
+
+          (
+            b.goals
+            -
+            a.goals
+          )
+
+          ||
+
+          a.name.localeCompare(
+            b.name
+          )
+
+      )
+
+      .slice(
+        0,
+        3
+      );
+
+
+  if (
+    !rows.length
+  ) {
+
+    box.innerHTML =
+      `<div class="note">No eligible players yet.</div>`;
+
+
+    return;
+
+  }
+
+
+  box.innerHTML =
+    rows
+      .map(
+        (
+          r,
+          i
+        ) => `
+
+          <div class="item">
+
+            <div>
+
+              <div class="name">
+                ${medal(i)} ${esc(r.name)}
+              </div>
+
+              <div class="meta">
+
+                Points:
+                <b>${formatFormPoints(r.formPoints)}</b>
+
+                ·
+
+                Last 5:
+                <b>${r.formIcons || "—"}</b>
+
+                ·
+
+                Matches:
+                <b>${r.matches}</b>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        `
+      )
+      .join("");
+
+}
+
+
+/* =========================================================
+   PLAYER OF THE MONTH
+========================================================= */
+
+function getPlayerOfMonthBox() {
+
+  /*
+    Direct ID in the new index.
+  */
+
+  if (
+    $("playerOfMonthList")
+  ) {
+
+    return $(
+      "playerOfMonthList"
+    );
+
+  }
+
+
+  /*
+    Compatibility with older
+    versions if the ID differed.
+  */
+
+  if (
+    $("dashPlayerOfMonth")
+  ) {
+
+    return $(
+      "dashPlayerOfMonth"
+    );
+
+  }
+
+
+  if (
+    $("playerOfTheMonthList")
+  ) {
+
+    return $(
+      "playerOfTheMonthList"
+    );
+
+  }
+
+
+  /*
+    Last fallback:
+    find the card by title.
+  */
+
+  const title =
+    Array
+      .from(
+        document.querySelectorAll(
+          ".card-title"
+        )
+      )
+      .find(
+        el =>
+
+          String(
+            el.textContent || ""
+          )
+          .trim()
+          .toLowerCase()
+
+          ===
+
+          "player of the month"
+      );
+
+
+  return (
+
+    title
+      ?.closest(".card")
+      ?.querySelector(
+        ".list, [data-potm-list]"
+      )
+
+    ||
+
+    null
+
+  );
+
+}
+
+
+function renderPlayerOfMonth() {
+
+  const box =
+    getPlayerOfMonthBox();
+
+
+  if (!box) {
+
+    return;
+
+  }
+
+
+  const currentMonth =
+    localISODate()
+      .slice(
+        0,
+        7
+      );
+
+
+  const currentRows =
+    calculateMonthScores(
+      currentMonth
+    )
+    .slice(
+      0,
+      3
+    );
+
+
+  const pastMonths =
+    Array
+      .from(
+        new Set(
+
+          model
+            .participations
+            .map(
+              p =>
+                p.date.slice(
+                  0,
+                  7
+                )
+            )
+
+        )
+      )
+      .filter(
+        m =>
+
+          /^\d{4}-\d{2}$/
+            .test(m)
+
+          &&
+
+          m !== currentMonth
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          b.localeCompare(a)
+      );
+
+
+  if (
+    !currentRows.length
+  ) {
+
+    box.innerHTML =
+
+      `<div class="note">No monthly data yet.</div>`
+
+      +
+
+      renderPastMonthsToggle(
+        pastMonths
+      );
+
+  } else {
+
+    box.innerHTML =
+
+      currentRows
+        .map(
+          (
+            r,
+            i
+          ) =>
+            monthPlayerItem(
+              r,
+              i
+            )
+        )
+        .join("")
+
+      +
+
+      renderPastMonthsToggle(
+        pastMonths
+      );
+
+  }
+
+
+  const btn =
+    box.querySelector(
+      "[data-toggle-past-months]"
+    );
+
+
+  btn?.addEventListener(
+    "click",
+    () => {
+
+      showPastMonths =
+        !showPastMonths;
+
+
+      renderPlayerOfMonth();
+
+    }
+  );
+
+}
+
+
+function renderPastMonthsToggle(
+  months
+) {
+
+  if (
+    !months.length
+  ) {
+
+    return "";
+
+  }
+
+
+  const details =
+    showPastMonths
+      ?
+      `
+
+        <div style="margin-top:12px">
+
+          ${
+
+            months
+              .map(
+                month => {
+
+                  const rows =
+                    calculateMonthScores(
+                      month
+                    )
+                    .slice(
+                      0,
+                      3
+                    );
+
+
+                  if (
+                    !rows.length
+                  ) {
+
+                    return "";
+
+                  }
+
+
+                  return `
+
+                    <div class="item">
+
+                      <div style="width:100%">
+
+                        <div class="name">
+                          ${esc(formatMonthLabel(month))}
+                        </div>
+
+                        <div style="margin-top:8px">
+
+                          ${
+
+                            rows
+                              .map(
+                                (
+                                  r,
+                                  i
+                                ) => `
+
+                                  <div class="meta" style="margin:5px 0">
+
+                                    ${medal(i)}
+
+                                    <b>${esc(r.name)}</b>
+
+                                    ·
+
+                                    ${fmt1(r.score)}/10
+
+                                    ·
+
+                                    ${r.matches} matches
+
+                                    ·
+
+                                    ${r.goals} goals
+
+                                  </div>
+
+                                `
+                              )
+                              .join("")
+
+                          }
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+                  `;
+
+                }
+              )
+              .join("")
+
+          }
+
+        </div>
+
+      `
+      :
+      "";
+
+
+  return `
+
+    <div style="margin-top:12px">
+
+      <button
+        type="button"
+        class="btn ghost"
+        data-toggle-past-months
+      >
+
+        ${
+          showPastMonths
+            ? "Hide past months"
+            : "Show past months"
+        }
+
+      </button>
+
+    </div>
+
+    ${details}
+
+  `;
+
+}
+
+
+/* =========================================================
+   MONTHLY SCORE
+========================================================= */
+
+function calculateMonthScores(
+  monthKey
+) {
+
+  /*
+    This preserves the previous
+    Player of The Month formula:
+
+    +0.5 attendance
+    +0.1 per goal
+
+    win  +1
+    draw +0.5
+    loss -0.5
+
+    team scores >= 5  +0.2
+    team scores >= 10 +0.5
+
+    conceded < 5  +0.5
+    conceded <= 3 +0.8
+
+    capped at 10
+  */
+
+  const monthParts =
+    model
+      .participations
+      .filter(
+        p =>
+          p.date.startsWith(
+            monthKey
+          )
+      );
+
+
+  const rows =
+    new Map();
+
+
+  for (
+    const part
+    of
+    monthParts
+  ) {
+
+    /*
+      Dashboard eligibility
+      rule applies here too.
+    */
+
+    if (
+      !model
+        .eligibleIds
+        .has(
+          part.playerId
+        )
+    ) {
+
+      continue;
+
+    }
+
+
+    if (
+      !rows.has(
+        part.playerId
+      )
+    ) {
+
+      rows.set(
+        part.playerId,
+        {
+
+          playerId:
+            part.playerId,
+
+          name:
+            playerName(
+              part.playerId
+            ),
+
+          matches: 0,
+
+          wins: 0,
+
+          draws: 0,
+
+          losses: 0,
+
+          goals: 0,
+
+          rawScore: 0,
+
+          score: 0
+
+        }
+      );
+
+    }
+
+
+    const row =
+      rows.get(
+        part.playerId
+      );
+
+
+    const match =
+      model
+        .matchSummaries
+        .get(
+          part.matchKey
+        );
+
+
+    /*
+      Attendance counted ONCE
+      regardless of how many
+      Firestore entries exist.
+    */
+
+    row.matches += 1;
+
+    row.goals +=
+      part.normalGoals;
+
+
+    row.rawScore +=
+      0.5;
+
+
+    row.rawScore +=
+      part.normalGoals
+      *
+      0.1;
+
+
+    if (
+      part.result === "win"
+    ) {
+
+      row.wins += 1;
+
+      row.rawScore +=
+        1;
+
+    } else if (
+      part.result === "draw"
+    ) {
+
+      row.draws += 1;
+
+      row.rawScore +=
+        0.5;
+
+    } else {
+
+      row.losses += 1;
+
+      row.rawScore -=
+        0.5;
+
+    }
+
+
+    if (match) {
+
+      const teamGoals =
+        part.side === "A"
+          ?
+          match.scoreA
+          :
+          match.scoreB;
+
+
+      const conceded =
+        part.side === "A"
+          ?
+          match.scoreB
+          :
+          match.scoreA;
+
+
+      if (
+        teamGoals >= 10
+      ) {
+
+        row.rawScore +=
+          0.5;
+
+      } else if (
+        teamGoals >= 5
+      ) {
+
+        row.rawScore +=
+          0.2;
+
+      }
+
+
+      if (
+        conceded <= 3
+      ) {
+
+        row.rawScore +=
+          0.8;
+
+      } else if (
+        conceded < 5
+      ) {
+
+        row.rawScore +=
+          0.5;
+
+      }
+
+    }
+
+  }
+
+
+  return (
+    Array
+      .from(
+        rows.values()
+      )
+
+      .map(
+        row => ({
+
+          ...row,
+
+          score:
+            Math.min(
+              10,
+              round1(
+                row.rawScore
+              )
+            )
+
+        })
+      )
+
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          (
+            b.score
+            -
+            a.score
+          )
+
+          ||
+
+          (
+            b.matches
+            -
+            a.matches
+          )
+
+          ||
+
+          (
+            b.wins
+            -
+            a.wins
+          )
+
+          ||
+
+          (
+            b.goals
+            -
+            a.goals
+          )
+
+          ||
+
+          a.name.localeCompare(
+            b.name
+          )
+
+      )
+
+  );
+
+}
+
+
+function monthPlayerItem(
+  r,
+  i
+) {
+
+  return `
+
+    <div class="item">
+
+      <div>
+
+        <div class="name">
+          ${medal(i)} ${esc(r.name)}
+        </div>
+
+        <div class="meta">
+
+          Score
+          <b>${fmt1(r.score)}/10</b>
+
+          ·
+
+          Matches
+          <b>${r.matches}</b>
+
+          ·
+
+          W
+          <b>${r.wins}</b>
+
+          ·
+
+          D
+          <b>${r.draws}</b>
+
+          ·
+
+          L
+          <b>${r.losses}</b>
+
+          ·
+
+          Goals
+          <b>${r.goals}</b>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+function renderDashboard() {
+
+  const rows =
+    players
+
+      .filter(
+        p =>
+          model
+            .eligibleIds
+            .has(
+              String(
+                p.id
+              )
+            )
+      )
+
+      .map(
+        p => ({
+
+          p,
+
+          s:
+            model.stats[
+              String(
+                p.id
+              )
+            ]
+            ||
+            emptyStats()
+
+        })
+      );
+
+
+  /*
+    TOP SCORERS
+  */
+
+  const topGoals =
+    rows
+      .slice()
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          (
+            b.s.goals
+            -
+            a.s.goals
+          )
+
+          ||
+
+          (
+            b.s.gpm
+            -
+            a.s.gpm
+          )
+
+          ||
+
+          String(
+            a.p.name || ""
+          )
+          .localeCompare(
+            String(
+              b.p.name || ""
+            )
+          )
+
+      )
+      .slice(
+        0,
+        3
+      );
+
+
+  if (
+    $("dashTopScorers")
+  ) {
+
+    $("dashTopScorers").innerHTML =
+      topGoals.length
+        ?
+        topGoals
+          .map(
+            (
+              x,
+              i
+            ) =>
+
+              dashItem(
+
+                `${medal(i)} ${esc(x.p.name)}`,
+
+                `${x.s.goals} goals · G/Match ${fmt2(x.s.gpm)} · Win% ${fmtPct(x.s.winPct)}`
+
+              )
+
+          )
+          .join("")
+
+        :
+
+        `<div class="note">No eligible players yet.</div>`;
+
+  }
+
+
+  /*
+    CURRENT STREAK
+  */
+
+  const topStreak =
+    rows
+      .slice()
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          (
+            b.s.current
+            -
+            a.s.current
+          )
+
+          ||
+
+          (
+            b.s.best
+            -
+            a.s.best
+          )
+
+          ||
+
+          String(
+            a.p.name || ""
+          )
+          .localeCompare(
+            String(
+              b.p.name || ""
+            )
+          )
+
+      )
+      .slice(
+        0,
+        3
+      );
+
+
+  if (
+    $("dashTopStreaks")
+  ) {
+
+    $("dashTopStreaks").innerHTML =
+      topStreak.length
+        ?
+        topStreak
+          .map(
+            (
+              x,
+              i
+            ) =>
+
+              dashItem(
+
+                `${medal(i)} ${esc(x.p.name)}`,
+
+                `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`
+
+              )
+
+          )
+          .join("")
+
+        :
+
+        `<div class="note">No eligible players yet.</div>`;
+
+  }
+
+
+  /*
+    WIN %
+  */
+
+  const topWin =
+    rows
+      .slice()
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          (
+            b.s.winPct
+            -
+            a.s.winPct
+          )
+
+          ||
+
+          (
+            b.s.wins
+            -
+            a.s.wins
+          )
+
+          ||
+
+          (
+            b.s.goals
+            -
+            a.s.goals
+          )
+
+          ||
+
+          String(
+            a.p.name || ""
+          )
+          .localeCompare(
+            String(
+              b.p.name || ""
+            )
+          )
+
+      )
+      .slice(
+        0,
+        3
+      );
+
+
+  if (
+    $("dashTopWinPct")
+  ) {
+
+    $("dashTopWinPct").innerHTML =
+      topWin.length
+        ?
+        topWin
+          .map(
+            (
+              x,
+              i
+            ) =>
+
+              dashItem(
+
+                `${medal(i)} ${esc(x.p.name)}`,
+
+                `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`
+
+              )
+
+          )
+          .join("")
+
+        :
+
+        `<div class="note">No eligible players yet.</div>`;
+
+  }
+
+}
+
+
+/* =========================================================
+   LEADERBOARD
+========================================================= */
+
+function renderLeaderboard() {
+
+  const sortBy =
+    $("lbSort")?.value
+    ||
+    "form";
+
+
+  const rows =
+    players
+
+      .filter(
+        p =>
+          model
+            .eligibleIds
+            .has(
+              String(
+                p.id
+              )
+            )
+      )
+
+      .map(
+        p => {
+
+          const pid =
+            String(
+              p.id
+            );
+
+
+          const s =
+            model.stats[pid]
+            ||
+            emptyStats();
+
+
+          const form =
+            model.forms[pid]
+            ||
+            {
+              formPoints: 0,
+              formIcons: ""
+            };
+
+
+          return {
+
+            id:
+              pid,
+
+            name:
+              p.name || "",
+
+            matches:
+              s.matches,
+
+            wins:
+              s.wins,
+
+            goals:
+              s.goals,
+
+            winPct:
+              s.winPct,
+
+            gpm:
+              s.gpm,
+
+            curStreak:
+              s.current,
+
+            bestStreak:
+              s.best,
+
+            formPoints:
+              form.formPoints,
+
+            formIcons:
+              form.formIcons
+
+          };
+
+        }
+      )
+
+      .sort(
+        sorter(
+          sortBy
+        )
+      );
+
+
+  const box =
+    $("leaderboardList");
+
+
+  if (!box) {
+
+    return;
+
+  }
+
+
+  box.innerHTML =
+    rows.length
+      ?
+      rows
+        .map(
+          (
+            r,
+            i
+          ) => `
+
+            <div class="item">
+
+              <div>
+
+                <div class="name">
+                  ${medal(i)} ${esc(r.name)}
+                </div>
+
+                <div class="meta">
+
+                  Form
+                  <b>${formatFormPoints(r.formPoints)}</b>
+
+                  ·
+
+                  Last 5
+                  <b>${r.formIcons || "—"}</b>
+
+                  ·
+
+                  Matches
+                  <b>${r.matches}</b>
+
+                  ·
+
+                  Wins
+                  <b>${r.wins}</b>
+
+                  ·
+
+                  Goals
+                  <b>${r.goals}</b>
+
+                  ·
+
+                  Win%
+                  <b>${fmtPct(r.winPct)}</b>
+
+                  ·
+
+                  G/Match
+                  <b>${fmt2(r.gpm)}</b>
+
+                  ·
+
+                  Streak
+                  <b>${r.curStreak}</b>
+
+                  (best ${r.bestStreak})
+
+                </div>
+
+              </div>
+
+            </div>
+
+          `
+        )
+        .join("")
+
+      :
+
+      `<div class="note">No eligible players yet.</div>`;
+
+}
+
+
+/* =========================================================
+   TABLE
+========================================================= */
+
+function renderTable() {
+
+  const sortBy =
+    $("tableSort")?.value
+    ||
+    "winPct";
+
+
+  const rows =
+    players
+
+      .filter(
+        p =>
+          model
+            .eligibleIds
+            .has(
+              String(
+                p.id
+              )
+            )
+      )
+
+      .map(
+        p => {
+
+          const s =
+            model.stats[
+              String(
+                p.id
+              )
+            ]
+            ||
+            emptyStats();
+
+
+          return {
+
+            name:
+              p.name || "",
+
+            matches:
+              s.matches,
+
+            wins:
+              s.wins,
+
+            goals:
+              s.goals,
+
+            winPct:
+              s.winPct,
+
+            gpm:
+              s.gpm,
+
+            curStreak:
+              s.current,
+
+            bestStreak:
+              s.best
+
+          };
+
+        }
+      )
+
+      .sort(
+        sorter(
+          sortBy
+        )
+      );
+
+
+  const body =
+    $("tableBody");
+
+
+  if (!body) {
+
+    return;
+
+  }
+
+
+  body.innerHTML =
+    rows.length
+      ?
+      rows
+        .map(
+          (
+            r,
+            idx
+          ) => `
+
+            <tr>
+
+              <td>${idx + 1}</td>
+
+              <td>${esc(r.name)}</td>
+
+              <td>${r.matches}</td>
+
+              <td>${r.wins}</td>
+
+              <td>${r.goals}</td>
+
+              <td>${fmtPct(r.winPct)}</td>
+
+              <td>${fmt2(r.gpm)}</td>
+
+              <td>${r.curStreak}</td>
+
+              <td>${r.bestStreak}</td>
+
+            </tr>
+
+          `
+        )
+        .join("")
+
+      :
+
+      `<tr><td colspan="9" class="noteCell">No eligible players yet.</td></tr>`;
+
+}
+
+
+/* =========================================================
+   PLAYER CARDS
+========================================================= */
 
 function renderPlayerCardsNameOnly() {
-  const box = $("playerCards");
-  if (!box) return;
 
-  if (!players.length) {
-    box.classList.add("note");
-    box.textContent = "No players yet.";
+  const box =
+    $("playerCards");
+
+
+  if (!box) {
+
     return;
+
   }
 
-  box.classList.remove("note");
 
-  const sorted = players.slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
-  box.innerHTML = sorted.map(p => `
-    <div class="pCard pCardNameOnly" data-player-id="${p.id}">
-      <div class="pName">${esc(p.name||"")}</div>
-    </div>
-  `).join("");
+  if (
+    !players.length
+  ) {
+
+    box.classList.add(
+      "note"
+    );
+
+
+    box.textContent =
+      "No players yet.";
+
+
+    return;
+
+  }
+
+
+  box.classList.remove(
+    "note"
+  );
+
+
+  const sorted =
+    players
+      .slice()
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          String(
+            a.name || ""
+          )
+          .localeCompare(
+            String(
+              b.name || ""
+            )
+          )
+
+      );
+
+
+  box.innerHTML =
+    sorted
+      .map(
+        p => `
+
+          <div
+            class="pCard pCardNameOnly"
+            data-player-id="${esc(p.id)}"
+          >
+
+            <div class="pName">
+              ${esc(p.name || "")}
+            </div>
+
+          </div>
+
+        `
+      )
+      .join("");
+
 }
 
-function openProfile(pid) {
-  currentProfileId = pid;
-  showScreen("playerprofile");
-  setActiveNav("playerstats");
-  const stats = computeAllStats();
-  renderPlayerProfile(stats, pid);
+
+/* =========================================================
+   PROFILE
+========================================================= */
+
+function openProfile(
+  pid
+) {
+
+  currentProfileId =
+    String(pid);
+
+
+  showScreen(
+    "playerprofile"
+  );
+
+
+  setActiveNav(
+    "playerstats"
+  );
+
+
+  renderPlayerProfile(
+    currentProfileId
+  );
+
 }
 
-function renderPlayerProfile(stats, pid) {
-  const p = players.find(x=>x.id===pid);
-  if (!p) return;
 
-  const s = stats[pid] || blankStats();
+function renderPlayerProfile(
+  pid
+) {
 
-  $("profileName") && ($("profileName").textContent = p.name || "Player");
-  $("profileSub") && ($("profileSub").textContent = "");
+  const p =
+    players.find(
+      x =>
+        String(x.id)
+        ===
+        String(pid)
+    );
 
-  const grid = $("profileStatsGrid");
+
+  if (!p) {
+
+    return;
+
+  }
+
+
+  const s =
+    model.stats[
+      String(pid)
+    ]
+    ||
+    emptyStats();
+
+
+  if (
+    $("profileName")
+  ) {
+
+    $("profileName").textContent =
+      p.name || "Player";
+
+  }
+
+
+  if (
+    $("profileSub")
+  ) {
+
+    $("profileSub").textContent =
+      "";
+
+  }
+
+
+  const grid =
+    $("profileStatsGrid");
+
+
   if (grid) {
-    grid.innerHTML = [
-      tile("Matches", s.matches),
-      tile("Goals", s.goals),
-      tile("Wins", s.wins),
-      tile("Win %", fmtPct(s.winPct)),
-      tile("Goals per Match", fmt2(s.gpm)),
-      tile("Current Win Streak", s.current),
-      tile("Best Win Streak", s.best),
-    ].join("");
+
+    grid.innerHTML =
+      [
+
+        tile(
+          "Matches",
+          s.matches
+        ),
+
+        tile(
+          "Goals",
+          s.goals
+        ),
+
+        tile(
+          "Wins",
+          s.wins
+        ),
+
+        tile(
+          "Win %",
+          fmtPct(
+            s.winPct
+          )
+        ),
+
+        tile(
+          "Goals per Match",
+          fmt2(
+            s.gpm
+          )
+        ),
+
+        tile(
+          "Current Win Streak",
+          s.current
+        ),
+
+        tile(
+          "Best Win Streak",
+          s.best
+        )
+
+      ]
+      .join("");
+
   }
 
-  const form = getPlayerFormData(pid, stats);
-  const formBox = $("profileForm");
-  if (formBox) {
-    formBox.textContent = form.formIcons || "No matches yet";
+
+  const form =
+    model.forms[
+      String(pid)
+    ]
+    ||
+    {
+      formIcons: ""
+    };
+
+
+  if (
+    $("profileForm")
+  ) {
+
+    $("profileForm").textContent =
+      form.formIcons
+      ||
+      "No matches yet";
+
   }
 
-  const counts = computeTeammates(pid);
-  const matesBox = $("profileMates");
-  const neverBox = $("profileNever");
 
-  const sorted = Object.entries(counts)
-    .sort((a,b)=> b[1]-a[1] || nameOf(a[0]).localeCompare(nameOf(b[0])));
+  renderTeammates(
+    pid
+  );
 
-  const playedIds = new Set(sorted.map(([id])=>id));
-  const never = players
-    .filter(x => x.id !== pid && !playedIds.has(x.id))
-    .map(x => x.name || "Unknown")
-    .sort((a,b)=>a.localeCompare(b));
-
-  if (matesBox) {
-    if (!sorted.length) {
-      matesBox.classList.add("note");
-      matesBox.textContent = "No teammate data yet.";
-    } else {
-      matesBox.classList.remove("note");
-      matesBox.innerHTML = sorted.map(([id,c])=>`
-        <div class="mateRow">
-          <div class="playerName">${esc(nameOf(id))}</div>
-          <div class="playerGoals">${c}</div>
-        </div>
-      `).join("");
-    }
-  }
-
-  if (neverBox) {
-    if (!never.length) {
-      neverBox.classList.add("note");
-      neverBox.textContent = "—";
-    } else {
-      neverBox.classList.remove("note");
-      neverBox.textContent = never.join(" - ");
-    }
-  }
-
-  function nameOf(id) {
-    return (players.find(x=>x.id===id)?.name) || "Unknown";
-  }
 }
 
-function tile(label, value) {
-  return `<div class="statTile"><div class="stLabel">${esc(label)}</div><div class="stValue">${esc(value)}</div></div>`;
+
+/* =========================================================
+   TEAMMATES
+========================================================= */
+
+function renderTeammates(
+  pid
+) {
+
+  const counts =
+    computeTeammates(
+      String(pid)
+    );
+
+
+  const matesBox =
+    $("profileMates");
+
+
+  const neverBox =
+    $("profileNever");
+
+
+  const sorted =
+    Object
+      .entries(
+        counts
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+
+          (
+            b[1]
+            -
+            a[1]
+          )
+
+          ||
+
+          playerName(
+            a[0]
+          )
+          .localeCompare(
+            playerName(
+              b[0]
+            )
+          )
+
+      );
+
+
+  const playedIds =
+    new Set(
+
+      sorted.map(
+        (
+          [id]
+        ) =>
+          id
+      )
+
+    );
+
+
+  const never =
+    players
+
+      .filter(
+        x =>
+
+          String(
+            x.id
+          )
+          !==
+          String(
+            pid
+          )
+
+          &&
+
+          !playedIds.has(
+            String(
+              x.id
+            )
+          )
+      )
+
+      .map(
+        x =>
+          x.name
+          ||
+          "Unknown"
+      )
+
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          a.localeCompare(b)
+      );
+
+
+  if (
+    matesBox
+  ) {
+
+    if (
+      !sorted.length
+    ) {
+
+      matesBox.classList.add(
+        "note"
+      );
+
+
+      matesBox.textContent =
+        "No teammate data yet.";
+
+    } else {
+
+      matesBox.classList.remove(
+        "note"
+      );
+
+
+      matesBox.innerHTML =
+        sorted
+          .map(
+            (
+              [
+                id,
+                c
+              ]
+            ) => `
+
+              <div class="mateRow">
+
+                <div class="playerName">
+                  ${esc(playerName(id))}
+                </div>
+
+                <div class="playerGoals">
+                  ${c}
+                </div>
+
+              </div>
+
+            `
+          )
+          .join("");
+
+    }
+
+  }
+
+
+  if (
+    neverBox
+  ) {
+
+    if (
+      !never.length
+    ) {
+
+      neverBox.classList.add(
+        "note"
+      );
+
+
+      neverBox.textContent =
+        "—";
+
+    } else {
+
+      neverBox.classList.remove(
+        "note"
+      );
+
+
+      neverBox.textContent =
+        never.join(
+          " - "
+        );
+
+    }
+
+  }
+
 }
 
-function computeTeammates(pid) {
-  const byDate = {};
-  logs.forEach(l => {
-    const d = String(l.date || "");
-    if (!d) return;
-    (byDate[d] ||= []).push(l);
-  });
+
+function computeTeammates(
+  pid
+) {
 
   const counts = {};
-  Object.keys(byDate).forEach(date => {
-    const arr = byDate[date];
-    const playerEntry = arr.find(x => x.playerId === pid);
-    if (!playerEntry) return;
 
-    const side = normalizeSide(playerEntry);
-    arr.filter(x => normalizeSide(x) === side).forEach(x => {
-      if (x.playerId === pid) return;
-      counts[x.playerId] = (counts[x.playerId] || 0) + 1;
-    });
-  });
+
+  for (
+    const summary
+    of
+    model
+      .matchSummaries
+      .values()
+  ) {
+
+    const playerEntry =
+      summary
+        .parts
+        .find(
+          x =>
+            x.playerId
+            ===
+            pid
+        );
+
+
+    if (
+      !playerEntry
+    ) {
+
+      continue;
+
+    }
+
+
+    summary
+      .parts
+
+      .filter(
+        x =>
+
+          x.side
+          ===
+          playerEntry.side
+
+          &&
+
+          x.playerId
+          !==
+          pid
+      )
+
+      .forEach(
+        x => {
+
+          counts[
+            x.playerId
+          ] =
+            (
+              counts[
+                x.playerId
+              ]
+              ||
+              0
+            )
+            +
+            1;
+
+        }
+      );
+
+  }
+
 
   return counts;
+
 }
+
+
+/* =========================================================
+   MATCH HISTORY
+========================================================= */
 
 function renderMatchHistory() {
-  const box = $("matchHistoryList");
-  if (!box) return;
 
-  const idToName = {};
-  players.forEach(p => idToName[p.id] = p.name || "Unknown");
+  const box =
+    $("matchHistoryList");
 
-  const byDate = {};
-  logs.forEach(l => {
-    const d = String(l.date || "");
-    if (!d) return;
-    (byDate[d] ||= []).push(l);
-  });
 
-  const dates = Object.keys(byDate).sort((a,b)=> b.localeCompare(a));
-  if (!dates.length) {
-    box.innerHTML = `<div class="note">No matches yet.</div>`;
+  if (!box) {
+
     return;
+
   }
 
-  box.innerHTML = dates.map(date => {
-    const arr = byDate[date];
-    const teamA = arr.filter(x => normalizeSide(x) === "A");
-    const teamB = arr.filter(x => normalizeSide(x) === "B");
 
-    const scoreA = calcTeamScore(teamA, teamB);
-    const scoreB = calcTeamScore(teamB, teamA);
+  const matches =
+    Array
+      .from(
+        model
+          .matchSummaries
+          .values()
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
 
-    const titleA = scoreA > scoreB ? "Winners" : scoreA < scoreB ? "Losers" : "Draw";
-    const titleB = scoreB > scoreA ? "Winners" : scoreB < scoreA ? "Losers" : "Draw";
+          String(
+            b.date
+          )
+          .localeCompare(
+            String(
+              a.date
+            )
+          )
 
-    const linesA = sideLines(teamA, idToName);
-    const linesB = sideLines(teamB, idToName);
+          ||
 
-    return `
-      <div class="item">
-        <div class="matchCard">
-          <div class="matchTop">
-            <div class="matchDate">${esc(date)}</div>
-            <div class="matchScore">${scoreA} : ${scoreB}</div>
-          </div>
+          Math.max(
+            ...b.parts.map(
+              x =>
+                x.createdAt || 0
+            ),
+            0
+          )
 
-          <div class="matchGrid">
-            <div class="teamBox">
-              <div class="teamTitle">${titleA}</div>
-              ${linesA.length ? linesA.join("") : `<div class="meta">—</div>`}
+          -
+
+          Math.max(
+            ...a.parts.map(
+              x =>
+                x.createdAt || 0
+            ),
+            0
+          )
+
+      );
+
+
+  if (
+    !matches.length
+  ) {
+
+    box.innerHTML =
+      `<div class="note">No matches yet.</div>`;
+
+
+    return;
+
+  }
+
+
+  box.innerHTML =
+    matches
+      .map(
+        match => {
+
+          const titleA =
+            match.scoreA
+            >
+            match.scoreB
+              ?
+              "Winners"
+              :
+              match.scoreA
+              <
+              match.scoreB
+                ?
+                "Losers"
+                :
+                "Draw";
+
+
+          const titleB =
+            match.scoreB
+            >
+            match.scoreA
+              ?
+              "Winners"
+              :
+              match.scoreB
+              <
+              match.scoreA
+                ?
+                "Losers"
+                :
+                "Draw";
+
+
+          return `
+
+            <div class="item">
+
+              <div class="matchCard">
+
+                <div class="matchTop">
+
+                  <div class="matchDate">
+                    ${esc(match.date)}
+                  </div>
+
+                  <div class="matchScore">
+                    ${match.scoreA} : ${match.scoreB}
+                  </div>
+
+                </div>
+
+
+                <div class="matchGrid">
+
+                  <div class="teamBox">
+
+                    <div class="teamTitle">
+                      ${titleA}
+                    </div>
+
+                    ${sideLines(match.teamA)}
+
+                  </div>
+
+
+                  <div class="teamBox">
+
+                    <div class="teamTitle">
+                      ${titleB}
+                    </div>
+
+                    ${sideLines(match.teamB)}
+
+                  </div>
+
+                </div>
+
+              </div>
+
             </div>
 
-            <div class="teamBox">
-              <div class="teamTitle">${titleB}</div>
-              ${linesB.length ? linesB.join("") : `<div class="meta">—</div>`}
+          `;
+
+        }
+      )
+      .join("");
+
+}
+
+
+/* =========================================================
+   MATCH HISTORY PLAYERS
+========================================================= */
+
+function sideLines(
+  entries
+) {
+
+  if (
+    !entries.length
+  ) {
+
+    return (
+      `<div class="meta">—</div>`
+    );
+
+  }
+
+
+  const sorted =
+    entries
+      .slice()
+      .sort(
+        (
+          a,
+          b
+        ) => {
+
+          const aScored =
+            a.normalGoals > 0
+              ?
+              1
+              :
+              0;
+
+
+          const bScored =
+            b.normalGoals > 0
+              ?
+              1
+              :
+              0;
+
+
+          if (
+            bScored !==
+            aScored
+          ) {
+
+            return (
+              bScored -
+              aScored
+            );
+
+          }
+
+
+          if (
+            b.normalGoals
+            !==
+            a.normalGoals
+          ) {
+
+            return (
+              b.normalGoals
+              -
+              a.normalGoals
+            );
+
+          }
+
+
+          if (
+            b.ownGoals
+            !==
+            a.ownGoals
+          ) {
+
+            return (
+              b.ownGoals
+              -
+              a.ownGoals
+            );
+
+          }
+
+
+          return (
+            playerName(
+              a.playerId
+            )
+            .localeCompare(
+              playerName(
+                b.playerId
+              )
+            )
+          );
+
+        }
+      );
+
+
+  return (
+    sorted
+      .map(
+        x => {
+
+          let name =
+            playerName(
+              x.playerId
+            );
+
+
+          /*
+            Player appears ONCE.
+
+            Example:
+
+            Ali scores 2 normal goals
+            and 1 own goal:
+
+            Ali (own goal)   (2)
+          */
+
+          if (
+            x.ownGoals > 0
+          ) {
+
+            name +=
+              x.ownGoals === 1
+                ?
+                " (own goal)"
+                :
+                ` (own goals x${x.ownGoals})`;
+
+          }
+
+
+          const goals =
+            x.normalGoals > 0
+              ?
+              `(${x.normalGoals})`
+              :
+              "";
+
+
+          return `
+
+            <div class="teamLine">
+
+              <div class="playerName">
+                ${esc(name)}
+              </div>
+
+              <div class="playerGoals">
+                ${goals}
+              </div>
+
             </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }).join("");
+
+          `;
+
+        }
+      )
+      .join("")
+  );
+
 }
 
-function calcTeamScore(teamEntries, oppositeEntries) {
-  const normalGoals = teamEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? 0 : Number(x.goals || 0)), 0);
-  const oppOwnGoals = oppositeEntries.reduce((sum, x) => sum + (isOwnGoal(x) ? Number(x.goals || 0) : 0), 0);
-  return normalGoals + oppOwnGoals;
-}
 
-function sideLines(entries, idToName) {
-  const arr = entries.map(e => ({
-    name: idToName[e.playerId] || "Unknown",
-    goals: Number(e.goals || 0),
-    ownGoal: isOwnGoal(e)
-  }));
+/* =========================================================
+   ADMIN PLAYER LIST
+========================================================= */
 
-  const scorers = arr
-    .filter(x => !x.ownGoal && x.goals > 0)
-    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+function renderPlayersAdmin() {
 
-  const owns = arr
-    .filter(x => x.ownGoal && x.goals > 0)
-    .sort((a,b)=> b.goals - a.goals || a.name.localeCompare(b.name));
+  const box =
+    $("playersList");
 
-  const others = arr
-    .filter(x => !x.ownGoal && x.goals <= 0)
-    .sort((a,b)=> a.name.localeCompare(b.name));
 
-  const lines = [];
+  if (!box) {
 
-  scorers.forEach(x => {
-    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals">(${x.goals})</div></div>`);
-  });
+    return;
 
-  owns.forEach(x => {
-    const label = x.goals === 1 ? "own goal" : `own goals x${x.goals}`;
-    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)} (${label})</div><div class="playerGoals"></div></div>`);
-  });
+  }
 
-  others.forEach(x => {
-    lines.push(`<div class="teamLine"><div class="playerName">${esc(x.name)}</div><div class="playerGoals"></div></div>`);
-  });
 
-  return lines;
-}
+  const html =
+    players
 
-function renderDashboard(stats) {
-  const eligibleIds = getEligiblePlayerIds(stats, logs);
-  const rows = players
-    .filter(p => eligibleIds.has(p.id))
-    .map(p=>({p,s:stats[p.id]||blankStats()}));
+      .slice()
 
-  const topGoals = rows.slice().sort((a,b)=>(b.s.goals-a.s.goals)||(b.s.gpm-a.s.gpm)).slice(0,3);
-  $("dashTopScorers") && ($("dashTopScorers").innerHTML =
-    topGoals.length
-      ? topGoals.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `${x.s.goals} goals · G/Match ${fmt2(x.s.gpm)} · Win% ${fmtPct(x.s.winPct)}`)).join("")
-      : `<div class="note">No eligible players yet.</div>`);
+      .sort(
+        (
+          a,
+          b
+        ) =>
 
-  const topStreak = rows.slice().sort((a,b)=>(b.s.current-a.s.current)||(b.s.best-a.s.best)).slice(0,3);
-  $("dashTopStreaks") && ($("dashTopStreaks").innerHTML =
-    topStreak.length
-      ? topStreak.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`)).join("")
-      : `<div class="note">No eligible players yet.</div>`);
+          String(
+            a.name || ""
+          )
+          .localeCompare(
+            String(
+              b.name || ""
+            )
+          )
 
-  const topWin = rows.slice().sort((a,b)=>(b.s.winPct-a.s.winPct)||(b.s.wins-a.s.wins)).slice(0,3);
-  $("dashTopWinPct") && ($("dashTopWinPct").innerHTML =
-    topWin.length
-      ? topWin.map((x,i)=>dashItem(`${medal(i)} ${esc(x.p.name)}`, `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`)).join("")
-      : `<div class="note">No eligible players yet.</div>`);
-}
+      )
 
-function renderLeaderboard(stats) {
-  const sortBy = $("lbSort")?.value || "form";
-  const eligibleIds = getEligiblePlayerIds(stats, logs);
+      .map(
+        p => {
 
-  const rows = players
-    .filter(p => eligibleIds.has(p.id))
-    .map(p => {
-      const s = stats[p.id] || blankStats();
-      const form = getPlayerFormData(p.id, stats);
+          const s =
+            model.stats[
+              String(
+                p.id
+              )
+            ]
+            ||
+            emptyStats();
 
-      return {
-        id: p.id,
-        name: p.name || "",
-        matches: s.matches,
-        wins: s.wins,
-        goals: s.goals,
-        winPct: s.winPct,
-        gpm: s.gpm,
-        curStreak: s.current,
-        bestStreak: s.best,
-        formPoints: form.formPoints,
-        formIcons: form.formIcons
-      };
-    }).sort(sorter(sortBy));
 
-  const box = $("leaderboardList");
-  if (!box) return;
+          return `
 
-  box.innerHTML = rows.length
-    ? rows.map((r,i)=>`
-      <div class="item">
-        <div>
-          <div class="name">${medal(i)} ${esc(r.name)}</div>
-          <div class="meta">
-            Form <b>${formatFormPoints(r.formPoints)}</b> ·
-            Last 5 <b>${r.formIcons || "—"}</b> ·
-            Matches <b>${r.matches}</b> · Wins <b>${r.wins}</b> · Goals <b>${r.goals}</b> ·
-            Win% <b>${fmtPct(r.winPct)}</b> · G/Match <b>${fmt2(r.gpm)}</b> ·
-            Streak <b>${r.curStreak}</b> (best ${r.bestStreak})
-          </div>
-        </div>
-      </div>
-    `).join("")
-    : `<div class="note">No eligible players yet.</div>`;
-}
+            <div class="item">
 
-function renderTable(stats) {
-  const sortBy = $("tableSort")?.value || "winPct";
-  const eligibleIds = getEligiblePlayerIds(stats, logs);
+              <div>
 
-  const rows = players
-    .filter(p => eligibleIds.has(p.id))
-    .map(p => {
-      const s = stats[p.id] || blankStats();
-      return {
-        name: p.name || "",
-        matches: s.matches,
-        wins: s.wins,
-        goals: s.goals,
-        winPct: s.winPct,
-        gpm: s.gpm,
-        curStreak: s.current,
-        bestStreak: s.best
-      };
-    })
-    .sort(sorter(sortBy));
+                <div class="name">
+                  ${esc(p.name || "")}
+                </div>
 
-  const body = $("tableBody");
-  if (!body) return;
+                <div class="meta">
 
-  body.innerHTML = rows.length
-    ? rows.map((r,idx)=>`
-      <tr>
-        <td>${idx+1}</td>
-        <td>${esc(r.name)}</td>
-        <td>${r.matches}</td>
-        <td>${r.wins}</td>
-        <td>${r.goals}</td>
-        <td>${fmtPct(r.winPct)}</td>
-        <td>${fmt2(r.gpm)}</td>
-        <td>${r.curStreak}</td>
-        <td>${r.bestStreak}</td>
-      </tr>
-    `).join("")
-    : `<tr><td colspan="9" class="noteCell">No eligible players yet.</td></tr>`;
-}
+                  Matches
+                  <b>${s.matches}</b>
 
-function renderPlayersAdmin(stats) {
-  const box = $("playersList");
-  if (!box) return;
+                  ·
 
-  const html = players
-    .slice()
-    .sort((a,b)=>(a.name||"").localeCompare(b.name||""))
-    .map(p => {
-      const s = stats[p.id] || blankStats();
-      return `
-        <div class="item">
-          <div>
-            <div class="name">${esc(p.name||"")}</div>
-            <div class="meta">
-              Matches <b>${s.matches}</b> · Wins <b>${s.wins}</b> · Goals <b>${s.goals}</b> ·
-              Win% <b>${fmtPct(s.winPct)}</b> · G/Match <b>${fmt2(s.gpm)}</b> ·
-              Streak <b>${s.current}</b> (best ${s.best})
+                  Wins
+                  <b>${s.wins}</b>
+
+                  ·
+
+                  Goals
+                  <b>${s.goals}</b>
+
+                  ·
+
+                  Win%
+                  <b>${fmtPct(s.winPct)}</b>
+
+                  ·
+
+                  G/Match
+                  <b>${fmt2(s.gpm)}</b>
+
+                  ·
+
+                  Streak
+                  <b>${s.current}</b>
+
+                  (best ${s.best})
+
+                </div>
+
+              </div>
+
             </div>
-          </div>
-        </div>
-      `;
-    }).join("");
 
-  box.innerHTML = html || `<div class="note">No players yet.</div>`;
+          `;
+
+        }
+      )
+      .join("");
+
+
+  box.innerHTML =
+    html
+    ||
+    `<div class="note">No players yet.</div>`;
+
 }
+
+
+/* =========================================================
+   RAW ADMIN ENTRIES
+========================================================= */
 
 function renderLogs() {
-  const box = $("logsList");
-  if (!box) return;
 
-  box.innerHTML = logs.slice(0,30).map(l => {
-    const p = players.find(x=>x.id===l.playerId);
-    const name = p ? p.name : "(Unknown)";
-    const result = normalizeResult(l);
-    const side = normalizeSide(l);
-    const own = isOwnGoal(l);
+  const box =
+    $("logsList");
 
-    return `
-      <div class="item">
-        <div>
-          <div class="name">${esc(name)} — ${result.toUpperCase()}${own ? " · OWN GOAL" : ""}</div>
-          <div class="meta">${esc(l.date||"")} · Team ${side} · Goals: <b>${Number(l.goals||0)}</b></div>
-        </div>
-      </div>
-    `;
-  }).join("") || `<div class="note">No entries yet.</div>`;
+
+  if (!box) {
+
+    return;
+
+  }
+
+
+  /*
+    Admin list stays RAW.
+
+    This is useful because you can still
+    see both Normal and Own Goal docs.
+
+    But statistics use aggregated data.
+  */
+
+  const duplicateTypeCounts =
+    new Map();
+
+
+  for (
+    const l
+    of
+    rawLogs
+  ) {
+
+    const key =
+      `${matchKeyOf(l)}::${String(l.playerId || "")}::${isOwnGoal(l) ? "own" : "normal"}`;
+
+
+    duplicateTypeCounts.set(
+      key,
+
+      (
+        duplicateTypeCounts.get(
+          key
+        )
+        ||
+        0
+      )
+      +
+      1
+    );
+
+  }
+
+
+  box.innerHTML =
+    rawLogs
+      .slice(
+        0,
+        30
+      )
+      .map(
+        l => {
+
+          const result =
+            normalizeResult(l);
+
+
+          const side =
+            normalizeSide(l);
+
+
+          const own =
+            isOwnGoal(l);
+
+
+          const key =
+            `${matchKeyOf(l)}::${String(l.playerId || "")}::${own ? "own" : "normal"}`;
+
+
+          const duplicate =
+            (
+              duplicateTypeCounts.get(
+                key
+              )
+              ||
+              0
+            )
+            >
+            1;
+
+
+          return `
+
+            <div class="item">
+
+              <div>
+
+                <div class="name">
+
+                  ${esc(playerName(l.playerId))}
+
+                  —
+
+                  ${result.toUpperCase()}
+
+                  ${own ? " · OWN GOAL" : ""}
+
+                  ${duplicate ? " · DUPLICATE" : ""}
+
+                </div>
+
+
+                <div class="meta">
+
+                  ${esc(l.date || "")}
+
+                  ·
+
+                  Team ${side}
+
+                  ·
+
+                  Goals:
+                  <b>${Number(l.goals || 0)}</b>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("")
+
+    ||
+
+    `<div class="note">No entries yet.</div>`;
+
 }
 
-function renderCompareOptions(){
-  const a = $("cmpPlayerA");
-  const b = $("cmpPlayerB");
-  if (!a || !b) return;
 
-  const sorted = players.slice().sort((x,y)=>(x.name||"").localeCompare(y.name||""));
-  const aCur = a.value;
-  const bCur = b.value;
+/* =========================================================
+   COMPARE
+========================================================= */
 
-  const placeholder = `<option value="">Select player</option>`;
-  const options = placeholder + sorted.map(p => `<option value="${p.id}">${esc(p.name||"")}</option>`).join("");
+function renderCompare() {
 
-  a.innerHTML = options;
-  b.innerHTML = options;
+  const aId =
+    String(
+      $("cmpPlayerA")?.value
+      ||
+      ""
+    );
 
-  if (aCur && sorted.some(p => p.id === aCur)) a.value = aCur;
-  else a.value = "";
 
-  if (bCur && sorted.some(p => p.id === bCur)) b.value = bCur;
-  else b.value = "";
+  const bId =
+    String(
+      $("cmpPlayerB")?.value
+      ||
+      ""
+    );
 
-  if (a.value && b.value && a.value === b.value) {
-    b.value = "";
-  }
-}
 
-function renderCompare(){
-  const aId = $("cmpPlayerA")?.value || "";
-  const bId = $("cmpPlayerB")?.value || "";
-  const box = $("compareResult");
-  if (!box) return;
+  const box =
+    $("compareResult");
 
-  if (!aId || !bId || aId === bId) {
-    box.innerHTML = `<div class="card"><div class="note">Select two different players.</div></div>`;
+
+  if (!box) {
+
     return;
+
   }
 
-  const aPlayer = players.find(p => p.id === aId);
-  const bPlayer = players.find(p => p.id === bId);
-  if (!aPlayer || !bPlayer) {
-    box.innerHTML = `<div class="card"><div class="note">Players not found.</div></div>`;
+
+  if (
+    !aId
+    ||
+    !bId
+    ||
+    aId === bId
+  ) {
+
+    box.innerHTML =
+      `<div class="card"><div class="note">Select two different players.</div></div>`;
+
+
     return;
+
   }
 
-  const stats = computeAllStats();
-  const aStats = stats[aId] || blankStats();
-  const bStats = stats[bId] || blankStats();
-  const aForm = getPlayerFormData(aId, stats);
-  const bForm = getPlayerFormData(bId, stats);
-  const h2h = computeHeadToHead(aId, bId);
+
+  const aPlayer =
+    players.find(
+      p =>
+        String(p.id)
+        ===
+        aId
+    );
+
+
+  const bPlayer =
+    players.find(
+      p =>
+        String(p.id)
+        ===
+        bId
+    );
+
+
+  if (
+    !aPlayer
+    ||
+    !bPlayer
+  ) {
+
+    box.innerHTML =
+      `<div class="card"><div class="note">Players not found.</div></div>`;
+
+
+    return;
+
+  }
+
+
+  const aStats =
+    model.stats[aId]
+    ||
+    emptyStats();
+
+
+  const bStats =
+    model.stats[bId]
+    ||
+    emptyStats();
+
+
+  const aForm =
+    model.forms[aId]
+    ||
+    {
+      formIcons: "",
+      formPoints: 0
+    };
+
+
+  const bForm =
+    model.forms[bId]
+    ||
+    {
+      formIcons: "",
+      formPoints: 0
+    };
+
+
+  const h2h =
+    computeHeadToHead(
+      aId,
+      bId
+    );
+
 
   box.innerHTML = `
+
     <div class="card">
+
       <div class="compareHeader horizontal">
-        <div class="compareName">${esc(aPlayer.name)}</div>
-        <div class="compareVs">vs</div>
-        <div class="compareName">${esc(bPlayer.name)}</div>
+
+        <div class="compareName">
+          ${esc(aPlayer.name)}
+        </div>
+
+        <div class="compareVs">
+          vs
+        </div>
+
+        <div class="compareName">
+          ${esc(bPlayer.name)}
+        </div>
+
       </div>
+
     </div>
 
+
     <div class="card">
-      <div class="card-title">Head-to-Head</div>
+
+      <div class="card-title">
+        Head-to-Head
+      </div>
+
       <div class="compareRows">
-        ${compareCenterValueRow("Matches against each other", h2h.againstMatches)}
-        ${compareCompactDualRow("Wins", h2h.aWinsAgainst, h2h.bWinsAgainst)}
-        ${compareCenterValueRow("Draws", h2h.drawsAgainst)}
+
+        ${
+          compareCenterValueRow(
+            "Matches against each other",
+            h2h.againstMatches
+          )
+        }
+
+        ${
+          compareCompactDualRow(
+            "Wins",
+            h2h.aWinsAgainst,
+            h2h.bWinsAgainst
+          )
+        }
+
+        ${
+          compareCenterValueRow(
+            "Draws",
+            h2h.drawsAgainst
+          )
+        }
+
       </div>
+
     </div>
 
+
     <div class="card">
-      <div class="card-title">Teammates Record</div>
+
+      <div class="card-title">
+        Teammates Record
+      </div>
+
       <div class="compareRows">
-        ${compareCenterValueRow("Matches", h2h.togetherMatches)}
-        ${compareCenterValueRow("Wins", h2h.togetherWins)}
-        ${compareCenterValueRow("Losses", h2h.togetherLosses)}
-        ${compareCenterValueRow("Draws", h2h.togetherDraws)}
+
+        ${
+          compareCenterValueRow(
+            "Matches",
+            h2h.togetherMatches
+          )
+        }
+
+        ${
+          compareCenterValueRow(
+            "Wins",
+            h2h.togetherWins
+          )
+        }
+
+        ${
+          compareCenterValueRow(
+            "Losses",
+            h2h.togetherLosses
+          )
+        }
+
+        ${
+          compareCenterValueRow(
+            "Draws",
+            h2h.togetherDraws
+          )
+        }
+
       </div>
+
     </div>
 
+
     <div class="card">
-      <div class="card-title">Individual Stats</div>
+
+      <div class="card-title">
+        Individual Stats
+      </div>
+
       <div class="compareTable">
-        ${compareStatLine("Matches", aStats.matches, bStats.matches, aStats.matches, bStats.matches)}
-        ${compareStatLine("Goals", aStats.goals, bStats.goals, aStats.goals, bStats.goals)}
-        ${compareStatLine("Wins", aStats.wins, bStats.wins, aStats.wins, bStats.wins)}
-        ${compareStatLine("Win %", fmtPct(aStats.winPct), fmtPct(bStats.winPct), aStats.winPct, bStats.winPct)}
-        ${compareStatLine("Goals / Match", fmt2(aStats.gpm), fmt2(bStats.gpm), aStats.gpm, bStats.gpm)}
-        ${compareStatLine("Best Win Streak", aStats.best, bStats.best, aStats.best, bStats.best)}
-        ${compareFormStatLine("Form", aForm.formIcons || "—", bForm.formIcons || "—", aForm.formPoints, bForm.formPoints)}
+
+        ${
+          compareStatLine(
+            "Matches",
+            aStats.matches,
+            bStats.matches,
+            aStats.matches,
+            bStats.matches
+          )
+        }
+
+        ${
+          compareStatLine(
+            "Goals",
+            aStats.goals,
+            bStats.goals,
+            aStats.goals,
+            bStats.goals
+          )
+        }
+
+        ${
+          compareStatLine(
+            "Wins",
+            aStats.wins,
+            bStats.wins,
+            aStats.wins,
+            bStats.wins
+          )
+        }
+
+        ${
+          compareStatLine(
+            "Win %",
+            fmtPct(aStats.winPct),
+            fmtPct(bStats.winPct),
+            aStats.winPct,
+            bStats.winPct
+          )
+        }
+
+        ${
+          compareStatLine(
+            "Goals / Match",
+            fmt2(aStats.gpm),
+            fmt2(bStats.gpm),
+            aStats.gpm,
+            bStats.gpm
+          )
+        }
+
+        ${
+          compareStatLine(
+            "Best Win Streak",
+            aStats.best,
+            bStats.best,
+            aStats.best,
+            bStats.best
+          )
+        }
+
+        ${
+          compareFormStatLine(
+            "Form",
+            aForm.formIcons || "—",
+            bForm.formIcons || "—",
+            aForm.formPoints,
+            bForm.formPoints
+          )
+        }
+
       </div>
+
     </div>
+
   `;
+
 }
 
-function computeHeadToHead(aId, bId){
-  const byDate = {};
-  logs.forEach(l => {
-    const d = String(l.date || "").trim();
-    if (!d) return;
-    (byDate[d] ||= []).push(l);
-  });
+
+/* =========================================================
+   HEAD TO HEAD
+========================================================= */
+
+function computeHeadToHead(
+  aId,
+  bId
+) {
 
   let againstMatches = 0;
+
   let aWinsAgainst = 0;
+
   let bWinsAgainst = 0;
+
   let drawsAgainst = 0;
 
+
   let togetherMatches = 0;
+
   let togetherWins = 0;
+
   let togetherLosses = 0;
+
   let togetherDraws = 0;
 
-  Object.keys(byDate).forEach(date => {
-    const arr = byDate[date];
-    const aEntry = arr.find(x => String(x.playerId) === String(aId));
-    const bEntry = arr.find(x => String(x.playerId) === String(bId));
 
-    if (!aEntry || !bEntry) return;
+  /*
+    Iterate MATCHES,
+    not raw entries.
+  */
 
-    const aSide = normalizeSide(aEntry);
-    const bSide = normalizeSide(bEntry);
-    const aRes = normalizeResult(aEntry);
-    const bRes = normalizeResult(bEntry);
+  for (
+    const summary
+    of
+    model
+      .matchSummaries
+      .values()
+  ) {
 
-    if (aSide !== bSide) {
-      againstMatches += 1;
+    const aEntry =
+      summary
+        .parts
+        .find(
+          x =>
+            x.playerId
+            ===
+            aId
+        );
 
-      if (aRes === "win" && bRes === "loss") aWinsAgainst += 1;
-      else if (bRes === "win" && aRes === "loss") bWinsAgainst += 1;
-      else drawsAgainst += 1;
-    } else {
-      togetherMatches += 1;
 
-      if (aRes === "win" && bRes === "win") togetherWins += 1;
-      else if (aRes === "draw" && bRes === "draw") togetherDraws += 1;
-      else togetherLosses += 1;
+    const bEntry =
+      summary
+        .parts
+        .find(
+          x =>
+            x.playerId
+            ===
+            bId
+        );
+
+
+    if (
+      !aEntry
+      ||
+      !bEntry
+    ) {
+
+      continue;
+
     }
-  });
+
+
+    if (
+      aEntry.side
+      !==
+      bEntry.side
+    ) {
+
+      againstMatches +=
+        1;
+
+
+      if (
+        aEntry.result === "win"
+        &&
+        bEntry.result === "loss"
+      ) {
+
+        aWinsAgainst +=
+          1;
+
+      } else if (
+        bEntry.result === "win"
+        &&
+        aEntry.result === "loss"
+      ) {
+
+        bWinsAgainst +=
+          1;
+
+      } else {
+
+        drawsAgainst +=
+          1;
+
+      }
+
+    } else {
+
+      togetherMatches +=
+        1;
+
+
+      if (
+        aEntry.result === "win"
+        &&
+        bEntry.result === "win"
+      ) {
+
+        togetherWins +=
+          1;
+
+      } else if (
+        aEntry.result === "draw"
+        &&
+        bEntry.result === "draw"
+      ) {
+
+        togetherDraws +=
+          1;
+
+      } else {
+
+        togetherLosses +=
+          1;
+
+      }
+
+    }
+
+  }
+
 
   return {
+
     againstMatches,
+
     aWinsAgainst,
+
     bWinsAgainst,
+
     drawsAgainst,
+
     togetherMatches,
+
     togetherWins,
+
     togetherLosses,
+
     togetherDraws
+
   };
+
 }
 
-function compareCenterValueRow(label, value){
+
+/* =========================================================
+   COMPARE UI
+========================================================= */
+
+function compareCenterValueRow(
+  label,
+  value
+) {
+
   return `
+
     <div class="compareRow compareRowCenterOnly">
+
       <div class="compareSingleWrap">
-        <span class="compareSingleLabel">${esc(label)}</span>
-        <span class="compareSingleVal">${esc(value)}</span>
+
+        <span class="compareSingleLabel">
+          ${esc(label)}
+        </span>
+
+        <span class="compareSingleVal">
+          ${esc(value)}
+        </span>
+
       </div>
+
     </div>
+
   `;
+
 }
 
-function compareCompactDualRow(label, leftVal, rightVal){
+
+function compareCompactDualRow(
+  label,
+  leftVal,
+  rightVal
+) {
+
   return `
+
     <div class="compareRow compareRowCompactDual">
-      <div class="compareCompactSide">${esc(leftVal)}</div>
-      <div class="compareCompactLabel">${esc(label)}</div>
-      <div class="compareCompactSide">${esc(rightVal)}</div>
+
+      <div class="compareCompactSide">
+        ${esc(leftVal)}
+      </div>
+
+      <div class="compareCompactLabel">
+        ${esc(label)}
+      </div>
+
+      <div class="compareCompactSide">
+        ${esc(rightVal)}
+      </div>
+
     </div>
+
   `;
+
 }
 
-function compareStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null){
-  const leftBetter = aRaw !== null && bRaw !== null && Number(aRaw) > Number(bRaw);
-  const rightBetter = aRaw !== null && bRaw !== null && Number(bRaw) > Number(aRaw);
+
+function compareStatLine(
+  label,
+  aDisplay,
+  bDisplay,
+  aRaw = null,
+  bRaw = null
+) {
+
+  const leftBetter =
+    aRaw !== null
+    &&
+    bRaw !== null
+    &&
+    Number(aRaw)
+    >
+    Number(bRaw);
+
+
+  const rightBetter =
+    aRaw !== null
+    &&
+    bRaw !== null
+    &&
+    Number(bRaw)
+    >
+    Number(aRaw);
+
 
   return `
+
     <div class="compareStatLine">
-      <div class="compareSide ${leftBetter ? "better" : ""}">${esc(aDisplay)}</div>
-      <div class="compareCenter">${esc(label)}</div>
-      <div class="compareSide ${rightBetter ? "better" : ""}">${esc(bDisplay)}</div>
+
+      <div class="compareSide ${leftBetter ? "better" : ""}">
+        ${esc(aDisplay)}
+      </div>
+
+      <div class="compareCenter">
+        ${esc(label)}
+      </div>
+
+      <div class="compareSide ${rightBetter ? "better" : ""}">
+        ${esc(bDisplay)}
+      </div>
+
     </div>
+
   `;
+
 }
 
-function compareFormStatLine(label, aDisplay, bDisplay, aRaw = null, bRaw = null){
-  const leftBetter = aRaw !== null && bRaw !== null && Number(aRaw) > Number(bRaw);
-  const rightBetter = aRaw !== null && bRaw !== null && Number(bRaw) > Number(aRaw);
+
+function compareFormStatLine(
+  label,
+  aDisplay,
+  bDisplay,
+  aRaw = null,
+  bRaw = null
+) {
+
+  const leftBetter =
+    aRaw !== null
+    &&
+    bRaw !== null
+    &&
+    Number(aRaw)
+    >
+    Number(bRaw);
+
+
+  const rightBetter =
+    aRaw !== null
+    &&
+    bRaw !== null
+    &&
+    Number(bRaw)
+    >
+    Number(aRaw);
+
 
   return `
+
     <div class="compareStatLine compareStatLineForm">
-      <div class="compareSide compareFormSide ${leftBetter ? "better" : ""}">${esc(aDisplay)}</div>
-      <div class="compareCenter">${esc(label)}</div>
-      <div class="compareSide compareFormSide ${rightBetter ? "better" : ""}">${esc(bDisplay)}</div>
+
+      <div class="compareSide compareFormSide ${leftBetter ? "better" : ""}">
+        ${esc(aDisplay)}
+      </div>
+
+      <div class="compareCenter">
+        ${esc(label)}
+      </div>
+
+      <div class="compareSide compareFormSide ${rightBetter ? "better" : ""}">
+        ${esc(bDisplay)}
+      </div>
+
     </div>
+
   `;
+
 }
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function tile(
+  label,
+  value
+) {
+
+  return `
+
+    <div class="statTile">
+
+      <div class="stLabel">
+        ${esc(label)}
+      </div>
+
+      <div class="stValue">
+        ${esc(value)}
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   SORT
+========================================================= */
+
+function sorter(
+  k
+) {
+
+  if (
+    k === "name"
+  ) {
+
+    return (
+      (
+        a,
+        b
+      ) =>
+        a.name.localeCompare(
+          b.name
+        )
+    );
+
+  }
+
+
+  if (
+    k === "form"
+  ) {
+
+    return (
+      (
+        a,
+        b
+      ) =>
+
+        (
+          Number(
+            b.formPoints || 0
+          )
+          -
+          Number(
+            a.formPoints || 0
+          )
+        )
+
+        ||
+
+        (
+          Number(
+            b.winPct || 0
+          )
+          -
+          Number(
+            a.winPct || 0
+          )
+        )
+
+        ||
+
+        (
+          Number(
+            b.goals || 0
+          )
+          -
+          Number(
+            a.goals || 0
+          )
+        )
+
+        ||
+
+        a.name.localeCompare(
+          b.name
+        )
+    );
+
+  }
+
+
+  const key =
+    (
+      {
+        winPct:
+          "winPct",
+
+        goals:
+          "goals",
+
+        gpm:
+          "gpm",
+
+        wins:
+          "wins",
+
+        matches:
+          "matches",
+
+        curStreak:
+          "curStreak",
+
+        bestStreak:
+          "bestStreak"
+      }[k]
+    )
+    ||
+    "winPct";
+
+
+  return (
+    (
+      a,
+      b
+    ) =>
+
+      (
+        Number(
+          b[key] || 0
+        )
+        -
+        Number(
+          a[key] || 0
+        )
+      )
+
+      ||
+
+      (
+        Number(
+          b.goals || 0
+        )
+        -
+        Number(
+          a.goals || 0
+        )
+      )
+
+      ||
+
+      a.name.localeCompare(
+        b.name
+      )
+  );
+
+}
+
+
+/* =========================================================
+   DATE / ENTRY SORT
+========================================================= */
+
+function compareRawLogsNewestFirst(
+  a,
+  b
+) {
+
+  const da =
+    String(
+      a.date || ""
+    );
+
+
+  const db =
+    String(
+      b.date || ""
+    );
+
+
+  if (
+    da !== db
+  ) {
+
+    return (
+      db.localeCompare(
+        da
+      )
+    );
+
+  }
+
+
+  return (
+
+    Number(
+      b.createdAt || 0
+    )
+
+    -
+
+    Number(
+      a.createdAt || 0
+    )
+
+  );
+
+}
+
+
+function compareRawLogsOldestFirst(
+  a,
+  b
+) {
+
+  const da =
+    String(
+      a.date || ""
+    );
+
+
+  const db =
+    String(
+      b.date || ""
+    );
+
+
+  if (
+    da !== db
+  ) {
+
+    return (
+      da.localeCompare(
+        db
+      )
+    );
+
+  }
+
+
+  return (
+
+    Number(
+      a.createdAt || 0
+    )
+
+    -
+
+    Number(
+      b.createdAt || 0
+    )
+
+  );
+
+}
+
+
+function compareParticipationsOldestFirst(
+  a,
+  b
+) {
+
+  if (
+    a.date !==
+    b.date
+  ) {
+
+    return (
+      a.date.localeCompare(
+        b.date
+      )
+    );
+
+  }
+
+
+  if (
+    a.matchKey !==
+    b.matchKey
+  ) {
+
+    return (
+      a.matchKey.localeCompare(
+        b.matchKey
+      )
+    );
+
+  }
+
+
+  return (
+
+    Number(
+      a.createdAt || 0
+    )
+
+    -
+
+    Number(
+      b.createdAt || 0
+    )
+
+  );
+
+}
+
+
+/* =========================================================
+   RESULT ICON
+========================================================= */
+
+function resultIcon(
+  result
+) {
+
+  if (
+    result === "win"
+  ) {
+
+    return "🟢";
+
+  }
+
+
+  if (
+    result === "draw"
+  ) {
+
+    return "🟡";
+
+  }
+
+
+  return "🔴";
+
+}
+
+
+/* =========================================================
+   PLAYER NAME
+========================================================= */
+
+function playerName(
+  id
+) {
+
+  return (
+
+    players.find(
+      p =>
+        String(p.id)
+        ===
+        String(id)
+    )
+    ?.name
+
+    ||
+
+    "Unknown"
+
+  );
+
+}
+
+
+/* =========================================================
+   LOCAL DATE
+========================================================= */
+
+function localISODate() {
+
+  const d =
+    new Date();
+
+
+  const y =
+    d.getFullYear();
+
+
+  const m =
+    String(
+      d.getMonth()
+      +
+      1
+    )
+    .padStart(
+      2,
+      "0"
+    );
+
+
+  const day =
+    String(
+      d.getDate()
+    )
+    .padStart(
+      2,
+      "0"
+    );
+
+
+  return (
+    `${y}-${m}-${day}`
+  );
+
+}
+
+
+/* =========================================================
+   MONTH LABEL
+========================================================= */
+
+function formatMonthLabel(
+  monthKey
+) {
+
+  const [
+    y,
+    m
+  ] =
+    monthKey
+      .split("-")
+      .map(Number);
+
+
+  if (
+    !y ||
+    !m
+  ) {
+
+    return monthKey;
+
+  }
+
+
+  return (
+
+    new Intl.DateTimeFormat(
+      "en",
+      {
+        month:
+          "long",
+
+        year:
+          "numeric"
+      }
+    )
+    .format(
+      new Date(
+        y,
+        m - 1,
+        1
+      )
+    )
+
+  );
+
+}
+
+
+/* =========================================================
+   FORMAT
+========================================================= */
+
+function formatFormPoints(
+  n
+) {
+
+  return (
+    Number.isInteger(n)
+      ?
+      String(n)
+      :
+      Number(
+        n || 0
+      )
+      .toFixed(1)
+  );
+
+}
+
+
+function clampInt(
+  v,
+  min,
+  max
+) {
+
+  const n =
+    Math.floor(
+      Number(v)
+    );
+
+
+  if (
+    !Number.isFinite(n)
+  ) {
+
+    return min;
+
+  }
+
+
+  return (
+    Math.max(
+      min,
+      Math.min(
+        max,
+        n
+      )
+    )
+  );
+
+}
+
+
+function round1(
+  n
+) {
+
+  return (
+
+    Math.round(
+      (
+        Number(n)
+        +
+        Number.EPSILON
+      )
+      *
+      10
+    )
+
+    /
+
+    10
+
+  );
+
+}
+
+
+function fmtPct(
+  x
+) {
+
+  return (
+
+    `${
+
+      Math.round(
+
+        (
+          Number(x)
+          ||
+          0
+        )
+
+        *
+
+        100
+
+      )
+
+    }%`
+
+  );
+
+}
+
+
+function fmt2(
+  x
+) {
+
+  return (
+    (
+      Number(x)
+      ||
+      0
+    )
+    .toFixed(2)
+  );
+
+}
+
+
+function fmt1(
+  x
+) {
+
+  return (
+    (
+      Number(x)
+      ||
+      0
+    )
+    .toFixed(1)
+  );
+
+}
+
+
+function medal(
+  i
+) {
+
+  return (
+    i === 0
+      ?
+      "🥇"
+      :
+      i === 1
+        ?
+        "🥈"
+        :
+        i === 2
+          ?
+          "🥉"
+          :
+          ""
+  );
+
+}
+
+
+function dashItem(
+  t,
+  m
+) {
+
+  return `
+
+    <div class="item">
+
+      <div>
+
+        <div class="name">
+          ${t}
+        </div>
+
+        <div class="meta">
+          ${m}
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+
+}
+
+
+/* =========================================================
+   HTML ESCAPE
+========================================================= */
+
+function esc(
+  s
+) {
+
+  return (
+    String(s)
+
+      .replaceAll(
+        "&",
+        "&amp;"
+      )
+
+      .replaceAll(
+        "<",
+        "&lt;"
+      )
+
+      .replaceAll(
+        ">",
+        "&gt;"
+      )
+
+      .replaceAll(
+        '"',
+        "&quot;"
+      )
+
+      .replaceAll(
+        "'",
+        "&#039;"
+      )
+  );
+
+}
+
+
+/* =========================================================
+   EXPORT
+========================================================= */
 
 function exportJSON() {
-  const data = { exportedAt:new Date().toISOString(), players, logs };
-  const blob = new Blob([JSON.stringify(data,null,2)], { type:"application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `ftbll_backup_${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a);
+
+  /*
+    Export RAW Firebase data,
+    not aggregated data.
+
+    This preserves the true backup.
+  */
+
+  const data = {
+
+    exportedAt:
+      new Date()
+        .toISOString(),
+
+    players,
+
+    logs:
+      rawLogs
+
+  };
+
+
+  const blob =
+    new Blob(
+      [
+        JSON.stringify(
+          data,
+          null,
+          2
+        )
+      ],
+      {
+        type:
+          "application/json"
+      }
+    );
+
+
+  const url =
+    URL.createObjectURL(
+      blob
+    );
+
+
+  const a =
+    document.createElement(
+      "a"
+    );
+
+
+  a.href =
+    url;
+
+
+  a.download =
+    `ftbll_backup_${localISODate()}.json`;
+
+
+  document.body.appendChild(
+    a
+  );
+
+
   a.click();
+
+
   a.remove();
-  URL.revokeObjectURL(url);
+
+
+  URL.revokeObjectURL(
+    url
+  );
+
 }
+
+
+/* =========================================================
+   RESET
+========================================================= */
 
 async function resetAllData() {
-  const logsSnap = await getDocs(logsRef);
-  for (const d of logsSnap.docs) await deleteDoc(doc(db,"logs",d.id));
 
-  const playersSnap = await getDocs(playersRef);
-  for (const d of playersSnap.docs) await deleteDoc(doc(db,"players",d.id));
-}
+  try {
 
-function buildRows(stats) {
-  return players.map(p => {
-    const s = stats[p.id] || blankStats();
-    return {
-      name: p.name || "",
-      matches: s.matches,
-      wins: s.wins,
-      goals: s.goals,
-      winPct: s.winPct,
-      gpm: s.gpm,
-      curStreak: s.current,
-      bestStreak: s.best
-    };
-  });
-}
+    const logsSnap =
+      await getDocs(
+        logsRef
+      );
 
-function sorter(k) {
-  if (k === "name") return (a,b)=>a.name.localeCompare(b.name);
-  if (k === "form") {
-    return (a,b)=>
-      (Number(b.formPoints||0)-Number(a.formPoints||0)) ||
-      (Number(b.winPct||0)-Number(a.winPct||0)) ||
-      (Number(b.goals||0)-Number(a.goals||0)) ||
-      a.name.localeCompare(b.name);
+
+    for (
+      const d
+      of
+      logsSnap.docs
+    ) {
+
+      await deleteDoc(
+        doc(
+          db,
+          "logs",
+          d.id
+        )
+      );
+
+    }
+
+
+    const playersSnap =
+      await getDocs(
+        playersRef
+      );
+
+
+    for (
+      const d
+      of
+      playersSnap.docs
+    ) {
+
+      await deleteDoc(
+        doc(
+          db,
+          "players",
+          d.id
+        )
+      );
+
+    }
+
+
+  } catch (e) {
+
+    console.error(e);
+
+
+    alert(
+      "Reset failed. Please try again."
+    );
+
   }
-  const key = ({winPct:"winPct",goals:"goals",gpm:"gpm",wins:"wins",matches:"matches",curStreak:"curStreak",bestStreak:"bestStreak"}[k]) || "winPct";
-  return (a,b)=> (Number(b[key]||0)-Number(a[key]||0)) || (Number(b.goals||0)-Number(a.goals||0)) || a.name.localeCompare(b.name);
-}
 
-function clampInt(v,min,max) {
-  const n = Math.floor(Number(v));
-  if (!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, n));
 }
-
-function fmtPct(x){ return `${Math.round((Number(x)||0)*100)}%`; }
-function fmt2(x){ return (Number(x)||0).toFixed(2); }
-function medal(i){ return i===0?"🥇":i===1?"🥈":i===2?"🥉":""; }
-function dashItem(t,m){ return `<div class="item"><div><div class="name">${t}</div><div class="meta">${m}</div></div></div>`; }
-function esc(s){ return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"); }
