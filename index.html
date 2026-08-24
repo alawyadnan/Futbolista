@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=250001" />
+  <link rel="stylesheet" href="./styles.css?v=300001" />
 </head>
 <body>
 
@@ -33,6 +33,7 @@
 
   <!-- DASHBOARD -->
   <section id="screen-dashboard" class="screen">
+
     <div class="card">
       <div class="card-title">In Form Players 🔥</div>
       <div class="subnote">Last 5 matches · Win = 1 · Draw = 0.5 · Loss = 0</div>
@@ -41,8 +42,10 @@
 
     <div class="card">
       <div class="card-title">Player of The Month</div>
-      <div class="subnote">Attendance first · results second · goals lighter weight · score capped at 10</div>
-      <div id="monthlyAwards" class="list note">No monthly data yet.</div>
+      <div class="subnote">
+        Attendance first · results second · goals lighter weight · score capped at 10
+      </div>
+      <div id="playerOfMonthList" class="list note">No monthly data yet.</div>
     </div>
 
     <div class="card">
@@ -59,15 +62,19 @@
       <div class="card-title">Best Win %</div>
       <div id="dashTopWinPct" class="list note">No data yet.</div>
     </div>
+
   </section>
 
   <!-- LEADERBOARD -->
   <section id="screen-leaderboard" class="screen hidden">
+
     <div class="card">
       <div class="card-h">
         <div class="card-title">Leaderboard</div>
+
         <div class="row">
           <label class="label">Sort by</label>
+
           <select id="lbSort" class="select">
             <option value="form" selected>Form</option>
             <option value="winPct">Win %</option>
@@ -80,17 +87,23 @@
           </select>
         </div>
       </div>
+
       <div id="leaderboardList" class="list note">No players yet.</div>
     </div>
+
   </section>
 
   <!-- TABLE -->
   <section id="screen-table" class="screen hidden">
+
     <div class="card">
+
       <div class="card-h">
         <div class="card-title">All Players Table</div>
+
         <div class="row">
           <label class="label">Sort by</label>
+
           <select id="tableSort" class="select">
             <option value="winPct" selected>Win %</option>
             <option value="goals">Goals</option>
@@ -106,6 +119,7 @@
 
       <div class="tablewrap">
         <table class="table">
+
           <thead>
             <tr>
               <th>#</th>
@@ -119,56 +133,85 @@
               <th>Best Streak</th>
             </tr>
           </thead>
+
           <tbody id="tableBody">
-            <tr><td colspan="9" class="noteCell">No players yet.</td></tr>
+            <tr>
+              <td colspan="9" class="noteCell">No players yet.</td>
+            </tr>
           </tbody>
+
         </table>
       </div>
+
     </div>
+
   </section>
 
   <!-- PLAYER STATS -->
   <section id="screen-playerstats" class="screen hidden">
+
     <div class="card">
+
       <div class="card-h">
         <div class="card-title">Player Stats</div>
         <div class="subnote">Tap a player to view profile.</div>
       </div>
+
       <div id="playerCards" class="playerCards note">No players yet.</div>
+
     </div>
+
   </section>
 
   <!-- COMPARE -->
   <section id="screen-compare" class="screen hidden">
+
     <div class="card">
+
       <div class="card-title">Compare</div>
+
       <div class="gridForm compareSelectors">
+
         <div>
           <div class="label">Player A</div>
           <select id="cmpPlayerA" class="select"></select>
         </div>
+
         <div>
           <div class="label">Player B</div>
           <select id="cmpPlayerB" class="select"></select>
         </div>
+
       </div>
+
     </div>
 
-    <div id="compareResult" class="compareWrap note">Select two different players.</div>
+    <div id="compareResult" class="compareWrap note">
+      Select two different players.
+    </div>
+
   </section>
 
   <!-- PLAYER PROFILE -->
   <section id="screen-playerprofile" class="screen hidden">
+
     <div class="card">
+
       <div class="profileTop">
-        <button id="btnProfileBack" class="btn ghost backbtn" type="button">← Back</button>
+
+        <button id="btnProfileBack" class="btn ghost backbtn" type="button">
+          ← Back
+        </button>
+
         <div>
           <div id="profileName" class="profileName">Player</div>
           <div id="profileSub" class="subnote"></div>
         </div>
+
       </div>
 
       <div id="profileStatsGrid" class="statGrid"></div>
+
     </div>
 
     <div class="card">
@@ -185,38 +228,59 @@
       <div class="card-title">Never played with</div>
       <div id="profileNever" class="neverList note">—</div>
     </div>
+
   </section>
 
   <!-- MATCH HISTORY -->
   <section id="screen-history" class="screen hidden">
+
     <div class="card">
+
       <div class="card-title">Match History</div>
-      <div id="matchHistoryList" class="list note">No matches yet.</div>
+
+      <div id="matchHistoryList" class="list note">
+        No matches yet.
+      </div>
+
     </div>
+
   </section>
 
   <!-- PLAYERS ADMIN -->
   <section id="screen-players" class="screen hidden" data-admin="1">
+
     <div class="card">
+
       <div class="card-title">Add Player</div>
+
       <div class="row">
         <input id="playerName" class="input" placeholder="Player name" />
         <button id="btnAddPlayer" type="button" class="btn">Add</button>
       </div>
+
     </div>
 
     <div class="card">
+
       <div class="card-title">Players</div>
-      <div id="playersList" class="list note">No players yet.</div>
+
+      <div id="playersList" class="list note">
+        No players yet.
+      </div>
+
     </div>
+
   </section>
 
   <!-- MATCH ENTRY ADMIN -->
   <section id="screen-matches" class="screen hidden" data-admin="1">
+
     <div class="card">
+
       <div class="card-title">Add Match Entry (per player)</div>
 
       <div class="gridForm">
+
         <div>
           <div class="label">Date</div>
           <input id="logDate" class="input" type="date" />
@@ -229,11 +293,19 @@
 
         <div>
           <div class="label">Goals</div>
-          <input id="logGoals" class="input" type="number" min="0" max="99" value="0" />
+          <input
+            id="logGoals"
+            class="input"
+            type="number"
+            min="0"
+            max="99"
+            value="0"
+          />
         </div>
 
         <div>
           <div class="label">Result</div>
+
           <select id="logResult" class="select">
             <option value="win" selected>Win</option>
             <option value="draw">Draw</option>
@@ -243,6 +315,7 @@
 
         <div>
           <div class="label">Team</div>
+
           <select id="logSide" class="select">
             <option value="A" selected>Team A</option>
             <option value="B">Team B</option>
@@ -251,77 +324,114 @@
 
         <div>
           <div class="label">Goal Type</div>
+
           <select id="logGoalType" class="select">
             <option value="normal" selected>Normal</option>
             <option value="own">Own Goal</option>
           </select>
         </div>
+
       </div>
 
-      <button id="btnAddLog" type="button" class="btn full">Add Entry</button>
+      <button id="btnAddLog" type="button" class="btn full">
+        Add Entry
+      </button>
+
     </div>
 
     <div class="card">
+
       <div class="card-title">Recent Entries</div>
-      <div id="logsList" class="list note">No entries yet.</div>
+
+      <div id="logsList" class="list note">
+        No entries yet.
+      </div>
+
     </div>
+
   </section>
 
-  <!-- SETTINGS ADMIN -->
+  <!-- SETTINGS -->
   <section id="screen-settings" class="screen hidden" data-admin="1">
+
     <div class="card">
+
       <div class="card-title">Backup</div>
-      <button id="btnExport" type="button" class="btn full">Export JSON</button>
+
+      <button id="btnExport" type="button" class="btn full">
+        Export JSON
+      </button>
+
     </div>
 
     <div class="card danger">
+
       <div class="card-title">Danger Zone</div>
-      <button id="btnReset" type="button" class="btn dangerBtn full">Reset all data</button>
+
+      <button id="btnReset" type="button" class="btn dangerBtn full">
+        Reset all data
+      </button>
+
     </div>
+
   </section>
 
 </main>
 
 <nav class="bottomnav">
+
   <div class="bottomnav-inner iconnav">
+
     <button type="button" class="navbtn active" data-nav="dashboard">
-      <span class="ico">🏠</span><span class="txt">Dashboard</span>
+      <span class="ico">🏠</span>
+      <span class="txt">Dashboard</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="leaderboard">
-      <span class="ico">🏆</span><span class="txt">Leaderboard</span>
+      <span class="ico">🏆</span>
+      <span class="txt">Leaderboard</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="table">
-      <span class="ico">📊</span><span class="txt">Table</span>
+      <span class="ico">📊</span>
+      <span class="txt">Table</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="playerstats">
-      <span class="ico">👥</span><span class="txt">Players</span>
+      <span class="ico">👥</span>
+      <span class="txt">Players</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="compare">
-      <span class="ico">⚔️</span><span class="txt">Compare</span>
+      <span class="ico">⚔️</span>
+      <span class="txt">Compare</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="history">
-      <span class="ico">🗓️</span><span class="txt">History</span>
+      <span class="ico">🗓️</span>
+      <span class="txt">History</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="players" data-admin="1">
-      <span class="ico">🛡️</span><span class="txt">Admin</span>
+      <span class="ico">🛡️</span>
+      <span class="txt">Admin</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="matches" data-admin="1">
-      <span class="ico">➕</span><span class="txt">Entry</span>
+      <span class="ico">➕</span>
+      <span class="txt">Entry</span>
     </button>
 
     <button type="button" class="navbtn" data-nav="settings" data-admin="1">
-      <span class="ico">⚙️</span><span class="txt">Settings</span>
+      <span class="ico">⚙️</span>
+      <span class="txt">Settings</span>
     </button>
+
   </div>
+
 </nav>
 
-<script type="module" src="./app.js?v=250001"></script>
+<script type="module" src="./app.js?v=300001"></script>
+
 </body>
 </html>
