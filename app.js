@@ -24,9 +24,9 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500102";
+} from "./data-engine.js?v=500103";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500102";
+import { countText, directionFor, translate } from "./i18n.js?v=500103";
 
 import {
   buildHistoryPeriods,
@@ -35,7 +35,7 @@ import {
   filterMatches,
   isResetConfirmation,
   selectDisplayMonth
-} from "./ux-utils.js?v=500102";
+} from "./ux-utils.js?v=500103";
 
 
 /* =========================================================
@@ -509,7 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500102").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500103").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1738,7 +1738,7 @@ function renderInForm() {
     !rows.length
   ) {
 
-    box.innerHTML = emptyState("↗", t("noRanked"), t("noRankedLead"), true);
+    box.innerHTML = emptyState("◉", t("noRanked"), t("noRankedLead"), true);
 
 
     return;
