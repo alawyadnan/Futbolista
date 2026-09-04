@@ -24,9 +24,9 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500103";
+} from "./data-engine.js?v=500104";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500103";
+import { countText, directionFor, translate } from "./i18n.js?v=500104";
 
 import {
   buildHistoryPeriods,
@@ -35,7 +35,7 @@ import {
   filterMatches,
   isResetConfirmation,
   selectDisplayMonth
-} from "./ux-utils.js?v=500103";
+} from "./ux-utils.js?v=500104";
 
 
 /* =========================================================
@@ -509,7 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500103").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500104").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1772,10 +1772,6 @@ function renderInForm() {
                 ${esc(t("last5"))}:
                 ${renderFormDots(r.formResults)}
 
-                ·
-
-                <b>${esc(countText(language, r.matches, "match"))}</b>
-
               </div>
 
             </div>
@@ -2223,7 +2219,6 @@ function renderDashboard() {
 
   if ($("seasonMatches")) $("seasonMatches").textContent = model.totalMatches;
   if ($("seasonPlayers")) $("seasonPlayers").textContent = players.length;
-  if ($("eligiblePlayers")) $("eligiblePlayers").textContent = model.eligibleIds.size;
 
   const rows =
     players
@@ -2493,25 +2488,6 @@ function renderDashboard() {
 
         emptyState("◎", t("noRanked"), t("noRankedLead"), true);
 
-  }
-
-  const latest = Array.from(model.matchSummaries.values()).sort((a, b) =>
-    String(b.date).localeCompare(String(a.date))
-    || Math.max(...b.parts.map(part => part.createdAt || 0), 0) - Math.max(...a.parts.map(part => part.createdAt || 0), 0)
-  )[0];
-  const latestBox = $("dashLatestMatch");
-  if (latestBox) {
-    if (!latest) {
-      latestBox.innerHTML = emptyState("◷", t("noLatest"), t("noLatestLead"), true);
-    } else {
-      const result = latest.scoreA === latest.scoreB
-        ? t("tie")
-        : `${latest.scoreA > latest.scoreB ? t("teamA") : t("teamB")} · ${t("winners")}`;
-      latestBox.innerHTML = dashItem(
-        `<time datetime="${esc(latest.date)}">${esc(formatMatchDate(latest.date))}</time>`,
-        `<span class="latest-score">${latest.scoreA} : ${latest.scoreB}</span> · ${esc(result)} · ${esc(countText(language, latest.parts.length, "player"))}`
-      );
-    }
   }
 
 }

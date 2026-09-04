@@ -52,7 +52,7 @@ h2,.card-title{font-size:18px;line-height:1.2;letter-spacing:-.02em}
 
 .dashboard-grid{display:grid;gap:16px}
 .dashboard-feature-grid{grid-template-columns:1.15fr .85fr}
-.dashboard-metric-grid{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:16px}
+.dashboard-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:16px}
 .card{position:relative;min-width:0;padding:20px;border:1px solid var(--line);border-radius:var(--radius-xl);background:linear-gradient(145deg,rgba(17,32,25,.96),rgba(10,19,15,.96));box-shadow:var(--shadow);overflow:hidden}
 .card::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:linear-gradient(135deg,rgba(255,255,255,.025),transparent 36%)}
 .card-heading,.card-toolbar{position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
@@ -65,7 +65,7 @@ h2,.card-title{font-size:18px;line-height:1.2;letter-spacing:-.02em}
 .metric-card{min-height:265px}
 .metric-symbol{display:grid;place-items:center;width:38px;height:38px;flex:0 0 auto;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.035);font-size:17px}
 .status-pill,.admin-badge{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:7px 9px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.035);color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
-.status-pill.live span{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(67,223,135,.1)}
+.status-pill.live>span:first-child{width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(67,223,135,.1)}
 .subnote{margin-top:7px;color:var(--muted);font-size:12px;line-height:1.55}
 
 .row,.action-row{display:flex;align-items:center;gap:10px}
