@@ -24,9 +24,9 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500106";
+} from "./data-engine.js?v=500107";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500106";
+import { countText, directionFor, translate } from "./i18n.js?v=500107";
 
 import {
   buildHistoryPeriods,
@@ -36,7 +36,7 @@ import {
   filterMatches,
   isResetConfirmation,
   selectDisplayMonth
-} from "./ux-utils.js?v=500106";
+} from "./ux-utils.js?v=500107";
 
 
 /* =========================================================
@@ -515,7 +515,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500106").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500107").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });

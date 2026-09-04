@@ -7,9 +7,9 @@
   <meta name="description" content="Futbolista — football statistics for the squad." />
   <title>Futbolista</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500106" />
-  <link rel="manifest" href="./manifest.json?v=500106" />
-  <link rel="stylesheet" href="./styles.css?v=500106" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500107" />
+  <link rel="manifest" href="./manifest.json?v=500107" />
+  <link rel="stylesheet" href="./styles.css?v=500107" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -44,22 +44,22 @@
   </section>
 
   <section id="screen-leaderboard" class="screen hidden" aria-labelledby="leaderboardTitle">
-    <header class="screen-intro"><div><div class="eyebrow" data-i18n="competitive">Competitive ranking</div><h1 id="leaderboardTitle" data-i18n="leaderboard">Leaderboard</h1><p data-i18n="leaderboardLead">Eligible players ranked by the metric you choose.</p></div></header>
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="competitive">Competitive ranking</div><h1 id="leaderboardTitle" data-i18n="leaderboard">Leaderboard</h1></div></header>
     <article class="card"><div class="card-toolbar"><div><h2 data-i18n="standings">Standings</h2><p class="subnote" data-i18n="formDefault">Form is the default ranking.</p></div><label class="field-inline" for="lbSort"><span data-i18n="sortBy">Sort by</span><select id="lbSort" class="select"><option value="form" selected data-i18n="form">Form</option><option value="winPct" data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option></select></label></div><div id="leaderboardList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingLeaderboard">Loading leaderboard…</div></article>
   </section>
 
   <section id="screen-table" class="screen hidden" aria-labelledby="tableTitle">
-    <header class="screen-intro"><div><div class="eyebrow" data-i18n="breakdown">Full breakdown</div><h1 id="tableTitle" data-i18n="statsTable">Stats table</h1><p data-i18n="tableLead">Scan every competitive metric in one place.</p></div></header>
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="breakdown">Full breakdown</div><h1 id="tableTitle" data-i18n="statsTable">Stats table</h1></div></header>
     <article class="card table-card"><div class="card-toolbar"><div><h2 data-i18n="allEligible">All eligible players</h2><p class="subnote" data-i18n="swipeTable">Swipe the table horizontally on mobile.</p></div><label class="field-inline" for="tableSort"><span data-i18n="sortBy">Sort by</span><select id="tableSort" class="select"><option value="winPct" selected data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="name" data-i18n="name">Name</option></select></label></div><div class="tablewrap" tabindex="0" role="region" aria-label="Player statistics table" data-i18n-aria="tableAria"><table class="table"><thead><tr><th scope="col">#</th><th scope="col" data-i18n="name">Name</th><th scope="col" data-i18n="matches">Matches</th><th scope="col" data-i18n="wins">Wins</th><th scope="col" data-i18n="goals">Goals</th><th scope="col" data-i18n="winPct">Win %</th><th scope="col" data-i18n="gpm">Goals/Match</th><th scope="col" data-i18n="currentStreak">Current Streak</th><th scope="col" data-i18n="bestWinStreak">Best Streak</th></tr></thead><tbody id="tableBody"><tr><td colspan="9" class="noteCell" data-i18n="loadingStats">Loading statistics…</td></tr></tbody></table></div></article>
   </section>
 
   <section id="screen-playerstats" class="screen hidden" aria-labelledby="playersTitle">
-    <header class="screen-intro"><div><div class="eyebrow" data-i18n="squad">The squad</div><h1 id="playersTitle" data-i18n="playerStats">Player Stats</h1><p data-i18n="playersLead">Choose a player to open their full profile.</p></div></header>
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="squad">The squad</div><h1 id="playersTitle" data-i18n="playerStats">Player Stats</h1></div></header>
     <article class="card"><div class="directory-toolbar"><label class="field grow" for="playerSearch"><span data-i18n="searchPlayers">Search players</span><input id="playerSearch" class="input search-input" type="search" autocomplete="off" placeholder="Search by name…" data-i18n-placeholder="searchPlaceholder" /></label><label class="field directory-sort" for="playerSort"><span data-i18n="sortBy">Sort by</span><select id="playerSort" class="select"><option value="name" data-i18n="alpha">Alphabetical</option><option value="matches" data-i18n="mostMatches">Most matches</option><option value="goals" data-i18n="mostGoals">Most goals</option></select></label></div><div id="playerCards" class="playerCards skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPlayers">Loading players…</div></article>
   </section>
 
   <section id="screen-compare" class="screen hidden" aria-labelledby="compareTitle">
-    <header class="screen-intro"><div><div class="eyebrow" data-i18n="sideBySide">Side by side</div><h1 id="compareTitle" data-i18n="comparePlayers">Compare players</h1><p data-i18n="compareLead">Head-to-head, teammate record and individual numbers.</p></div></header>
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="sideBySide">Side by side</div><h1 id="compareTitle" data-i18n="comparePlayers">Compare players</h1></div></header>
     <article class="card compare-picker-card"><div class="versus-selectors"><label class="field" for="cmpPlayerA"><span data-i18n="playerA">Player A</span><select id="cmpPlayerA" class="select"></select></label><button id="btnSwapPlayers" class="versus-chip swap-button" type="button" aria-label="Swap players" data-i18n-aria="swap"><span aria-hidden="true">⇄</span><span class="sr-only" data-i18n="swap">Swap players</span></button><label class="field" for="cmpPlayerB"><span data-i18n="playerB">Player B</span><select id="cmpPlayerB" class="select"></select></label></div></article>
     <div id="compareResult" class="compareWrap" aria-live="polite"><div class="empty-state compact"><span class="empty-icon" aria-hidden="true">⇄</span><strong data-i18n="readyMatchup">Ready for a matchup</strong><p data-i18n="selectTwo">Select two different players to compare.</p></div></div>
   </section>
@@ -70,7 +70,7 @@
   </section>
 
   <section id="screen-history" class="screen hidden" aria-labelledby="historyTitle">
-    <header class="screen-intro"><div><div class="eyebrow" data-i18n="archive">Match archive</div><h1 id="historyTitle" data-i18n="history">Match History</h1><p data-i18n="historyLead">Results, lineups, scorers and own goals.</p></div></header>
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="archive">Match archive</div><h1 id="historyTitle" data-i18n="history">Match History</h1></div></header>
     <article class="card history-tools"><div class="history-toolbar"><label class="field grow" for="historySearch"><span data-i18n="searchHistory">Search player</span><input id="historySearch" class="input search-input" type="search" autocomplete="off" placeholder="Find a player in matches…" data-i18n-placeholder="historyPlaceholder" /></label><label class="field history-period-field" for="historyPeriod"><span data-i18n="date">Date</span><select id="historyPeriod" class="select"><option value="all" data-i18n="allDates">All dates</option></select></label><div class="history-actions"><button id="btnExpandAll" type="button" class="btn btn-quiet" data-i18n="expandAll">Expand all</button><button id="btnCollapseAll" type="button" class="btn btn-quiet" data-i18n="collapseAll">Collapse all</button></div></div></article>
     <div id="matchHistoryList" class="match-list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMatches">Loading matches…</div>
   </section>
@@ -115,6 +115,6 @@
 </div>
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500106"></script>
+<script type="module" src="./app.js?v=500107"></script>
 </body>
 </html>
