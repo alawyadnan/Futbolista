@@ -4,12 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#07110d" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Futbolista" />
+  <meta name="format-detection" content="telephone=no" />
   <meta name="description" content="Futbolista — football statistics for the squad." />
   <title>Futbolista</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500107" />
-  <link rel="manifest" href="./manifest.json?v=500107" />
-  <link rel="stylesheet" href="./styles.css?v=500107" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500200" />
+  <link rel="manifest" href="./manifest.json?v=500200" />
+  <link rel="stylesheet" href="./styles.css?v=500200" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -65,7 +71,7 @@
   </section>
 
   <section id="screen-playerprofile" class="screen hidden" aria-labelledby="profileName">
-    <article class="card profile-hero"><button id="btnProfileBack" class="btn btn-quiet backbtn" type="button"><span aria-hidden="true" class="back-arrow">←</span> <span data-i18n="backPlayers">Players</span></button><div class="profileIdentity"><div id="profileInitial" class="profileAvatar" aria-hidden="true">P</div><div><div class="eyebrow" data-i18n="profile">Player profile</div><h1 id="profileName" class="profileName">Player</h1><div id="profileSub" class="subnote"></div></div></div><div id="profileStatsGrid" class="statGrid"></div></article>
+    <article class="card profile-hero"><div class="profile-actions"><button id="btnProfileBack" class="btn btn-quiet backbtn" type="button"><span aria-hidden="true" class="back-arrow">←</span> <span data-i18n="backPlayers">Players</span></button><button id="btnCompareProfile" class="btn btn-quiet" type="button"><span aria-hidden="true">⇄</span><span data-i18n="comparePlayer">Compare player</span></button></div><div class="profileIdentity"><div id="profileInitial" class="profileAvatar" aria-hidden="true">P</div><div><div class="eyebrow" data-i18n="profile">Player profile</div><h1 id="profileName" class="profileName">Player</h1><div id="profileSub" class="subnote"></div></div></div><div id="profileStatsGrid" class="statGrid"></div><div id="profileRecord" class="record-overview"></div></article>
     <div class="profile-details-grid"><article class="card"><div class="card-heading"><h2 data-i18n="form">Form</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileForm" class="formRow">—</div></article><article class="card"><div class="card-heading"><h2 data-i18n="mostTeammates">Most Teammates</h2><span class="metric-symbol" aria-hidden="true">◉</span></div><div id="profileMates" class="matesList skeleton-list" aria-live="polite" data-i18n="loadingConnections">Loading connections…</div></article><article class="card full-span"><div class="card-heading"><h2 data-i18n="recentMatches">Recent matches</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileMatches" class="profile-match-list"></div></article><article class="card full-span"><h2 data-i18n="neverPlayed">Never played with</h2><div id="profileNever" class="neverList note">—</div></article></div>
   </section>
 
@@ -77,7 +83,7 @@
 
   <section id="screen-players" class="screen hidden" data-admin="1" aria-labelledby="adminPlayersTitle">
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="adminPlayersTitle" data-i18n="managePlayers">Manage players</h1><p data-i18n="manageLead">Add squad members and review recorded totals.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
-    <article class="card admin-action-card"><h2 data-i18n="addPlayer">Add player</h2><p class="subnote" data-i18n="uniqueNames">Names must be unique.</p><div class="action-row"><label class="field grow" for="playerName"><span data-i18n="playerName">Player name</span><input id="playerName" class="input" autocomplete="off" placeholder="e.g. Ahmed" data-i18n-placeholder="playerPlaceholder" /></label><button id="btnAddPlayer" type="button" class="btn btn-primary" data-i18n="addPlayer">Add player</button></div></article>
+    <article class="card admin-action-card"><h2 data-i18n="addPlayer">Add player</h2><p class="subnote" data-i18n="uniqueNames">Names must be unique.</p><div class="action-row"><label class="field grow" for="playerName"><span data-i18n="playerName">Player name</span><input id="playerName" class="input" autocomplete="off" maxlength="60" placeholder="e.g. Ahmed" data-i18n-placeholder="playerPlaceholder" /></label><button id="btnAddPlayer" type="button" class="btn btn-primary" data-i18n="addPlayer">Add player</button></div></article>
     <article class="card"><h2 data-i18n="squadList">Squad list</h2><div id="playersList" class="list skeleton-list" aria-live="polite" data-i18n="loadingAdminPlayers">Loading players…</div></article>
   </section>
 
@@ -115,6 +121,6 @@
 </div>
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500107"></script>
+<script type="module" src="./app.js?v=500200"></script>
 </body>
 </html>

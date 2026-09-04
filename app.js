@@ -24,19 +24,25 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500107";
+} from "./data-engine.js?v=500200";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500107";
+import { countText, directionFor, translate } from "./i18n.js?v=500200";
 
 import {
+  appRouteFor,
   buildHistoryPeriods,
   buildPlayerAvatar,
   compareMetricValues,
   filterAndSortPlayers,
   filterMatches,
   isResetConfirmation,
+  isValidISODate,
+  normalizePlayerName,
+  paginateItems,
+  parseAppRoute,
+  playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500107";
+} from "./ux-utils.js?v=500200";
 
 
 /* =========================================================
@@ -120,6 +126,10 @@ let showAllTeammates = false;
 let historyOptionsSignature = "";
 
 let historyInitialized = false;
+
+const HISTORY_PAGE_SIZE = 10;
+
+let historyVisibleCount = HISTORY_PAGE_SIZE;
 
 const expandedMatchKeys = new Set();
 
@@ -400,6 +410,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  document.querySelector(".brand")?.addEventListener("click", event => {
+    event.preventDefault();
+    currentProfileId = null;
+    showScreen("dashboard");
+    setActiveNav("dashboard");
+  });
+
   $("playerCards")?.addEventListener("click", event => {
     const card = event.target.closest("[data-player-id]");
     if (card) openProfile(card.getAttribute("data-player-id"));
@@ -417,6 +434,16 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(() => restoreScrollPosition(playerDirectoryScrollY));
   });
 
+  $("btnCompareProfile")?.addEventListener("click", () => {
+    if (!currentProfileId) return;
+    const first = $("cmpPlayerA");
+    const second = $("cmpPlayerB");
+    if (first) first.value = currentProfileId;
+    if (second?.value === currentProfileId) second.value = "";
+    showScreen("compare");
+    setActiveNav("compare");
+  });
+
   $("cmpPlayerA")?.addEventListener("change", renderCompare);
   $("cmpPlayerB")?.addEventListener("change", renderCompare);
   $("btnSwapPlayers")?.addEventListener("click", () => {
@@ -429,9 +456,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("playerSearch")?.addEventListener("input", renderPlayerCardsNameOnly);
   $("playerSort")?.addEventListener("change", renderPlayerCardsNameOnly);
-  $("historySearch")?.addEventListener("input", renderMatchHistory);
-  $("historyPeriod")?.addEventListener("change", renderMatchHistory);
+  $("historySearch")?.addEventListener("input", () => {
+    historyVisibleCount = HISTORY_PAGE_SIZE;
+    renderMatchHistory();
+  });
+  $("historyPeriod")?.addEventListener("change", () => {
+    historyVisibleCount = HISTORY_PAGE_SIZE;
+    renderMatchHistory();
+  });
   $("matchHistoryList")?.addEventListener("click", event => {
+    if (event.target.closest("[data-history-more]")) {
+      historyVisibleCount += HISTORY_PAGE_SIZE;
+      renderMatchHistory();
+      return;
+    }
     const button = event.target.closest("[data-match-toggle]");
     if (!button) return;
     const key = button.dataset.matchToggle;
@@ -439,7 +477,9 @@ document.addEventListener("DOMContentLoaded", () => {
     renderMatchHistory();
   });
   $("btnExpandAll")?.addEventListener("click", () => {
-    getFilteredMatches().forEach(match => expandedMatchKeys.add(String(match.matchKey)));
+    const matches = getFilteredMatches();
+    historyVisibleCount = Math.max(HISTORY_PAGE_SIZE, matches.length);
+    matches.forEach(match => expandedMatchKeys.add(String(match.matchKey)));
     renderMatchHistory();
   });
   $("btnCollapseAll")?.addEventListener("click", () => {
@@ -471,6 +511,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   setupModals();
 
+  window.addEventListener("hashchange", () => {
+    if (window.location.hash === "#mainContent") return;
+    syncScreenFromLocation();
+  });
+
   onAuthStateChanged(auth, async user => {
     const email = String(user?.email || "").trim().toLowerCase();
     isAdmin = !!user && email === ADMIN_EMAIL.toLowerCase();
@@ -496,7 +541,7 @@ document.addEventListener("DOMContentLoaded", () => {
       || String(a.name || "").localeCompare(String(b.name || ""))
     );
     playersLoaded = true;
-    players.forEach(player => pendingPlayerNames.delete(String(player.name || "").trim().toLowerCase()));
+    players.forEach(player => pendingPlayerNames.delete(playerNameKey(player.name)));
     scheduleRender();
   }, handleSnapshotError);
 
@@ -510,12 +555,11 @@ document.addEventListener("DOMContentLoaded", () => {
     scheduleRender();
   }, handleSnapshotError);
 
-  showScreen("dashboard", { scroll: false });
-  setActiveNav("dashboard");
+  syncScreenFromLocation();
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500107").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500200").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -540,11 +584,7 @@ async function addPlayerSafely() {
   }
 
 
-  const name =
-    (
-      $("playerName")?.value || ""
-    )
-    .trim();
+  const name = normalizePlayerName($("playerName")?.value);
 
 
   if (!name) {
@@ -553,20 +593,10 @@ async function addPlayerSafely() {
   }
 
 
-  const exists =
-    players.some(
-      p =>
+  const normalizedNameKey = playerNameKey(name);
 
-        String(
-          p.name || ""
-        )
-        .trim()
-        .toLowerCase()
-
-        ===
-
-        name.toLowerCase()
-    ) || pendingPlayerNames.has(name.toLowerCase());
+  const exists = players.some(p => playerNameKey(p.name) === normalizedNameKey)
+    || pendingPlayerNames.has(normalizedNameKey);
 
 
   if (exists) {
@@ -581,7 +611,7 @@ async function addPlayerSafely() {
 
   addPlayerBusy = true;
 
-  pendingPlayerNames.add(name.toLowerCase());
+  pendingPlayerNames.add(normalizedNameKey);
 
 
   setButtonBusy(
@@ -613,7 +643,7 @@ async function addPlayerSafely() {
 
   } catch (e) {
 
-    pendingPlayerNames.delete(name.toLowerCase());
+    pendingPlayerNames.delete(normalizedNameKey);
 
     console.error(e);
 
@@ -712,7 +742,7 @@ async function addLogSafely() {
     ||
     localISODate();
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!isValidISODate(date)) {
     return notify(t("invalidDate"), "warning");
   }
 
@@ -980,10 +1010,45 @@ function scheduleRender() {
    NAVIGATION
 ========================================================= */
 
+function syncScreenFromLocation() {
+  const previousScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "";
+  const route = parseAppRoute(window.location.hash);
+  currentProfileId = route.screen === "playerprofile" ? route.playerId : null;
+  showScreen(route.screen, { scroll: false, updateRoute: false });
+  setActiveNav(route.screen === "playerprofile" ? "playerstats" : route.screen);
+
+  const activeScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "");
+  if (activeScreen !== route.screen) return;
+
+  const canonical = appRouteFor(route.screen, route.playerId);
+  if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
+
+  if (previousScreen === "playerprofile" && route.screen === "playerstats") {
+    requestAnimationFrame(() => restoreScrollPosition(playerDirectoryScrollY));
+  } else if (previousScreen && previousScreen !== route.screen) {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+}
+
+
+function updateLocationForScreen(name, { replace = false } = {}) {
+  const section = document.getElementById(`screen-${name}`);
+  if (!section || section.dataset.admin === "1") return;
+  const nextHash = appRouteFor(name, name === "playerprofile" ? currentProfileId : "");
+  if (window.location.hash === nextHash) return;
+  window.history[replace ? "replaceState" : "pushState"](null, "", nextHash);
+}
+
 function showScreen(
   name,
-  { scroll = true } = {}
+  { scroll = true, updateRoute = true, replaceRoute = false } = {}
 ) {
+
+  let target = document.getElementById(`screen-${name}`);
+  if (!target || (target.dataset.admin === "1" && !isAdmin)) {
+    name = "dashboard";
+    target = document.getElementById("screen-dashboard");
+  }
 
   document
     .querySelectorAll(".screen")
@@ -995,16 +1060,11 @@ function showScreen(
     );
 
 
-  document
-    .getElementById(
-      `screen-${name}`
-    )
-    ?.classList
-    .remove(
-      "hidden"
-    );
+  target?.classList.remove("hidden");
 
   renderScreenContents(name);
+
+  if (updateRoute) updateLocationForScreen(name, { replace: replaceRoute });
 
   if (scroll) {
     window.scrollTo({
@@ -2707,6 +2767,9 @@ function renderTable() {
 
           return {
 
+            id:
+              String(p.id),
+
             name:
               p.name || "",
 
@@ -2768,7 +2831,7 @@ function renderTable() {
 
               <td>${idx + 1}</td>
 
-              <td>${esc(r.name)}</td>
+              <td><button type="button" class="inline-player-link table-player-link" data-open-player="${esc(r.id)}" aria-label="${esc(t("openProfile", { name: r.name }))}">${esc(r.name)}</button></td>
 
               <td>${r.matches}</td>
 
@@ -2920,7 +2983,12 @@ function renderPlayerProfile(
 
 
   if (!p) {
-
+    if (playersLoaded) {
+      currentProfileId = null;
+      notify(t("playerNotFound"), "warning");
+      showScreen("playerstats", { scroll: false, replaceRoute: true });
+      setActiveNav("playerstats");
+    }
     return;
 
   }
@@ -3014,6 +3082,19 @@ function renderPlayerProfile(
       ]
       .join("");
 
+  }
+
+  const record = $("profileRecord");
+  if (record) {
+    const resultTotal = s.wins + s.draws + s.losses;
+    const recordSeparator = language === "ar" ? " · " : ", ";
+    const recordLabel = [countText(language, s.wins, "win"), countText(language, s.draws, "draw"), countText(language, s.losses, "loss")].join(recordSeparator);
+    record.innerHTML = `
+      <div class="record-heading"><strong>${esc(t("resultsRecord"))}</strong><span>${esc(recordLabel)}</span></div>
+      <div class="record-track" role="img" aria-label="${esc(recordLabel)}">
+        ${resultTotal ? `<span class="record-segment win" style="flex-grow:${s.wins}"></span><span class="record-segment draw" style="flex-grow:${s.draws}"></span><span class="record-segment loss" style="flex-grow:${s.losses}"></span>` : `<span class="record-segment empty"></span>`}
+      </div>
+      <div class="record-legend" aria-hidden="true"><span class="win">${esc(t("shortWin"))} ${s.wins}</span><span class="draw">${esc(t("shortDraw"))} ${s.draws}</span><span class="loss">${esc(t("shortLoss"))} ${s.losses}</span></div>`;
   }
 
 
@@ -3210,7 +3291,7 @@ function renderTeammates(
               index
             ) => `
 
-              <div class="mateRow">
+              <button type="button" class="mateRow player-link" data-open-player="${esc(id)}" aria-label="${esc(t("openProfile", { name: playerName(id) }))}">
 
                 <div class="playerName">
                   <span class="mate-rank" aria-hidden="true">${index + 1}</span>
@@ -3221,7 +3302,7 @@ function renderTeammates(
                   ${esc(countText(language, c, "match"))}
                 </div>
 
-              </div>
+              </button>
 
             `
           )
@@ -3289,7 +3370,9 @@ function renderMatchHistory() {
     return;
   }
 
-  box.innerHTML = matches.map((match, index) => {
+  const page = paginateItems(matches, historyVisibleCount);
+
+  box.innerHTML = page.visible.map((match, index) => {
     const key = String(match.matchKey);
     const expanded = expandedMatchKeys.has(key);
     const outcomeA = match.scoreA > match.scoreB ? "winners" : match.scoreA < match.scoreB ? "losers" : "draw";
@@ -3315,7 +3398,10 @@ function renderMatchHistory() {
           </div>
         </div>
       </article>`;
-  }).join("");
+  }).join("") + (page.remaining ? `
+    <button type="button" class="btn btn-quiet history-more" data-history-more>
+      <span>${esc(t("showMoreMatches"))}</span><strong>${page.remaining}</strong>
+    </button>` : "");
 }
 
 
@@ -3488,10 +3574,10 @@ function sideLines(
 
             <div class="teamLine">
 
-              <div class="playerName">
+              <button type="button" class="playerName inline-player-link" data-open-player="${esc(x.playerId)}" aria-label="${esc(t("openProfile", { name }))}">
                 ${esc(name)}
                 ${ownGoalBadge}
-              </div>
+              </button>
 
               <div class="playerGoals">
                 ${goals}
@@ -3895,17 +3981,17 @@ function renderCompare() {
 
       <div class="compareHeader horizontal">
 
-        <div class="compareName">
+        <button type="button" class="compareName inline-player-link" data-open-player="${esc(aId)}" aria-label="${esc(t("openProfile", { name: aPlayer.name }))}">
           ${esc(aPlayer.name)}
-        </div>
+        </button>
 
         <div class="compareVs">
           ${esc(t("versus"))}
         </div>
 
-        <div class="compareName">
+        <button type="button" class="compareName inline-player-link" data-open-player="${esc(bId)}" aria-label="${esc(t("openProfile", { name: bPlayer.name }))}">
           ${esc(bPlayer.name)}
-        </div>
+        </button>
 
       </div>
 

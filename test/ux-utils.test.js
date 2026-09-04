@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { countText, directionFor, translate } from "../i18n.js";
-import { buildHistoryPeriods, buildPlayerAvatar, compareMetricValues, filterAndSortPlayers, filterMatches, isResetConfirmation, selectDisplayMonth } from "../ux-utils.js";
+import { appRouteFor, buildHistoryPeriods, buildPlayerAvatar, compareMetricValues, filterAndSortPlayers, filterMatches, isResetConfirmation, isValidISODate, normalizePlayerName, paginateItems, parseAppRoute, playerNameKey, selectDisplayMonth } from "../ux-utils.js";
 
 test("month fallback prefers the current month when it has eligible data", () => {
   assert.equal(selectDisplayMonth("2026-09", ["2026-08", "2026-09"]), "2026-09");
@@ -51,6 +51,36 @@ test("player avatars use useful stable initials and tones", () => {
   assert.equal(buildPlayerAvatar("سيد أحمد").initials, "سأ");
   assert.deepEqual(buildPlayerAvatar("Mustafa"), buildPlayerAvatar("Mustafa"));
   assert.deepEqual(buildPlayerAvatar(""), { initials: "?", tone: 0 });
+});
+
+test("public routes support navigation and encoded player deep links", () => {
+  assert.deepEqual(parseAppRoute("#history"), { screen: "history", playerId: "" });
+  assert.deepEqual(parseAppRoute("#/players"), { screen: "playerstats", playerId: "" });
+  assert.deepEqual(parseAppRoute("#player/player%20id"), { screen: "playerprofile", playerId: "player id" });
+  assert.deepEqual(parseAppRoute("#player/player%2Fid"), { screen: "playerprofile", playerId: "player/id" });
+  assert.deepEqual(parseAppRoute("#player/%E0%A4%A"), { screen: "dashboard", playerId: "" });
+  assert.deepEqual(parseAppRoute("#settings"), { screen: "dashboard", playerId: "" });
+  assert.equal(appRouteFor("playerstats"), "#players");
+  assert.equal(appRouteFor("playerprofile", "player id"), "#player/player%20id");
+  assert.equal(appRouteFor("settings"), "#dashboard");
+});
+
+test("pagination returns a stable visible slice and remaining count", () => {
+  const items = Array.from({ length: 23 }, (_value, index) => index + 1);
+  assert.deepEqual(paginateItems(items, 10), { visible: items.slice(0, 10), remaining: 13 });
+  assert.deepEqual(paginateItems(items, 30), { visible: items, remaining: 0 });
+  assert.deepEqual(paginateItems(items, 0), { visible: [1], remaining: 22 });
+  assert.deepEqual(items, Array.from({ length: 23 }, (_value, index) => index + 1));
+});
+
+test("admin input helpers normalize names and reject impossible dates", () => {
+  assert.equal(normalizePlayerName("  Ali   Khater  "), "Ali Khater");
+  assert.equal(playerNameKey("ＡＬＩ  KHATER"), playerNameKey("ali khater"));
+  assert.equal(isValidISODate("2024-02-29"), true);
+  assert.equal(isValidISODate("2026-02-29"), false);
+  assert.equal(isValidISODate("2026-04-31"), false);
+  assert.equal(isValidISODate("2026-04-30"), true);
+  assert.equal(isValidISODate("04/30/2026"), false);
 });
 
 test("localization covers direction, interpolation and count grammar", () => {

@@ -2,6 +2,26 @@ export function normalizeSearch(value) {
   return String(value || "").trim().toLocaleLowerCase();
 }
 
+export function normalizePlayerName(value) {
+  return String(value || "").normalize("NFKC").trim().replace(/\s+/gu, " ");
+}
+
+export function playerNameKey(value) {
+  return normalizePlayerName(value).toLocaleLowerCase();
+}
+
+export function isValidISODate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!match) return false;
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
 export function filterAndSortPlayers(players = [], stats = {}, query = "", sortBy = "name") {
   const needle = normalizeSearch(query);
   const rows = players
@@ -79,4 +99,44 @@ export function buildPlayerAvatar(name) {
     hash = ((hash * 31) + character.codePointAt(0)) >>> 0;
   }
   return { initials, tone: hash % 5 };
+}
+
+const PUBLIC_ROUTE_SCREENS = new Set([
+  "dashboard",
+  "leaderboard",
+  "table",
+  "playerstats",
+  "compare",
+  "history"
+]);
+
+export function parseAppRoute(hash = "") {
+  const raw = String(hash || "").replace(/^#\/?/, "");
+  const [route = "", encodedPlayerId = ""] = raw.split("/");
+  if (route === "player" && encodedPlayerId) {
+    try {
+      const playerId = decodeURIComponent(encodedPlayerId).trim();
+      if (playerId) return { screen: "playerprofile", playerId };
+    } catch {
+      return { screen: "dashboard", playerId: "" };
+    }
+  }
+  const screen = route === "players" ? "playerstats" : route;
+  return PUBLIC_ROUTE_SCREENS.has(screen)
+    ? { screen, playerId: "" }
+    : { screen: "dashboard", playerId: "" };
+}
+
+export function appRouteFor(screen, playerId = "") {
+  if (screen === "playerprofile" && String(playerId || "").trim()) {
+    return `#player/${encodeURIComponent(String(playerId).trim())}`;
+  }
+  if (screen === "playerstats") return "#players";
+  return `#${PUBLIC_ROUTE_SCREENS.has(screen) ? screen : "dashboard"}`;
+}
+
+export function paginateItems(items = [], visibleCount = 10) {
+  const count = Math.max(1, Math.floor(Number(visibleCount) || 0));
+  const visible = items.slice(0, count);
+  return { visible, remaining: Math.max(0, items.length - visible.length) };
 }

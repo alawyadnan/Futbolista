@@ -144,3 +144,57 @@ test("malformed rows are skipped without crashing valid historical data", () => 
   assert.equal(model.stats.a.wins, 1);
   assert.equal(model.stats.a.goals, 2);
 });
+
+test("distinct future match ids keep two same-day matches separate", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "win", "A", 1, false, { matchId: "morning" }),
+    log("a", "2026-01-01", "loss", "B", 2, false, { matchId: "evening" })
+  ]);
+  assert.equal(model.totalMatches, 2);
+  assert.equal(model.stats.a.matches, 2);
+  assert.equal(model.stats.a.goals, 3);
+});
+
+test("own goals from both teams are credited only to the opposing score", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "draw", "A", 2),
+    log("a", "2026-01-01", "draw", "A", 1, true),
+    log("b", "2026-01-01", "draw", "B", 4),
+    log("b", "2026-01-01", "draw", "B", 2, true)
+  ]);
+  const match = model.matchSummaries.get("2026-01-01");
+  assert.deepEqual([match.scoreA, match.scoreB], [4, 5]);
+  assert.deepEqual([model.stats.a.goals, model.stats.b.goals], [2, 4]);
+});
+
+test("head-to-head separates matches together from matches against", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "win", "A"),
+    log("b", "2026-01-01", "win", "A"),
+    log("a", "2026-01-02", "draw", "A"),
+    log("b", "2026-01-02", "draw", "A"),
+    log("a", "2026-01-03", "win", "A"),
+    log("b", "2026-01-03", "loss", "B")
+  ]);
+  assert.deepEqual(computeHeadToHead(model, "a", "b"), {
+    againstMatches: 1,
+    aWinsAgainst: 1,
+    bWinsAgainst: 0,
+    drawsAgainst: 0,
+    togetherMatches: 2,
+    togetherWins: 1,
+    togetherLosses: 0,
+    togetherDraws: 1
+  });
+});
+
+test("monthly score is capped at ten without mutating season totals", () => {
+  const logs = Array.from({ length: 12 }, (_value, index) =>
+    log("a", `2026-01-${String(index + 1).padStart(2, "0")}`, "win", "A", 20)
+  );
+  const model = buildDataModel(players, logs);
+  const monthly = calculateMonthScores(model, "2026-01", id => id).find(row => row.playerId === "a");
+  assert.equal(monthly.score, 10);
+  assert.equal(model.stats.a.matches, 12);
+  assert.equal(model.stats.a.goals, 240);
+});
