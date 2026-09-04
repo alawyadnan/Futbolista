@@ -1,0 +1,146 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  buildDataModel,
+  calculateMonthScores,
+  computeHeadToHead,
+  computeTeammates,
+  matchKeyOf,
+  normalizeResult
+} from "../data-engine.js";
+
+const players = [
+  { id: "a", name: "Ali" },
+  { id: "b", name: "Bader" },
+  { id: "c", name: "Chris" }
+];
+
+function log(playerId, date, result = "win", side = "A", goals = 0, ownGoal = false, extra = {}) {
+  return { id: `${playerId}-${date}-${ownGoal ? "own" : "normal"}`, playerId, date, result, side, goals, ownGoal, ...extra };
+}
+
+test("normal goal entry creates one appearance and counts personal goals", () => {
+  const model = buildDataModel(players, [log("a", "2026-01-01", "win", "A", 2)]);
+  assert.equal(model.stats.a.matches, 1);
+  assert.equal(model.stats.a.goals, 2);
+});
+
+test("normal and own-goal rows merge into one participation", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "win", "A", 2),
+    log("a", "2026-01-01", "win", "A", 1, true)
+  ]);
+  assert.equal(model.stats.a.matches, 1);
+  assert.equal(model.stats.a.goals, 2);
+  assert.deepEqual(model.forms.a.formResults, ["win"]);
+  assert.equal(model.byPlayer.get("a")[0].ownGoals, 1);
+});
+
+test("identical normal duplicates do not inflate goals or appearances", () => {
+  const duplicate = log("a", "2026-01-01", "win", "A", 2);
+  const model = buildDataModel(players, [duplicate, { ...duplicate, id: "duplicate" }]);
+  assert.equal(model.stats.a.matches, 1);
+  assert.equal(model.stats.a.goals, 2);
+  assert.equal(model.byPlayer.get("a")[0].rawCount, 2);
+});
+
+test("an extra own-goal document does not displace an actual match from last five", () => {
+  const logs = ["01", "02", "03", "04", "05"].map(day => log("a", `2026-01-${day}`));
+  logs.push(log("a", "2026-01-05", "win", "A", 1, true));
+  const model = buildDataModel(players, logs);
+  assert.equal(model.stats.a.matches, 5);
+  assert.equal(model.forms.a.formResults.length, 5);
+});
+
+test("last five form is ordered oldest left and newest right", () => {
+  const results = ["loss", "win", "draw", "win", "loss", "win"];
+  const model = buildDataModel(players, results.map((result, index) => log("a", `2026-01-0${index + 1}`, result)));
+  assert.deepEqual(model.forms.a.formResults, ["win", "draw", "win", "loss", "win"]);
+  assert.equal(model.forms.a.formIcons, "🟢 🟡 🟢 🔴 🟢");
+});
+
+test("W W D W has best streak two and current streak one", () => {
+  const model = buildDataModel(players, ["win", "win", "draw", "win"].map((result, index) => log("a", `2026-01-0${index + 1}`, result)));
+  assert.equal(model.stats.a.best, 2);
+  assert.equal(model.stats.a.current, 1);
+});
+
+test("W W L has best streak two and current streak zero", () => {
+  const model = buildDataModel(players, ["win", "win", "loss"].map((result, index) => log("a", `2026-01-0${index + 1}`, result)));
+  assert.equal(model.stats.a.best, 2);
+  assert.equal(model.stats.a.current, 0);
+});
+
+test("own goal is awarded to the opposing team score", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "draw", "A", 3),
+    log("a", "2026-01-01", "draw", "A", 1, true),
+    log("b", "2026-01-01", "draw", "B", 2)
+  ]);
+  const match = model.matchSummaries.get("2026-01-01");
+  assert.deepEqual([match.scoreA, match.scoreB], [3, 3]);
+});
+
+test("eligibility uses floor of half the system matches with minimum one", () => {
+  for (const [total, appearances, expected] of [[6, 3, true], [7, 3, true], [8, 3, false], [8, 4, true]]) {
+    const logs = [];
+    for (let index = 1; index <= total; index += 1) logs.push(log(index <= appearances ? "a" : "b", `2026-01-${String(index).padStart(2, "0")}`));
+    assert.equal(buildDataModel(players, logs).eligibleIds.has("a"), expected);
+  }
+});
+
+test("head-to-head counts a match once despite duplicate raw entries", () => {
+  const logs = [
+    log("a", "2026-01-01", "win", "A", 2),
+    { ...log("a", "2026-01-01", "win", "A", 2), id: "dup" },
+    log("b", "2026-01-01", "loss", "B")
+  ];
+  assert.equal(computeHeadToHead(buildDataModel(players, logs), "a", "b").againstMatches, 1);
+});
+
+test("teammate count increments once for normal plus own-goal rows", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "win", "A", 2),
+    log("a", "2026-01-01", "win", "A", 1, true),
+    log("b", "2026-01-01", "win", "A")
+  ]);
+  assert.equal(computeTeammates(model, "a").b, 1);
+});
+
+test("monthly appearances count normal plus own-goal rows once", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "win", "A", 2),
+    log("a", "2026-01-01", "win", "A", 1, true)
+  ]);
+  const row = calculateMonthScores(model, "2026-01", id => players.find(player => player.id === id).name)[0];
+  assert.equal(row.matches, 1);
+  assert.equal(row.goals, 2);
+});
+
+test("legacy results and future match ids remain backward compatible", () => {
+  assert.equal(normalizeResult({ win: true }), "win");
+  assert.equal(normalizeResult({ win: false }), "loss");
+  assert.equal(matchKeyOf({ matchId: "match-7", date: "2026-01-01" }), "match-7");
+  assert.equal(matchKeyOf({ date: "2026-01-01" }), "2026-01-01");
+});
+
+test("missing timestamps resolve conflicting metadata deterministically by document id", () => {
+  const logs = [
+    log("a", "2026-01-01", "win", "A", 0, false, { id: "a" }),
+    log("a", "2026-01-01", "loss", "B", 0, false, { id: "z" })
+  ];
+  const forward = buildDataModel(players, logs).byPlayer.get("a")[0];
+  const reverse = buildDataModel(players, [...logs].reverse()).byPlayer.get("a")[0];
+  assert.deepEqual({ result: forward.result, side: forward.side }, { result: reverse.result, side: reverse.side });
+  assert.equal(forward.conflicts.length, 1);
+});
+
+test("malformed rows are skipped without crashing valid historical data", () => {
+  const model = buildDataModel(players, [
+    { id: "bad", playerId: "a", goals: "oops" },
+    { id: "legacy", playerId: "a", date: "2026-01-01", win: true, goals: "2" }
+  ]);
+  assert.equal(model.stats.a.matches, 1);
+  assert.equal(model.stats.a.wins, 1);
+  assert.equal(model.stats.a.goals, 2);
+});

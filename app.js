@@ -19,6 +19,24 @@ import {
   signOut
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+import {
+  buildDataModel as buildFootballDataModel,
+  calculateMonthScores as calculateFootballMonthScores,
+  computeHeadToHead as computeFootballHeadToHead,
+  computeTeammates as computeFootballTeammates
+} from "./data-engine.js?v=500102";
+
+import { countText, directionFor, translate } from "./i18n.js?v=500102";
+
+import {
+  buildHistoryPeriods,
+  compareMetricValues,
+  filterAndSortPlayers,
+  filterMatches,
+  isResetConfirmation,
+  selectDisplayMonth
+} from "./ux-utils.js?v=500102";
+
 
 /* =========================================================
    FIREBASE
@@ -66,6 +84,12 @@ let players = [];
 
 let rawLogs = [];
 
+let playersLoaded = false;
+
+let logsLoaded = false;
+
+let loadError = false;
+
 let isAdmin = false;
 
 let currentProfileId = null;
@@ -76,11 +100,31 @@ let addPlayerBusy = false;
 
 let addLogBusy = false;
 
+const pendingPlayerNames = new Set();
+
+const pendingLogTypes = new Set();
+
 let showPastMonths = false;
 
 let compareOptionsSignature = "";
 
 let logPlayerOptionsSignature = "";
+
+let language = readLanguage();
+
+let playerDirectoryScrollY = 0;
+
+let showAllTeammates = false;
+
+let historyOptionsSignature = "";
+
+let historyInitialized = false;
+
+const expandedMatchKeys = new Set();
+
+let activeModal = null;
+
+let modalReturnFocus = null;
 
 let model = emptyModel();
 
@@ -90,65 +134,63 @@ const $ = (id) => (
 );
 
 
+const t = (key, variables = {}) => translate(language, key, variables);
+
+
+const shortResultLabel = result => ({
+  win: t("shortWin"),
+  draw: t("shortDraw"),
+  loss: t("shortLoss")
+}[result] || "—");
+
+
+const teamLabel = side => (
+  side === "A"
+    ? t("teamA")
+    : side === "B"
+      ? t("teamB")
+      : `${t("team")} ${String(side || "")}`.trim()
+);
+
+
+function readLanguage() {
+  try {
+    return localStorage.getItem("futbolista-language") === "ar" ? "ar" : "en";
+  } catch {
+    return "en";
+  }
+}
+
+
+function notify(message, type = "success") {
+  const region = $("toastRegion");
+  if (!region) return;
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = String(message);
+  region.appendChild(toast);
+  window.setTimeout(() => toast.remove(), 4200);
+}
+
+
 /* =========================================================
    ADMIN LOGIN
 ========================================================= */
 
 window.__adminLogin = async () => {
-
-  try {
-
-    if (auth.currentUser) {
-
+  if (isAdmin && auth.currentUser) {
+    try {
       await signOut(auth);
-
-      return;
-
+      showScreen("dashboard");
+      setActiveNav("dashboard");
+      notify(t("signedOut"));
+    } catch (error) {
+      console.error(error);
+      notify(t("loginFailed"), "error");
     }
-
-
-    const email = prompt(
-      "Admin Email:"
-    );
-
-
-    if (!email) {
-
-      return;
-
-    }
-
-
-    const password = prompt(
-      "Admin Password:"
-    );
-
-
-    if (!password) {
-
-      return;
-
-    }
-
-
-    await signInWithEmailAndPassword(
-      auth,
-      email.trim(),
-      password
-    );
-
-
-  } catch (e) {
-
-    alert(
-      "Login failed:\n" +
-      (e?.message || e)
-    );
-
-    console.error(e);
-
+    return;
   }
-
+  openModal("loginModal", "loginEmail");
 };
 
 
@@ -163,345 +205,314 @@ window.__exportNow = () => {
 };
 
 
+function applyLanguage() {
+  document.documentElement.lang = language;
+  document.documentElement.dir = directionFor(language);
+  document.querySelectorAll("[data-i18n]").forEach(element => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(element => {
+    element.setAttribute("placeholder", t(element.dataset.i18nPlaceholder));
+  });
+  document.querySelectorAll("[data-i18n-aria]").forEach(element => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAria));
+  });
+  compareOptionsSignature = "";
+  logPlayerOptionsSignature = "";
+  historyOptionsSignature = "";
+  updateAuthButton();
+}
+
+
+function toggleLanguage() {
+  language = language === "en" ? "ar" : "en";
+  try {
+    localStorage.setItem("futbolista-language", language);
+  } catch (error) {
+    console.warn("Language preference could not be saved:", error);
+  }
+  applyLanguage();
+  renderLogPlayerOptions();
+  renderCompareOptions();
+  const screen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard";
+  renderScreenContents(screen);
+  setActiveNav(screen === "playerprofile" ? "playerstats" : screen);
+}
+
+
+function updateAuthButton() {
+  const button = $("btnAdminLogin");
+  if (!button) return;
+  button.innerHTML = isAdmin
+    ? `<span aria-hidden="true">↪</span><span>${esc(t("logout"))}</span>`
+    : `<span aria-hidden="true">⌁</span><span>${esc(t("adminLogin"))}</span>`;
+}
+
+
+function setupModals() {
+  document.querySelectorAll("[data-close-modal]").forEach(button => {
+    button.addEventListener("click", closeModal);
+  });
+  document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+    backdrop.addEventListener("click", event => {
+      if (event.target === backdrop) closeModal();
+    });
+  });
+  document.addEventListener("keydown", handleModalKeydown);
+
+  $("btnTogglePassword")?.addEventListener("click", () => {
+    const input = $("loginPassword");
+    const button = $("btnTogglePassword");
+    if (!input || !button) return;
+    const visible = input.type === "text";
+    input.type = visible ? "password" : "text";
+    button.setAttribute("aria-pressed", String(!visible));
+    button.textContent = t(visible ? "showPassword" : "hidePassword");
+  });
+
+  $("loginForm")?.addEventListener("submit", handleLoginSubmit);
+  $("resetPhrase")?.addEventListener("input", event => {
+    $("btnResetConfirm").disabled = !isResetConfirmation(event.target.value);
+  });
+  $("resetForm")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!isAdmin || !isResetConfirmation($("resetPhrase")?.value)) return;
+    const button = $("btnResetConfirm");
+    setButtonBusy(button, true, t("resetting"));
+    closeModal();
+    await resetAllData();
+    setButtonBusy(button, false, t("confirmReset"));
+  });
+}
+
+
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  const emailInput = $("loginEmail");
+  const passwordInput = $("loginPassword");
+  const errorBox = $("loginError");
+  const button = $("btnLoginSubmit");
+  const email = String(emailInput?.value || "").trim();
+  const password = String(passwordInput?.value || "");
+  if (!emailInput?.checkValidity() || !password) {
+    errorBox.textContent = t("loginFailed");
+    errorBox.hidden = false;
+    emailInput?.focus();
+    return;
+  }
+  if (email.toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+    errorBox.textContent = t("invalidAdmin");
+    errorBox.hidden = false;
+    emailInput.focus();
+    return;
+  }
+  errorBox.hidden = true;
+  setButtonBusy(button, true, t("signingIn"));
+  try {
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const authorized = String(credential.user?.email || "").trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    if (!authorized) throw new Error("unauthorized-admin-account");
+    passwordInput.value = "";
+    closeModal();
+  } catch (error) {
+    console.error(error);
+    errorBox.textContent = t("loginFailed");
+    errorBox.hidden = false;
+    passwordInput.value = "";
+    passwordInput.focus();
+  } finally {
+    setButtonBusy(button, false, t("signIn"));
+  }
+}
+
+
+function openModal(id, focusId) {
+  const modal = $(id);
+  if (!modal) return;
+  modalReturnFocus = document.activeElement;
+  activeModal = modal;
+  modal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  document.querySelectorAll(".topbar, .app, .bottomnav").forEach(element => {
+    element.inert = true;
+  });
+  requestAnimationFrame(() => $(focusId)?.focus());
+}
+
+
+function closeModal() {
+  if (!activeModal) return;
+  activeModal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+  document.querySelectorAll(".topbar, .app, .bottomnav").forEach(element => {
+    element.inert = false;
+  });
+  if (activeModal.id === "loginModal") {
+    if ($("loginPassword")) $("loginPassword").value = "";
+    if ($("loginError")) $("loginError").hidden = true;
+  }
+  const previous = modalReturnFocus;
+  activeModal = null;
+  modalReturnFocus = null;
+  previous?.focus?.();
+}
+
+
+function handleModalKeydown(event) {
+  if (!activeModal) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeModal();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = [...activeModal.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex='-1'])")]
+    .filter(element => !element.hidden && element.getClientRects().length);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+
 /* =========================================================
    STARTUP
 ========================================================= */
 
-document.addEventListener(
-  "DOMContentLoaded",
-  () => {
+document.addEventListener("DOMContentLoaded", () => {
+  applyLanguage();
+  if ($("logDate")) $("logDate").value = localISODate();
 
-    if ($("logDate")) {
+  document.querySelectorAll(".navbtn").forEach(btn => {
+    btn.addEventListener("click", event => {
+      event.preventDefault();
+      const target = btn.dataset.nav;
+      if (btn.dataset.admin === "1" && !isAdmin) return;
+      showScreen(target);
+      setActiveNav(target);
+    });
+  });
 
-      $("logDate").value =
-        localISODate();
+  $("playerCards")?.addEventListener("click", event => {
+    const card = event.target.closest("[data-player-id]");
+    if (card) openProfile(card.getAttribute("data-player-id"));
+  });
 
+  $("btnProfileBack")?.addEventListener("click", () => {
+    currentProfileId = null;
+    showScreen("playerstats", { scroll: false });
+    setActiveNav("playerstats");
+    requestAnimationFrame(() => restoreScrollPosition(playerDirectoryScrollY));
+  });
+
+  $("cmpPlayerA")?.addEventListener("change", renderCompare);
+  $("cmpPlayerB")?.addEventListener("change", renderCompare);
+  $("btnSwapPlayers")?.addEventListener("click", () => {
+    const a = $("cmpPlayerA");
+    const b = $("cmpPlayerB");
+    if (!a || !b) return;
+    [a.value, b.value] = [b.value, a.value];
+    renderCompare();
+  });
+
+  $("playerSearch")?.addEventListener("input", renderPlayerCardsNameOnly);
+  $("playerSort")?.addEventListener("change", renderPlayerCardsNameOnly);
+  $("historySearch")?.addEventListener("input", renderMatchHistory);
+  $("historyPeriod")?.addEventListener("change", renderMatchHistory);
+  $("matchHistoryList")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-match-toggle]");
+    if (!button) return;
+    const key = button.dataset.matchToggle;
+    expandedMatchKeys.has(key) ? expandedMatchKeys.delete(key) : expandedMatchKeys.add(key);
+    renderMatchHistory();
+  });
+  $("btnExpandAll")?.addEventListener("click", () => {
+    getFilteredMatches().forEach(match => expandedMatchKeys.add(String(match.matchKey)));
+    renderMatchHistory();
+  });
+  $("btnCollapseAll")?.addEventListener("click", () => {
+    expandedMatchKeys.clear();
+    historyInitialized = true;
+    renderMatchHistory();
+  });
+
+  $("profileMates")?.addEventListener("click", event => {
+    if (!event.target.closest("[data-toggle-teammates]")) return;
+    showAllTeammates = !showAllTeammates;
+    if (currentProfileId) renderTeammates(currentProfileId);
+  });
+
+  $("btnAdminLogin")?.addEventListener("click", window.__adminLogin);
+  $("btnLanguage")?.addEventListener("click", toggleLanguage);
+  $("btnExportTop")?.addEventListener("click", window.__exportNow);
+  $("btnAddPlayer")?.addEventListener("click", addPlayerSafely);
+  $("btnAddLog")?.addEventListener("click", addLogSafely);
+  $("lbSort")?.addEventListener("change", renderLeaderboard);
+  $("tableSort")?.addEventListener("change", renderTable);
+  $("btnExport")?.addEventListener("click", () => isAdmin && exportJSON());
+  $("btnReset")?.addEventListener("click", () => {
+    if (!isAdmin) return notify(t("adminRequired"), "warning");
+    $("resetPhrase").value = "";
+    $("btnResetConfirm").disabled = true;
+    openModal("resetModal", "resetPhrase");
+  });
+
+  setupModals();
+
+  onAuthStateChanged(auth, async user => {
+    const email = String(user?.email || "").trim().toLowerCase();
+    isAdmin = !!user && email === ADMIN_EMAIL.toLowerCase();
+    document.body.classList.toggle("is-admin", isAdmin);
+    updateAuthButton();
+
+    if (user && !isAdmin) {
+      notify(t("invalidAdmin"), "error");
+      await signOut(auth).catch(console.error);
     }
 
+    const openAdminScreen = document.querySelector(".screen:not(.hidden)[data-admin='1']");
+    if (openAdminScreen && !isAdmin) {
+      showScreen("dashboard");
+      setActiveNav("dashboard");
+    }
+  });
 
-    document
-      .querySelectorAll(".navbtn")
-      .forEach(btn => {
-
-        btn.addEventListener(
-          "click",
-          (e) => {
-
-            e.preventDefault();
-
-
-            const target =
-              btn.dataset.nav;
-
-
-            if (
-              btn.dataset.admin === "1" &&
-              !isAdmin
-            ) {
-
-              return;
-
-            }
-
-
-            showScreen(target);
-
-            setActiveNav(target);
-
-          }
-        );
-
-      });
-
-
-    $("playerCards")?.addEventListener(
-      "click",
-      (e) => {
-
-        const card =
-          e.target.closest(
-            "[data-player-id]"
-          );
-
-
-        if (!card) {
-
-          return;
-
-        }
-
-
-        openProfile(
-          card.getAttribute(
-            "data-player-id"
-          )
-        );
-
-      }
+  /* No orderBy: legacy Firestore documents without createdAt remain readable. */
+  onSnapshot(playersRef, snap => {
+    players = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) =>
+      Number(a.createdAt || 0) - Number(b.createdAt || 0)
+      || String(a.name || "").localeCompare(String(b.name || ""))
     );
-
-
-    $("btnProfileBack")?.addEventListener(
-      "click",
-      () => {
-
-        currentProfileId = null;
-
-        showScreen(
-          "playerstats"
-        );
-
-        setActiveNav(
-          "playerstats"
-        );
-
-      }
-    );
-
-
-    $("cmpPlayerA")?.addEventListener(
-      "change",
-      renderCompare
-    );
-
-
-    $("cmpPlayerB")?.addEventListener(
-      "change",
-      renderCompare
-    );
-
-
-    $("btnAddPlayer")?.addEventListener(
-      "click",
-      addPlayerSafely
-    );
-
-
-    $("btnAddLog")?.addEventListener(
-      "click",
-      addLogSafely
-    );
-
-
-    $("lbSort")?.addEventListener(
-      "change",
-      () => {
-
-        renderLeaderboard();
-
-      }
-    );
-
-
-    $("tableSort")?.addEventListener(
-      "change",
-      () => {
-
-        renderTable();
-
-      }
-    );
-
-
-    $("btnExport")?.addEventListener(
-      "click",
-      () => {
-
-        if (isAdmin) {
-
-          exportJSON();
-
-        }
-
-      }
-    );
-
-
-    $("btnReset")?.addEventListener(
-      "click",
-      async () => {
-
-        if (!isAdmin) {
-
-          return alert(
-            "Read only"
-          );
-
-        }
-
-
-        const ok = confirm(
-          "Delete ALL data? This cannot be undone."
-        );
-
-
-        if (!ok) {
-
-          return;
-
-        }
-
-
-        await resetAllData();
-
-      }
-    );
-
-
-    onAuthStateChanged(
-      auth,
-      (user) => {
-
-        const email =
-          (
-            user?.email || ""
-          )
-          .trim()
-          .toLowerCase();
-
-
-        isAdmin =
-          !!user &&
-          email ===
-          ADMIN_EMAIL
-            .trim()
-            .toLowerCase();
-
-
-        document.body.classList.toggle(
-          "is-admin",
-          isAdmin
-        );
-
-
-        const btn =
-          $("btnAdminLogin");
-
-
-        if (btn) {
-
-          btn.textContent =
-            isAdmin
-              ? "Logout"
-              : "Admin Login";
-
-        }
-
-
-        const openAdminScreen =
-          document.querySelector(
-            ".screen:not(.hidden)[data-admin='1']"
-          );
-
-
-        if (
-          openAdminScreen &&
-          !isAdmin
-        ) {
-
-          showScreen(
-            "dashboard"
-          );
-
-          setActiveNav(
-            "dashboard"
-          );
-
-        }
-
-      }
-    );
-
-
-    /*
-      IMPORTANT:
-
-      We intentionally do NOT use
-      orderBy("createdAt").
-
-      This means old Firestore documents
-      without createdAt are still loaded.
-    */
-
-    onSnapshot(
-      playersRef,
-
-      (snap) => {
-
-        players =
-          snap.docs
-            .map(d => ({
-              id: d.id,
-              ...d.data()
-            }))
-            .sort(
-              (a, b) =>
-
-                Number(
-                  a.createdAt || 0
-                )
-                -
-                Number(
-                  b.createdAt || 0
-                )
-
-                ||
-
-                String(
-                  a.name || ""
-                )
-                .localeCompare(
-                  String(
-                    b.name || ""
-                  )
-                )
-
-            );
-
-
-        scheduleRender();
-
-      },
-
-      handleSnapshotError
-    );
-
-
-    onSnapshot(
-      logsRef,
-
-      (snap) => {
-
-        rawLogs =
-          snap.docs
-            .map(d => ({
-              id: d.id,
-              ...d.data()
-            }))
-            .sort(
-              compareRawLogsNewestFirst
-            );
-
-
-        scheduleRender();
-
-      },
-
-      handleSnapshotError
-    );
-
-
-    showScreen(
-      "dashboard"
-    );
-
-
-    setActiveNav(
-      "dashboard"
-    );
-
+    playersLoaded = true;
+    players.forEach(player => pendingPlayerNames.delete(String(player.name || "").trim().toLowerCase()));
+    scheduleRender();
+  }, handleSnapshotError);
+
+  onSnapshot(logsRef, snap => {
+    rawLogs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(compareRawLogsNewestFirst);
+    logsLoaded = true;
+    rawLogs.forEach(log => {
+      const type = isOwnGoal(log) ? "own" : "normal";
+      pendingLogTypes.delete(`${matchKeyOf(log)}::${String(log.playerId || "")}::${type}`);
+    });
+    scheduleRender();
+  }, handleSnapshotError);
+
+  showScreen("dashboard", { scroll: false });
+  setActiveNav("dashboard");
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js?v=500102").catch(error => console.warn("Service worker registration failed:", error));
+    }, { once: true });
   }
-);
+});
 
 
 /* =========================================================
@@ -511,10 +522,7 @@ document.addEventListener(
 async function addPlayerSafely() {
 
   if (!isAdmin) {
-
-    return alert(
-      "Read only"
-    );
+    return notify(t("adminRequired"), "warning");
 
   }
 
@@ -534,10 +542,7 @@ async function addPlayerSafely() {
 
 
   if (!name) {
-
-    return alert(
-      "Enter a name"
-    );
+    return notify(t("enterName"), "warning");
 
   }
 
@@ -555,14 +560,11 @@ async function addPlayerSafely() {
         ===
 
         name.toLowerCase()
-    );
+    ) || pendingPlayerNames.has(name.toLowerCase());
 
 
   if (exists) {
-
-    return alert(
-      "A player with this name already exists."
-    );
+    return notify(t("duplicatePlayer"), "warning");
 
   }
 
@@ -573,11 +575,13 @@ async function addPlayerSafely() {
 
   addPlayerBusy = true;
 
+  pendingPlayerNames.add(name.toLowerCase());
+
 
   setButtonBusy(
     btn,
     true,
-    "Adding..."
+    t("adding")
   );
 
 
@@ -598,15 +602,17 @@ async function addPlayerSafely() {
 
     }
 
+    notify(t("playerAdded", { name }));
+
 
   } catch (e) {
+
+    pendingPlayerNames.delete(name.toLowerCase());
 
     console.error(e);
 
 
-    alert(
-      "Could not add player. Please try again."
-    );
+    notify(t("playerAddFailed"), "error");
 
 
   } finally {
@@ -617,7 +623,7 @@ async function addPlayerSafely() {
     setButtonBusy(
       btn,
       false,
-      "Add"
+      t("addPlayer")
     );
 
   }
@@ -632,10 +638,7 @@ async function addPlayerSafely() {
 async function addLogSafely() {
 
   if (!isAdmin) {
-
-    return alert(
-      "Read only"
-    );
+    return notify(t("adminRequired"), "warning");
 
   }
 
@@ -657,10 +660,7 @@ async function addLogSafely() {
 
 
   if (!playerId) {
-
-    return alert(
-      "Pick a player"
-    );
+    return notify(t("choosePlayer"), "warning");
 
   }
 
@@ -671,6 +671,12 @@ async function addLogSafely() {
       0,
       99
     );
+
+  const goalsInput = Number($(`logGoals`)?.value);
+
+  if (!Number.isInteger(goalsInput) || goalsInput < 0 || goalsInput > 99) {
+    return notify(t("invalidGoals"), "warning");
+  }
 
 
   const result =
@@ -699,6 +705,20 @@ async function addLogSafely() {
     $("logDate")?.value
     ||
     localISODate();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return notify(t("invalidDate"), "warning");
+  }
+
+  if (!["win", "draw", "loss"].includes(result) || !["A", "B"].includes(side)) {
+    return notify(t("invalidSelection"), "warning");
+  }
+
+  const pendingKey = `${date}::${playerId}::${ownGoal ? "own" : "normal"}`;
+
+  if (pendingLogTypes.has(pendingKey)) {
+    return notify(t("alreadySaving"), "warning");
+  }
 
 
   /*
@@ -751,13 +771,11 @@ async function addLogSafely() {
 
     const typeName =
       ownGoal
-        ? "Own Goal"
-        : "Normal";
+        ? t("ownGoal")
+        : t("normal");
 
 
-    return alert(
-      `${typeName} entry already exists for this player in this match.`
-    );
+    return notify(t("duplicateEntry", { type: typeName }), "warning");
 
   }
 
@@ -790,9 +808,7 @@ async function addLogSafely() {
       side
     ) {
 
-      return alert(
-        "This player already has an entry for this match. Team and result must match the existing entry."
-      );
+      return notify(t("metadataMismatch"), "warning");
 
     }
 
@@ -805,11 +821,13 @@ async function addLogSafely() {
 
   addLogBusy = true;
 
+  pendingLogTypes.add(pendingKey);
+
 
   setButtonBusy(
     btn,
     true,
-    "Saving..."
+    t("saving")
   );
 
 
@@ -828,15 +846,17 @@ async function addLogSafely() {
       }
     );
 
+    notify(t("saved"));
+
 
   } catch (e) {
+
+    pendingLogTypes.delete(pendingKey);
 
     console.error(e);
 
 
-    alert(
-      "Could not add entry. Please try again."
-    );
+    notify(t("saveFailed"), "error");
 
 
   } finally {
@@ -847,7 +867,7 @@ async function addLogSafely() {
     setButtonBusy(
       btn,
       false,
-      "Add Entry"
+      t("saveEntry")
     );
 
   }
@@ -885,6 +905,10 @@ function setButtonBusy(
 function handleSnapshotError(
   error
 ) {
+
+  loadError = true;
+
+  notify(t("loadFailed"), "error");
 
   console.error(
     "Firebase snapshot error:",
@@ -951,7 +975,8 @@ function scheduleRender() {
 ========================================================= */
 
 function showScreen(
-  name
+  name,
+  { scroll = true } = {}
 ) {
 
   document
@@ -973,6 +998,15 @@ function showScreen(
       "hidden"
     );
 
+  renderScreenContents(name);
+
+  if (scroll) {
+    window.scrollTo({
+      top: 0,
+      behavior: prefersReducedMotion() ? "auto" : "smooth"
+    });
+  }
+
 }
 
 
@@ -985,10 +1019,10 @@ function setActiveNav(
       ".navbtn"
     )
     .forEach(
-      b =>
-        b.classList.remove(
-          "active"
-        )
+      b => {
+        b.classList.remove("active");
+        b.removeAttribute("aria-current");
+      }
     );
 
 
@@ -1001,6 +1035,8 @@ function setActiveNav(
   el?.classList.add(
     "active"
   );
+
+  el?.setAttribute("aria-current", "page");
 
 
   const scroller =
@@ -1016,37 +1052,26 @@ function setActiveNav(
     scroller.clientWidth
   ) {
 
-    const left =
-      el.offsetLeft
-      -
-      (
-        scroller.clientWidth
-        /
-        2
-      )
-      +
-      (
-        el.clientWidth
-        /
-        2
-      );
-
-
-    scroller.scrollTo(
-      {
-        left:
-          Math.max(
-            0,
-            left
-          ),
-
-        behavior:
-          "smooth"
-      }
-    );
+    el.scrollIntoView({
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+      block: "nearest",
+      inline: "center"
+    });
 
   }
 
+}
+
+
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+}
+
+
+function restoreScrollPosition(top) {
+  document.documentElement.classList.add("restoring-scroll");
+  window.scrollTo({ top, behavior: "auto" });
+  requestAnimationFrame(() => document.documentElement.classList.remove("restoring-scroll"));
 }
 
 
@@ -1252,779 +1277,19 @@ function emptyModel() {
 
 
 /* =========================================================
-   CORE DATA ENGINE
-========================================================= */
-
-function buildDataModel() {
-
-  /*
-    This is the most important change.
-
-    Firestore RAW entries are converted
-    into one Participation per:
-
-    MATCH + PLAYER
-
-    Example:
-
-    Ali normal goal entry
-    +
-    Ali own goal entry
-
-    becomes:
-
-    ONE match participation
-    for Ali.
-  */
-
-  const participationMap =
-    new Map();
-
-
-  /*
-    Oldest → newest.
-
-    If old duplicate entries contain
-    conflicting metadata, latest metadata
-    becomes authoritative.
-  */
-
-  const ordered =
-    rawLogs
-      .slice()
-      .sort(
-        compareRawLogsOldestFirst
-      );
-
-
-  for (
-    const log
-    of
-    ordered
-  ) {
-
-    const playerId =
-      String(
-        log.playerId || ""
-      )
-      .trim();
-
-
-    const date =
-      String(
-        log.date || ""
-      )
-      .trim();
-
-
-    const matchKey =
-      matchKeyOf(log);
-
-
-    if (
-      !playerId
-      ||
-      !date
-      ||
-      !matchKey
-    ) {
-
-      continue;
-
-    }
-
-
-    const key =
-      `${matchKey}::${playerId}`;
-
-
-    let part =
-      participationMap.get(
-        key
-      );
-
-
-    if (!part) {
-
-      part = {
-
-        playerId,
-
-        date,
-
-        matchKey,
-
-        result:
-          normalizeResult(
-            log
-          ),
-
-        side:
-          normalizeSide(
-            log
-          ),
-
-        normalGoals: 0,
-
-        ownGoals: 0,
-
-        createdAt:
-          Number(
-            log.createdAt || 0
-          ),
-
-        rawCount: 0
-
-      };
-
-
-      participationMap.set(
-        key,
-        part
-      );
-
-    }
-
-
-    const goals =
-      clampInt(
-        log.goals,
-        0,
-        99
-      );
-
-
-    /*
-      IMPORTANT:
-
-      We use MAX rather than SUM
-      for entries of the SAME TYPE.
-
-      Why?
-
-      Normal 2 goals
-      +
-      accidental duplicate Normal 2 goals
-
-      should remain 2 goals,
-      not become 4.
-
-      But:
-
-      Normal 2
-      +
-      Own Goal 1
-
-      correctly becomes:
-
-      normalGoals = 2
-      ownGoals = 1
-    */
-
-    if (
-      isOwnGoal(log)
-    ) {
-
-      part.ownGoals =
-        Math.max(
-          part.ownGoals,
-          goals
-        );
-
-    } else {
-
-      part.normalGoals =
-        Math.max(
-          part.normalGoals,
-          goals
-        );
-
-    }
-
-
-    part.rawCount += 1;
-
-
-    const createdAt =
-      Number(
-        log.createdAt || 0
-      );
-
-
-    if (
-      createdAt >=
-      part.createdAt
-    ) {
-
-      part.createdAt =
-        createdAt;
-
-
-      part.result =
-        normalizeResult(
-          log
-        );
-
-
-      part.side =
-        normalizeSide(
-          log
-        );
-
-    }
-
-  }
-
-
-  const participations =
-    Array
-      .from(
-        participationMap.values()
-      )
-      .sort(
-        compareParticipationsOldestFirst
-      );
-
-
-  const byPlayer =
-    new Map();
-
-
-  const byMatch =
-    new Map();
-
-
-  players.forEach(
-    p =>
-
-      byPlayer.set(
-        String(p.id),
-        []
-      )
-
-  );
-
-
-  for (
-    const part
-    of
-    participations
-  ) {
-
-    if (
-      !byPlayer.has(
-        part.playerId
-      )
-    ) {
-
-      byPlayer.set(
-        part.playerId,
-        []
-      );
-
-    }
-
-
-    byPlayer
-      .get(
-        part.playerId
-      )
-      .push(
-        part
-      );
-
-
-    if (
-      !byMatch.has(
-        part.matchKey
-      )
-    ) {
-
-      byMatch.set(
-        part.matchKey,
-        []
-      );
-
-    }
-
-
-    byMatch
-      .get(
-        part.matchKey
-      )
-      .push(
-        part
-      );
-
-  }
-
-
-  /*
-    Calculate each match once.
-  */
-
-  const matchSummaries =
-    new Map();
-
-
-  for (
-    const [
-      matchKey,
-      parts
-    ]
-    of
-    byMatch.entries()
-  ) {
-
-    const teamA =
-      parts.filter(
-        x =>
-          x.side === "A"
-      );
-
-
-    const teamB =
-      parts.filter(
-        x =>
-          x.side === "B"
-      );
-
-
-    /*
-      Team A score:
-
-      Team A normal goals
-      +
-      Team B own goals
-    */
-
-    const scoreA =
-
-      teamA.reduce(
-        (
-          s,
-          x
-        ) =>
-          s +
-          x.normalGoals,
-
-        0
-      )
-
-      +
-
-      teamB.reduce(
-        (
-          s,
-          x
-        ) =>
-          s +
-          x.ownGoals,
-
-        0
-      );
-
-
-    /*
-      Team B score:
-
-      Team B normal goals
-      +
-      Team A own goals
-    */
-
-    const scoreB =
-
-      teamB.reduce(
-        (
-          s,
-          x
-        ) =>
-          s +
-          x.normalGoals,
-
-        0
-      )
-
-      +
-
-      teamA.reduce(
-        (
-          s,
-          x
-        ) =>
-          s +
-          x.ownGoals,
-
-        0
-      );
-
-
-    const date =
-      parts
-        .map(
-          x =>
-            x.date
-        )
-        .sort()
-        .at(-1)
-      ||
-      "";
-
-
-    matchSummaries.set(
-      matchKey,
-      {
-
-        matchKey,
-
-        date,
-
-        parts,
-
-        teamA,
-
-        teamB,
-
-        scoreA,
-
-        scoreB
-
-      }
-    );
-
-  }
-
-
-  /*
-    PLAYER STATS
-  */
-
-  const stats = {};
-
-  const forms = {};
-
-
-  for (
-    const p
-    of
-    players
-  ) {
-
-    const pid =
-      String(
-        p.id
-      );
-
-
-    const arr =
-      (
-        byPlayer.get(pid)
-        ||
-        []
-      )
-      .slice()
-      .sort(
-        compareParticipationsOldestFirst
-      );
-
-
-    const s =
-      emptyStats();
-
-
-    s.matches =
-      arr.length;
-
-
-    let run = 0;
-
-
-    for (
-      const part
-      of
-      arr
-    ) {
-
-      /*
-        OWN GOALS are excluded
-        from personal goals.
-      */
-
-      s.goals +=
-        part.normalGoals;
-
-
-      if (
-        part.result
-        ===
-        "win"
-      ) {
-
-        s.wins += 1;
-
-        run += 1;
-
-
-        s.best =
-          Math.max(
-            s.best,
-            run
-          );
-
-      } else {
-
-        if (
-          part.result
-          ===
-          "draw"
-        ) {
-
-          s.draws += 1;
-
-        } else {
-
-          s.losses += 1;
-
-        }
-
-
-        /*
-          Draw and loss both
-          break a win streak.
-        */
-
-        run = 0;
-
-      }
-
-    }
-
-
-    /*
-      Current streak.
-    */
-
-    for (
-      let i =
-        arr.length - 1;
-
-      i >= 0;
-
-      i--
-    ) {
-
-      if (
-        arr[i].result
-        ===
-        "win"
-      ) {
-
-        s.current += 1;
-
-      } else {
-
-        break;
-
-      }
-
-    }
-
-
-    s.winPct =
-      s.matches
-        ?
-        s.wins
-        /
-        s.matches
-        :
-        0;
-
-
-    s.gpm =
-      s.matches
-        ?
-        s.goals
-        /
-        s.matches
-        :
-        0;
-
-
-    stats[pid] =
-      s;
-
-
-    /*
-      Last FIVE ACTUAL MATCHES.
-
-      Not last 5 Firestore entries.
-    */
-
-    const last5 =
-      arr.slice(-5);
-
-
-    const points =
-      last5.reduce(
-        (
-          sum,
-          part
-        ) => {
-
-          if (
-            part.result
-            ===
-            "win"
-          ) {
-
-            return (
-              sum + 1
-            );
-
-          }
-
-
-          if (
-            part.result
-            ===
-            "draw"
-          ) {
-
-            return (
-              sum + 0.5
-            );
-
-          }
-
-
-          return sum;
-
-        },
-
-        0
-      );
-
-
-    /*
-      last5 is chronological.
-
-      OLD → NEW
-
-      therefore newest icon
-      is always RIGHT.
-    */
-
-    forms[pid] = {
-
-      formPoints:
-        points,
-
-      formIcons:
-        last5
-          .map(
-            part =>
-              resultIcon(
-                part.result
-              )
-          )
-          .join(" "),
-
-      totalPlayerMatches:
-        s.matches
-
-    };
-
-  }
-
-
-  /*
-    Eligibility:
-
-    Total matches 6 -> 3
-    Total matches 7 -> 3
-    Total matches 8 -> 4
-  */
-
-  const totalMatches =
-    byMatch.size;
-
-
-  const minEligibleMatches =
-    Math.max(
-      1,
-      Math.floor(
-        totalMatches
-        /
-        2
-      )
-    );
-
-
-  const eligibleIds =
-    new Set(
-
-      players
-
-        .filter(
-          p =>
-
-            (
-              stats[
-                String(
-                  p.id
-                )
-              ]
-              ?.matches
-              ||
-              0
-            )
-
-            >=
-
-            minEligibleMatches
-        )
-
-        .map(
-          p =>
-            String(
-              p.id
-            )
-        )
-
-    );
-
-
-  return {
-
-    participations,
-
-    byPlayer,
-
-    byMatch,
-
-    matchSummaries,
-
-    stats,
-
-    forms,
-
-    totalMatches,
-
-    minEligibleMatches,
-
-    eligibleIds
-
-  };
-
-}
-
-
-/* =========================================================
    MAIN RENDER
 ========================================================= */
 
 function renderAll() {
+
+  if (loadError) {
+    renderLoadFailure(document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard");
+    return;
+  }
+
+  if (!playersLoaded || !logsLoaded) {
+    return;
+  }
 
   /*
     One model calculation
@@ -2032,44 +1297,61 @@ function renderAll() {
   */
 
   model =
-    buildDataModel();
+    buildFootballDataModel(players, rawLogs);
 
 
   renderLogPlayerOptions();
 
   renderCompareOptions();
 
-  renderInForm();
+  const activeScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard";
 
-  renderPlayerOfMonth();
+  renderScreenContents(activeScreen);
 
-  renderDashboard();
-
-  renderLeaderboard();
-
-  renderTable();
-
-  renderPlayersAdmin();
-
-  renderLogs();
-
-  renderMatchHistory();
-
-  renderPlayerCardsNameOnly();
-
-  renderCompare();
+}
 
 
-  if (
-    currentProfileId
-  ) {
+function renderScreenContents(screen) {
 
-    renderPlayerProfile(
-      currentProfileId
-    );
+  if (loadError) return renderLoadFailure(screen);
+  if (!playersLoaded || !logsLoaded) return;
 
+  if (screen === "dashboard") {
+    renderInForm();
+    renderPlayerOfMonth();
+    renderDashboard();
+  } else if (screen === "leaderboard") {
+    renderLeaderboard();
+  } else if (screen === "table") {
+    renderTable();
+  } else if (screen === "playerstats") {
+    renderPlayerCardsNameOnly();
+  } else if (screen === "playerprofile" && currentProfileId) {
+    renderPlayerProfile(currentProfileId);
+  } else if (screen === "compare") {
+    renderCompare();
+  } else if (screen === "history") {
+    renderMatchHistory();
+  } else if (screen === "players") {
+    renderPlayersAdmin();
+  } else if (screen === "matches") {
+    renderLogs();
   }
 
+  document.querySelectorAll(`#screen-${screen} .skeleton-list`).forEach(element => {
+    element.classList.remove("skeleton-list");
+    element.removeAttribute("aria-busy");
+  });
+
+}
+
+
+function renderLoadFailure(screen) {
+  document.querySelectorAll(`#screen-${screen} .skeleton-list`).forEach(element => {
+    element.classList.remove("skeleton-list");
+    element.removeAttribute("aria-busy");
+    element.innerHTML = emptyState("!", t("noData"), t("noDataLead"), true);
+  });
 }
 
 
@@ -2112,7 +1394,7 @@ function renderLogPlayerOptions() {
 
 
   const signature =
-    sorted
+    `${language}:` + sorted
       .map(
         p =>
           `${p.id}:${p.name}`
@@ -2220,7 +1502,7 @@ function renderCompareOptions() {
 
 
   const signature =
-    sorted
+    `${language}:` + sorted
       .map(
         p =>
           `${p.id}:${p.name}`
@@ -2249,7 +1531,7 @@ function renderCompareOptions() {
 
   const options =
 
-    `<option value="">Select player</option>`
+    `<option value="">${esc(t("selectPlayer"))}</option>`
 
     +
 
@@ -2371,6 +1653,7 @@ function renderInForm() {
             {
               formPoints: 0,
               formIcons: "",
+              formResults: [],
               totalPlayerMatches: 0
             };
 
@@ -2391,6 +1674,9 @@ function renderInForm() {
 
             formIcons:
               form.formIcons,
+
+            formResults:
+              form.formResults || [],
 
             matches:
               s.matches,
@@ -2452,8 +1738,7 @@ function renderInForm() {
     !rows.length
   ) {
 
-    box.innerHTML =
-      `<div class="note">No eligible players yet.</div>`;
+    box.innerHTML = emptyState("↗", t("noRanked"), t("noRankedLead"), true);
 
 
     return;
@@ -2479,18 +1764,17 @@ function renderInForm() {
 
               <div class="meta">
 
-                Points:
+                ${esc(t("score"))}:
                 <b>${formatFormPoints(r.formPoints)}</b>
 
                 ·
 
-                Last 5:
-                <b>${r.formIcons || "—"}</b>
+                ${esc(t("last5"))}:
+                ${renderFormDots(r.formResults)}
 
                 ·
 
-                Matches:
-                <b>${r.matches}</b>
+                <b>${esc(countText(language, r.matches, "match"))}</b>
 
               </div>
 
@@ -2617,10 +1901,14 @@ function renderPlayerOfMonth() {
         7
       );
 
+  const availableMonths = Array.from(model.participationsByMonth?.keys?.() || [])
+    .filter(month => calculateMonthScores(month).length > 0);
+
+  const displayMonth = selectDisplayMonth(currentMonth, availableMonths);
 
   const currentRows =
     calculateMonthScores(
-      currentMonth
+      displayMonth
     )
     .slice(
       0,
@@ -2633,15 +1921,7 @@ function renderPlayerOfMonth() {
       .from(
         new Set(
 
-          model
-            .participations
-            .map(
-              p =>
-                p.date.slice(
-                  0,
-                  7
-                )
-            )
+          availableMonths
 
         )
       )
@@ -2653,7 +1933,7 @@ function renderPlayerOfMonth() {
 
           &&
 
-          m !== currentMonth
+          m !== displayMonth
       )
       .sort(
         (
@@ -2663,6 +1943,10 @@ function renderPlayerOfMonth() {
           b.localeCompare(a)
       );
 
+  if ($("playerOfMonthMonth")) {
+    $("playerOfMonthMonth").textContent = formatMonthLabel(displayMonth);
+  }
+
 
   if (
     !currentRows.length
@@ -2670,7 +1954,7 @@ function renderPlayerOfMonth() {
 
     box.innerHTML =
 
-      `<div class="note">No monthly data yet.</div>`
+      emptyState("★", t("noMonthly"), t("noMonthlyLead"), true)
 
       +
 
@@ -2804,11 +2088,11 @@ function renderPastMonthsToggle(
 
                                     ·
 
-                                    ${r.matches} matches
+                                    ${esc(countText(language, r.matches, "match"))}
 
                                     ·
 
-                                    ${r.goals} goals
+                                    ${esc(countText(language, r.goals, "goal"))}
 
                                   </div>
 
@@ -2851,8 +2135,8 @@ function renderPastMonthsToggle(
 
         ${
           showPastMonths
-            ? "Hide past months"
-            : "Show past months"
+            ? t("hidePast")
+            : t("showPast")
         }
 
       </button>
@@ -2870,295 +2154,8 @@ function renderPastMonthsToggle(
    MONTHLY SCORE
 ========================================================= */
 
-function calculateMonthScores(
-  monthKey
-) {
-
-  /*
-    This preserves the previous
-    Player of The Month formula:
-
-    +0.5 attendance
-    +0.1 per goal
-
-    win  +1
-    draw +0.5
-    loss -0.5
-
-    team scores >= 5  +0.2
-    team scores >= 10 +0.5
-
-    conceded < 5  +0.5
-    conceded <= 3 +0.8
-
-    capped at 10
-  */
-
-  const monthParts =
-    model
-      .participations
-      .filter(
-        p =>
-          p.date.startsWith(
-            monthKey
-          )
-      );
-
-
-  const rows =
-    new Map();
-
-
-  for (
-    const part
-    of
-    monthParts
-  ) {
-
-    /*
-      Dashboard eligibility
-      rule applies here too.
-    */
-
-    if (
-      !model
-        .eligibleIds
-        .has(
-          part.playerId
-        )
-    ) {
-
-      continue;
-
-    }
-
-
-    if (
-      !rows.has(
-        part.playerId
-      )
-    ) {
-
-      rows.set(
-        part.playerId,
-        {
-
-          playerId:
-            part.playerId,
-
-          name:
-            playerName(
-              part.playerId
-            ),
-
-          matches: 0,
-
-          wins: 0,
-
-          draws: 0,
-
-          losses: 0,
-
-          goals: 0,
-
-          rawScore: 0,
-
-          score: 0
-
-        }
-      );
-
-    }
-
-
-    const row =
-      rows.get(
-        part.playerId
-      );
-
-
-    const match =
-      model
-        .matchSummaries
-        .get(
-          part.matchKey
-        );
-
-
-    /*
-      Attendance counted ONCE
-      regardless of how many
-      Firestore entries exist.
-    */
-
-    row.matches += 1;
-
-    row.goals +=
-      part.normalGoals;
-
-
-    row.rawScore +=
-      0.5;
-
-
-    row.rawScore +=
-      part.normalGoals
-      *
-      0.1;
-
-
-    if (
-      part.result === "win"
-    ) {
-
-      row.wins += 1;
-
-      row.rawScore +=
-        1;
-
-    } else if (
-      part.result === "draw"
-    ) {
-
-      row.draws += 1;
-
-      row.rawScore +=
-        0.5;
-
-    } else {
-
-      row.losses += 1;
-
-      row.rawScore -=
-        0.5;
-
-    }
-
-
-    if (match) {
-
-      const teamGoals =
-        part.side === "A"
-          ?
-          match.scoreA
-          :
-          match.scoreB;
-
-
-      const conceded =
-        part.side === "A"
-          ?
-          match.scoreB
-          :
-          match.scoreA;
-
-
-      if (
-        teamGoals >= 10
-      ) {
-
-        row.rawScore +=
-          0.5;
-
-      } else if (
-        teamGoals >= 5
-      ) {
-
-        row.rawScore +=
-          0.2;
-
-      }
-
-
-      if (
-        conceded <= 3
-      ) {
-
-        row.rawScore +=
-          0.8;
-
-      } else if (
-        conceded < 5
-      ) {
-
-        row.rawScore +=
-          0.5;
-
-      }
-
-    }
-
-  }
-
-
-  return (
-    Array
-      .from(
-        rows.values()
-      )
-
-      .map(
-        row => ({
-
-          ...row,
-
-          score:
-            Math.min(
-              10,
-              round1(
-                row.rawScore
-              )
-            )
-
-        })
-      )
-
-      .sort(
-        (
-          a,
-          b
-        ) =>
-
-          (
-            b.score
-            -
-            a.score
-          )
-
-          ||
-
-          (
-            b.matches
-            -
-            a.matches
-          )
-
-          ||
-
-          (
-            b.wins
-            -
-            a.wins
-          )
-
-          ||
-
-          (
-            b.goals
-            -
-            a.goals
-          )
-
-          ||
-
-          a.name.localeCompare(
-            b.name
-          )
-
-      )
-
-  );
-
+function calculateMonthScores(monthKey) {
+  return calculateFootballMonthScores(model, monthKey, playerName);
 }
 
 
@@ -3179,32 +2176,32 @@ function monthPlayerItem(
 
         <div class="meta">
 
-          Score
+          ${esc(t("score"))}
           <b>${fmt1(r.score)}/10</b>
 
           ·
 
-          Matches
+          ${esc(t("matches"))}
           <b>${r.matches}</b>
 
           ·
 
-          W
+          ${esc(t("shortWin"))}
           <b>${r.wins}</b>
 
           ·
 
-          D
+          ${esc(t("shortDraw"))}
           <b>${r.draws}</b>
 
           ·
 
-          L
+          ${esc(t("shortLoss"))}
           <b>${r.losses}</b>
 
           ·
 
-          Goals
+          ${esc(t("goals"))}
           <b>${r.goals}</b>
 
         </div>
@@ -3223,6 +2220,10 @@ function monthPlayerItem(
 ========================================================= */
 
 function renderDashboard() {
+
+  if ($("seasonMatches")) $("seasonMatches").textContent = model.totalMatches;
+  if ($("seasonPlayers")) $("seasonPlayers").textContent = players.length;
+  if ($("eligiblePlayers")) $("eligiblePlayers").textContent = model.eligibleIds.size;
 
   const rows =
     players
@@ -3319,7 +2320,7 @@ function renderDashboard() {
 
                 `${medal(i)} ${esc(x.p.name)}`,
 
-                `${x.s.goals} goals · G/Match ${fmt2(x.s.gpm)} · Win% ${fmtPct(x.s.winPct)}`
+                `${esc(countText(language, x.s.goals, "goal"))} · ${esc(t("gpm"))} ${fmt2(x.s.gpm)} · ${esc(t("winPct"))} ${fmtPct(x.s.winPct)}`
 
               )
 
@@ -3328,7 +2329,7 @@ function renderDashboard() {
 
         :
 
-        `<div class="note">No eligible players yet.</div>`;
+        emptyState("⚽", t("noRanked"), t("noRankedLead"), true);
 
   }
 
@@ -3396,7 +2397,7 @@ function renderDashboard() {
 
                 `${medal(i)} ${esc(x.p.name)}`,
 
-                `Current: ${x.s.current} · Best: ${x.s.best} · Matches: ${x.s.matches}`
+                `${esc(t("current"))}: ${x.s.current} · ${esc(t("best"))}: ${x.s.best} · ${esc(countText(language, x.s.matches, "match"))}`
 
               )
 
@@ -3405,7 +2406,7 @@ function renderDashboard() {
 
         :
 
-        `<div class="note">No eligible players yet.</div>`;
+        emptyState("⚡", t("noRanked"), t("noRankedLead"), true);
 
   }
 
@@ -3481,7 +2482,7 @@ function renderDashboard() {
 
                 `${medal(i)} ${esc(x.p.name)}`,
 
-                `Win% ${fmtPct(x.s.winPct)} · Wins ${x.s.wins}/${x.s.matches} · Goals ${x.s.goals}`
+                `${esc(t("winPct"))} ${fmtPct(x.s.winPct)} · ${esc(t("wins"))} ${x.s.wins}/${x.s.matches} · ${esc(countText(language, x.s.goals, "goal"))}`
 
               )
 
@@ -3490,8 +2491,27 @@ function renderDashboard() {
 
         :
 
-        `<div class="note">No eligible players yet.</div>`;
+        emptyState("◎", t("noRanked"), t("noRankedLead"), true);
 
+  }
+
+  const latest = Array.from(model.matchSummaries.values()).sort((a, b) =>
+    String(b.date).localeCompare(String(a.date))
+    || Math.max(...b.parts.map(part => part.createdAt || 0), 0) - Math.max(...a.parts.map(part => part.createdAt || 0), 0)
+  )[0];
+  const latestBox = $("dashLatestMatch");
+  if (latestBox) {
+    if (!latest) {
+      latestBox.innerHTML = emptyState("◷", t("noLatest"), t("noLatestLead"), true);
+    } else {
+      const result = latest.scoreA === latest.scoreB
+        ? t("tie")
+        : `${latest.scoreA > latest.scoreB ? t("teamA") : t("teamB")} · ${t("winners")}`;
+      latestBox.innerHTML = dashItem(
+        `<time datetime="${esc(latest.date)}">${esc(formatMatchDate(latest.date))}</time>`,
+        `<span class="latest-score">${latest.scoreA} : ${latest.scoreB}</span> · ${esc(result)} · ${esc(countText(language, latest.parts.length, "player"))}`
+      );
+    }
   }
 
 }
@@ -3543,7 +2563,8 @@ function renderLeaderboard() {
             ||
             {
               formPoints: 0,
-              formIcons: ""
+              formIcons: "",
+              formResults: []
             };
 
 
@@ -3580,7 +2601,10 @@ function renderLeaderboard() {
               form.formPoints,
 
             formIcons:
-              form.formIcons
+              form.formIcons,
+
+            formResults:
+              form.formResults || []
 
           };
 
@@ -3615,60 +2639,23 @@ function renderLeaderboard() {
             i
           ) => `
 
-            <div class="item">
-
-              <div>
-
-                <div class="name">
-                  ${medal(i)} ${esc(r.name)}
+            <div class="item leader-row">
+              <div class="leader-main">
+                <span class="rank-badge ${i < 3 ? "top" : ""}">${i + 1}</span>
+                <div class="leader-copy">
+                  <div class="name">${esc(r.name)}</div>
+                  <div class="leader-metrics">
+                    <span class="metric-chip">${esc(t("form"))} <strong>${formatFormPoints(r.formPoints)}</strong></span>
+                    <span class="metric-chip">${renderFormDots(r.formResults)}</span>
+                    <span class="metric-chip">${esc(t("matches"))} <strong>${r.matches}</strong></span>
+                    <span class="metric-chip">${esc(t("wins"))} <strong>${r.wins}</strong></span>
+                    <span class="metric-chip">${esc(t("goals"))} <strong>${r.goals}</strong></span>
+                    <span class="metric-chip">${esc(t("winPct"))} <strong>${fmtPct(r.winPct)}</strong></span>
+                    <span class="metric-chip">${esc(t("gpm"))} <strong>${fmt2(r.gpm)}</strong></span>
+                    <span class="metric-chip">${esc(t("current"))} <strong>${r.curStreak}</strong> · ${esc(t("best"))} ${r.bestStreak}</span>
+                  </div>
                 </div>
-
-                <div class="meta">
-
-                  Form
-                  <b>${formatFormPoints(r.formPoints)}</b>
-
-                  ·
-
-                  Last 5
-                  <b>${r.formIcons || "—"}</b>
-
-                  ·
-
-                  Matches
-                  <b>${r.matches}</b>
-
-                  ·
-
-                  Wins
-                  <b>${r.wins}</b>
-
-                  ·
-
-                  Goals
-                  <b>${r.goals}</b>
-
-                  ·
-
-                  Win%
-                  <b>${fmtPct(r.winPct)}</b>
-
-                  ·
-
-                  G/Match
-                  <b>${fmt2(r.gpm)}</b>
-
-                  ·
-
-                  Streak
-                  <b>${r.curStreak}</b>
-
-                  (best ${r.bestStreak})
-
-                </div>
-
               </div>
-
             </div>
 
           `
@@ -3677,7 +2664,7 @@ function renderLeaderboard() {
 
       :
 
-      `<div class="note">No eligible players yet.</div>`;
+      emptyState("♛", t("noRanked"), t("noRankedLead"));
 
 }
 
@@ -3808,7 +2795,7 @@ function renderTable() {
 
       :
 
-      `<tr><td colspan="9" class="noteCell">No eligible players yet.</td></tr>`;
+      `<tr><td colspan="9" class="noteCell">${esc(t("noRanked"))}</td></tr>`;
 
 }
 
@@ -3833,14 +2820,7 @@ function renderPlayerCardsNameOnly() {
   if (
     !players.length
   ) {
-
-    box.classList.add(
-      "note"
-    );
-
-
-    box.textContent =
-      "No players yet.";
+    box.innerHTML = emptyState("◉", t("noPlayers"), t("noPlayersLead"));
 
 
     return;
@@ -3853,25 +2833,17 @@ function renderPlayerCardsNameOnly() {
   );
 
 
-  const sorted =
-    players
-      .slice()
-      .sort(
-        (
-          a,
-          b
-        ) =>
+  const sorted = filterAndSortPlayers(
+    players,
+    model.stats,
+    $("playerSearch")?.value || "",
+    $("playerSort")?.value || "name"
+  );
 
-          String(
-            a.name || ""
-          )
-          .localeCompare(
-            String(
-              b.name || ""
-            )
-          )
-
-      );
+  if (!sorted.length) {
+    box.innerHTML = emptyState("⌕", t("noSearchPlayers"), t("noSearchPlayersLead"));
+    return;
+  }
 
 
   box.innerHTML =
@@ -3879,16 +2851,19 @@ function renderPlayerCardsNameOnly() {
       .map(
         p => `
 
-          <div
+          <button type="button"
             class="pCard pCardNameOnly"
             data-player-id="${esc(p.id)}"
+            data-initial="${esc(String(p.name || "?").trim().charAt(0).toUpperCase() || "?")}"
+            aria-label="${esc(t("openProfile", { name: p.name || t("player") }))}"
           >
 
             <div class="pName">
               ${esc(p.name || "")}
+              <span class="pCardMeta">${esc(countText(language, p.stats.matches || 0, "match"))} · ${esc(countText(language, p.stats.goals || 0, "goal"))}</span>
             </div>
 
-          </div>
+          </button>
 
         `
       )
@@ -3904,6 +2879,10 @@ function renderPlayerCardsNameOnly() {
 function openProfile(
   pid
 ) {
+
+  playerDirectoryScrollY = window.scrollY;
+
+  showAllTeammates = false;
 
   currentProfileId =
     String(pid);
@@ -3959,8 +2938,12 @@ function renderPlayerProfile(
   ) {
 
     $("profileName").textContent =
-      p.name || "Player";
+      p.name || t("player");
 
+  }
+
+  if ($("profileInitial")) {
+    $("profileInitial").textContent = String(p.name || "P").trim().charAt(0).toUpperCase() || "P";
   }
 
 
@@ -3984,42 +2967,45 @@ function renderPlayerProfile(
       [
 
         tile(
-          "Matches",
+          t("matches"),
           s.matches
         ),
 
         tile(
-          "Goals",
-          s.goals
+          t("goals"),
+          s.goals,
+          "highlight"
         ),
 
         tile(
-          "Wins",
+          t("wins"),
           s.wins
         ),
 
         tile(
-          "Win %",
+          t("winPct"),
           fmtPct(
             s.winPct
-          )
+          ),
+          "highlight"
         ),
 
         tile(
-          "Goals per Match",
+          t("gpm"),
           fmt2(
             s.gpm
           )
         ),
 
         tile(
-          "Current Win Streak",
+          t("currentStreak"),
           s.current
         ),
 
         tile(
-          "Best Win Streak",
-          s.best
+          t("bestWinStreak"),
+          s.best,
+          "highlight"
         )
 
       ]
@@ -4034,7 +3020,8 @@ function renderPlayerProfile(
     ]
     ||
     {
-      formIcons: ""
+      formIcons: "",
+      formResults: []
     };
 
 
@@ -4042,18 +3029,40 @@ function renderPlayerProfile(
     $("profileForm")
   ) {
 
-    $("profileForm").textContent =
-      form.formIcons
-      ||
-      "No matches yet";
+    $("profileForm").innerHTML = form.formResults?.length
+      ? renderFormDots(form.formResults, true)
+      : `<span class="note">${esc(t("noForm"))}</span>`;
 
   }
+
+  renderProfileMatches(String(pid));
 
 
   renderTeammates(
     pid
   );
 
+}
+
+
+function renderProfileMatches(pid) {
+  const box = $("profileMatches");
+  if (!box) return;
+  const matches = (model.byPlayer.get(pid) || []).slice(-5).reverse();
+  if (!matches.length) {
+    box.innerHTML = emptyState("◷", t("noMatches"), t("noProfileMatches"), true);
+    return;
+  }
+  box.innerHTML = matches.map(participation => {
+    const match = model.matchSummaries.get(participation.matchKey);
+    const score = match ? `${match.scoreA}–${match.scoreB}` : "—";
+    const ownGoal = participation.ownGoals ? `<span class="own-goal-tag">${esc(t("ownGoal"))}${participation.ownGoals > 1 ? ` ×${participation.ownGoals}` : ""}</span>` : "";
+    return `<div class="profile-match-row">
+      <span class="result-badge ${participation.result}" aria-label="${esc(t(participation.result))}">${esc(shortResultLabel(participation.result))}</span>
+      <div><strong>${esc(formatMatchDate(participation.date))}</strong><span>${esc(teamLabel(participation.side))} · ${esc(countText(language, participation.normalGoals, "goal"))}</span></div>
+      ${ownGoal}<b>${score}</b>
+    </div>`;
+  }).join("");
 }
 
 
@@ -4176,7 +3185,7 @@ function renderTeammates(
 
 
       matesBox.textContent =
-        "No teammate data yet.";
+        t("noTeammates");
 
     } else {
 
@@ -4185,31 +3194,36 @@ function renderTeammates(
       );
 
 
+      const visibleMates = showAllTeammates ? sorted : sorted.slice(0, 10);
+
       matesBox.innerHTML =
-        sorted
+        visibleMates
           .map(
             (
               [
                 id,
                 c
-              ]
+              ],
+              index
             ) => `
 
               <div class="mateRow">
 
                 <div class="playerName">
+                  <span class="mate-rank" aria-hidden="true">${index + 1}</span>
                   ${esc(playerName(id))}
                 </div>
 
-                <div class="playerGoals">
-                  ${c}
+                <div class="mate-count-badge">
+                  ${esc(countText(language, c, "match"))}
                 </div>
 
               </div>
 
             `
           )
-          .join("");
+          .join("")
+        + (sorted.length > 10 ? `<button type="button" class="btn btn-quiet mates-toggle" data-toggle-teammates>${esc(t(showAllTeammates ? "showLess" : "showAll"))} <span aria-hidden="true">${showAllTeammates ? "↑" : "↓"}</span></button>` : "");
 
     }
 
@@ -4234,15 +3248,8 @@ function renderTeammates(
 
     } else {
 
-      neverBox.classList.remove(
-        "note"
-      );
-
-
-      neverBox.textContent =
-        never.join(
-          " - "
-        );
+      neverBox.classList.remove("note");
+      neverBox.innerHTML = `<div class="never-chips">${never.map(name => `<span class="never-chip">${esc(name)}</span>`).join("")}</div>`;
 
     }
 
@@ -4251,82 +3258,8 @@ function renderTeammates(
 }
 
 
-function computeTeammates(
-  pid
-) {
-
-  const counts = {};
-
-
-  for (
-    const summary
-    of
-    model
-      .matchSummaries
-      .values()
-  ) {
-
-    const playerEntry =
-      summary
-        .parts
-        .find(
-          x =>
-            x.playerId
-            ===
-            pid
-        );
-
-
-    if (
-      !playerEntry
-    ) {
-
-      continue;
-
-    }
-
-
-    summary
-      .parts
-
-      .filter(
-        x =>
-
-          x.side
-          ===
-          playerEntry.side
-
-          &&
-
-          x.playerId
-          !==
-          pid
-      )
-
-      .forEach(
-        x => {
-
-          counts[
-            x.playerId
-          ] =
-            (
-              counts[
-                x.playerId
-              ]
-              ||
-              0
-            )
-            +
-            1;
-
-        }
-      );
-
-  }
-
-
-  return counts;
-
+function computeTeammates(pid) {
+  return computeFootballTeammates(model, pid);
 }
 
 
@@ -4335,167 +3268,79 @@ function computeTeammates(
 ========================================================= */
 
 function renderMatchHistory() {
-
-  const box =
-    $("matchHistoryList");
-
-
-  if (!box) {
-
+  const box = $("matchHistoryList");
+  if (!box) return;
+  renderHistoryOptions();
+  const allMatches = getSortedMatches();
+  if (!allMatches.length) {
+    box.innerHTML = emptyState("◷", t("noMatches"), t("noMatchesLead"));
     return;
-
+  }
+  const matches = getFilteredMatches();
+  if (!historyInitialized) {
+    expandedMatchKeys.add(String(allMatches[0].matchKey));
+    historyInitialized = true;
+  }
+  if (!matches.length) {
+    box.innerHTML = emptyState("⌕", t("noFilteredMatches"), t("noFilteredMatchesLead"));
+    return;
   }
 
-
-  const matches =
-    Array
-      .from(
-        model
-          .matchSummaries
-          .values()
-      )
-      .sort(
-        (
-          a,
-          b
-        ) =>
-
-          String(
-            b.date
-          )
-          .localeCompare(
-            String(
-              a.date
-            )
-          )
-
-          ||
-
-          Math.max(
-            ...b.parts.map(
-              x =>
-                x.createdAt || 0
-            ),
-            0
-          )
-
-          -
-
-          Math.max(
-            ...a.parts.map(
-              x =>
-                x.createdAt || 0
-            ),
-            0
-          )
-
-      );
+  box.innerHTML = matches.map((match, index) => {
+    const key = String(match.matchKey);
+    const expanded = expandedMatchKeys.has(key);
+    const outcomeA = match.scoreA > match.scoreB ? "winners" : match.scoreA < match.scoreB ? "losers" : "draw";
+    const outcomeB = match.scoreB > match.scoreA ? "winners" : match.scoreB < match.scoreA ? "losers" : "draw";
+    const labelForOutcome = outcome => t(outcome === "draw" ? "tie" : outcome);
+    const detailsId = `match-details-${index}`;
+    return `
+      <article class="matchCard ${expanded ? "expanded" : "collapsed"}">
+        <button type="button" class="matchTop match-summary" data-match-toggle="${esc(key)}" aria-expanded="${expanded}" aria-controls="${detailsId}">
+          <span class="matchDate"><span>${esc(t("matchday"))}</span><time datetime="${esc(match.date)}">${esc(formatMatchDate(match.date))}</time></span>
+          <span class="match-summary-end"><span class="matchScore">${match.scoreA} : ${match.scoreB}</span><span class="match-chevron" aria-hidden="true">⌄</span></span>
+        </button>
+        <div id="${detailsId}" class="match-details" ${expanded ? "" : "hidden"}>
+          <div class="matchGrid">
+            <section class="teamBox ${outcomeA}" aria-label="${esc(t("teamA"))}">
+              <div class="teamTitle"><span>${esc(t("teamA"))}</span><strong>${esc(labelForOutcome(outcomeA))}</strong></div>
+              ${sideLines(match.teamA)}
+            </section>
+            <section class="teamBox ${outcomeB}" aria-label="${esc(t("teamB"))}">
+              <div class="teamTitle"><span>${esc(t("teamB"))}</span><strong>${esc(labelForOutcome(outcomeB))}</strong></div>
+              ${sideLines(match.teamB)}
+            </section>
+          </div>
+        </div>
+      </article>`;
+  }).join("");
+}
 
 
-  if (
-    !matches.length
-  ) {
-
-    box.innerHTML =
-      `<div class="note">No matches yet.</div>`;
-
-
-    return;
-
-  }
+function getSortedMatches() {
+  return Array.from(model.matchSummaries.values()).sort((a, b) =>
+    String(b.date).localeCompare(String(a.date))
+    || Math.max(...b.parts.map(part => part.createdAt || 0), 0) - Math.max(...a.parts.map(part => part.createdAt || 0), 0)
+  );
+}
 
 
-  box.innerHTML =
-    matches
-      .map(
-        match => {
-
-          const titleA =
-            match.scoreA
-            >
-            match.scoreB
-              ?
-              "Winners"
-              :
-              match.scoreA
-              <
-              match.scoreB
-                ?
-                "Losers"
-                :
-                "Draw";
+function getFilteredMatches() {
+  return filterMatches(getSortedMatches(), playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all");
+}
 
 
-          const titleB =
-            match.scoreB
-            >
-            match.scoreA
-              ?
-              "Winners"
-              :
-              match.scoreB
-              <
-              match.scoreA
-                ?
-                "Losers"
-                :
-                "Draw";
-
-
-          return `
-
-            <div class="item">
-
-              <div class="matchCard">
-
-                <div class="matchTop">
-
-                  <div class="matchDate">
-                    ${esc(match.date)}
-                  </div>
-
-                  <div class="matchScore">
-                    ${match.scoreA} : ${match.scoreB}
-                  </div>
-
-                </div>
-
-
-                <div class="matchGrid">
-
-                  <div class="teamBox">
-
-                    <div class="teamTitle">
-                      ${titleA}
-                    </div>
-
-                    ${sideLines(match.teamA)}
-
-                  </div>
-
-
-                  <div class="teamBox">
-
-                    <div class="teamTitle">
-                      ${titleB}
-                    </div>
-
-                    ${sideLines(match.teamB)}
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          `;
-
-        }
-      )
-      .join("");
-
+function renderHistoryOptions() {
+  const select = $("historyPeriod");
+  if (!select) return;
+  const periods = buildHistoryPeriods(getSortedMatches());
+  const signature = `${language}:${periods.months.join("|")}:${periods.years.join("|")}`;
+  if (signature === historyOptionsSignature) return;
+  const current = select.value || "all";
+  select.innerHTML = `<option value="all">${esc(t("allDates"))}</option>`
+    + periods.months.map(month => `<option value="month:${month}">${esc(t("month"))}: ${esc(formatMonthLabel(month))}</option>`).join("")
+    + periods.years.map(year => `<option value="year:${year}">${esc(t("year"))}: ${esc(year)}</option>`).join("");
+  if ([...select.options].some(option => option.value === current)) select.value = current;
+  historyOptionsSignature = signature;
 }
 
 
@@ -4623,18 +3468,9 @@ function sideLines(
             Ali (own goal)   (2)
           */
 
-          if (
-            x.ownGoals > 0
-          ) {
-
-            name +=
-              x.ownGoals === 1
-                ?
-                " (own goal)"
-                :
-                ` (own goals x${x.ownGoals})`;
-
-          }
+          const ownGoalBadge = x.ownGoals > 0
+            ? `<span class="own-goal-tag">${esc(t("ownGoal"))}${x.ownGoals > 1 ? ` ×${x.ownGoals}` : ""}</span>`
+            : "";
 
 
           const goals =
@@ -4651,6 +3487,7 @@ function sideLines(
 
               <div class="playerName">
                 ${esc(name)}
+                ${ownGoalBadge}
               </div>
 
               <div class="playerGoals">
@@ -4733,35 +3570,35 @@ function renderPlayersAdmin() {
 
                 <div class="meta">
 
-                  Matches
+                  ${esc(t("matches"))}
                   <b>${s.matches}</b>
 
                   ·
 
-                  Wins
+                  ${esc(t("wins"))}
                   <b>${s.wins}</b>
 
                   ·
 
-                  Goals
+                  ${esc(t("goals"))}
                   <b>${s.goals}</b>
 
                   ·
 
-                  Win%
+                  ${esc(t("winPct"))}
                   <b>${fmtPct(s.winPct)}</b>
 
                   ·
 
-                  G/Match
+                  ${esc(t("gpm"))}
                   <b>${fmt2(s.gpm)}</b>
 
                   ·
 
-                  Streak
+                  ${esc(t("streak"))}
                   <b>${s.current}</b>
 
-                  (best ${s.best})
+                  (${esc(t("best"))} ${s.best})
 
                 </div>
 
@@ -4777,9 +3614,7 @@ function renderPlayersAdmin() {
 
 
   box.innerHTML =
-    html
-    ||
-    `<div class="note">No players yet.</div>`;
+    html || emptyState("◉", t("noPlayers"), t("addFirstPlayer"));
 
 }
 
@@ -4890,11 +3725,11 @@ function renderLogs() {
 
                   —
 
-                  ${result.toUpperCase()}
+                  ${esc(t(result))}
 
-                  ${own ? " · OWN GOAL" : ""}
+                  ${own ? ` · ${esc(t("ownGoal"))}` : ""}
 
-                  ${duplicate ? " · DUPLICATE" : ""}
+                  ${duplicate ? ` · ${esc(t("duplicate"))}` : ""}
 
                 </div>
 
@@ -4905,11 +3740,11 @@ function renderLogs() {
 
                   ·
 
-                  Team ${side}
+                  ${esc(teamLabel(side))}
 
                   ·
 
-                  Goals:
+                  ${esc(t("goals"))}:
                   <b>${Number(l.goals || 0)}</b>
 
                 </div>
@@ -4926,7 +3761,7 @@ function renderLogs() {
 
     ||
 
-    `<div class="note">No entries yet.</div>`;
+    emptyState("＋", t("noEntries"), t("noEntriesLead"));
 
 }
 
@@ -4972,8 +3807,7 @@ function renderCompare() {
     aId === bId
   ) {
 
-    box.innerHTML =
-      `<div class="card"><div class="note">Select two different players.</div></div>`;
+    box.innerHTML = emptyState("⇄", t("readyMatchup"), t("selectTwo"), true);
 
 
     return;
@@ -5005,8 +3839,7 @@ function renderCompare() {
     !bPlayer
   ) {
 
-    box.innerHTML =
-      `<div class="card"><div class="note">Players not found.</div></div>`;
+    box.innerHTML = emptyState("!", t("playersNotFound"), t("playersNotFoundLead"), true);
 
 
     return;
@@ -5031,6 +3864,7 @@ function renderCompare() {
     ||
     {
       formIcons: "",
+      formResults: [],
       formPoints: 0
     };
 
@@ -5040,6 +3874,7 @@ function renderCompare() {
     ||
     {
       formIcons: "",
+      formResults: [],
       formPoints: 0
     };
 
@@ -5062,7 +3897,7 @@ function renderCompare() {
         </div>
 
         <div class="compareVs">
-          vs
+          ${esc(t("versus"))}
         </div>
 
         <div class="compareName">
@@ -5077,21 +3912,21 @@ function renderCompare() {
     <div class="card">
 
       <div class="card-title">
-        Head-to-Head
+        ${esc(t("headToHead"))}
       </div>
 
       <div class="compareRows">
 
         ${
           compareCenterValueRow(
-            "Matches against each other",
+            t("againstEachOther"),
             h2h.againstMatches
           )
         }
 
         ${
           compareCompactDualRow(
-            "Wins",
+            t("wins"),
             h2h.aWinsAgainst,
             h2h.bWinsAgainst
           )
@@ -5099,7 +3934,7 @@ function renderCompare() {
 
         ${
           compareCenterValueRow(
-            "Draws",
+            t("draws"),
             h2h.drawsAgainst
           )
         }
@@ -5112,35 +3947,35 @@ function renderCompare() {
     <div class="card">
 
       <div class="card-title">
-        Teammates Record
+        ${esc(t("teammatesRecord"))}
       </div>
 
       <div class="compareRows">
 
         ${
           compareCenterValueRow(
-            "Matches",
+            t("matches"),
             h2h.togetherMatches
           )
         }
 
         ${
           compareCenterValueRow(
-            "Wins",
+            t("wins"),
             h2h.togetherWins
           )
         }
 
         ${
           compareCenterValueRow(
-            "Losses",
+            t("losses"),
             h2h.togetherLosses
           )
         }
 
         ${
           compareCenterValueRow(
-            "Draws",
+            t("draws"),
             h2h.togetherDraws
           )
         }
@@ -5153,14 +3988,14 @@ function renderCompare() {
     <div class="card">
 
       <div class="card-title">
-        Individual Stats
+        ${esc(t("individualStats"))}
       </div>
 
       <div class="compareTable">
 
         ${
           compareStatLine(
-            "Matches",
+            t("matches"),
             aStats.matches,
             bStats.matches,
             aStats.matches,
@@ -5170,7 +4005,7 @@ function renderCompare() {
 
         ${
           compareStatLine(
-            "Goals",
+            t("goals"),
             aStats.goals,
             bStats.goals,
             aStats.goals,
@@ -5180,7 +4015,7 @@ function renderCompare() {
 
         ${
           compareStatLine(
-            "Wins",
+            t("wins"),
             aStats.wins,
             bStats.wins,
             aStats.wins,
@@ -5190,7 +4025,7 @@ function renderCompare() {
 
         ${
           compareStatLine(
-            "Win %",
+            t("winPct"),
             fmtPct(aStats.winPct),
             fmtPct(bStats.winPct),
             aStats.winPct,
@@ -5200,7 +4035,7 @@ function renderCompare() {
 
         ${
           compareStatLine(
-            "Goals / Match",
+            t("gpm"),
             fmt2(aStats.gpm),
             fmt2(bStats.gpm),
             aStats.gpm,
@@ -5210,7 +4045,7 @@ function renderCompare() {
 
         ${
           compareStatLine(
-            "Best Win Streak",
+            t("bestWinStreak"),
             aStats.best,
             bStats.best,
             aStats.best,
@@ -5220,9 +4055,9 @@ function renderCompare() {
 
         ${
           compareFormStatLine(
-            "Form",
-            aForm.formIcons || "—",
-            bForm.formIcons || "—",
+            t("form"),
+            renderFormDots(aForm.formResults || []),
+            renderFormDots(bForm.formResults || []),
             aForm.formPoints,
             bForm.formPoints
           )
@@ -5241,166 +4076,8 @@ function renderCompare() {
    HEAD TO HEAD
 ========================================================= */
 
-function computeHeadToHead(
-  aId,
-  bId
-) {
-
-  let againstMatches = 0;
-
-  let aWinsAgainst = 0;
-
-  let bWinsAgainst = 0;
-
-  let drawsAgainst = 0;
-
-
-  let togetherMatches = 0;
-
-  let togetherWins = 0;
-
-  let togetherLosses = 0;
-
-  let togetherDraws = 0;
-
-
-  /*
-    Iterate MATCHES,
-    not raw entries.
-  */
-
-  for (
-    const summary
-    of
-    model
-      .matchSummaries
-      .values()
-  ) {
-
-    const aEntry =
-      summary
-        .parts
-        .find(
-          x =>
-            x.playerId
-            ===
-            aId
-        );
-
-
-    const bEntry =
-      summary
-        .parts
-        .find(
-          x =>
-            x.playerId
-            ===
-            bId
-        );
-
-
-    if (
-      !aEntry
-      ||
-      !bEntry
-    ) {
-
-      continue;
-
-    }
-
-
-    if (
-      aEntry.side
-      !==
-      bEntry.side
-    ) {
-
-      againstMatches +=
-        1;
-
-
-      if (
-        aEntry.result === "win"
-        &&
-        bEntry.result === "loss"
-      ) {
-
-        aWinsAgainst +=
-          1;
-
-      } else if (
-        bEntry.result === "win"
-        &&
-        aEntry.result === "loss"
-      ) {
-
-        bWinsAgainst +=
-          1;
-
-      } else {
-
-        drawsAgainst +=
-          1;
-
-      }
-
-    } else {
-
-      togetherMatches +=
-        1;
-
-
-      if (
-        aEntry.result === "win"
-        &&
-        bEntry.result === "win"
-      ) {
-
-        togetherWins +=
-          1;
-
-      } else if (
-        aEntry.result === "draw"
-        &&
-        bEntry.result === "draw"
-      ) {
-
-        togetherDraws +=
-          1;
-
-      } else {
-
-        togetherLosses +=
-          1;
-
-      }
-
-    }
-
-  }
-
-
-  return {
-
-    againstMatches,
-
-    aWinsAgainst,
-
-    bWinsAgainst,
-
-    drawsAgainst,
-
-    togetherMatches,
-
-    togetherWins,
-
-    togetherLosses,
-
-    togetherDraws
-
-  };
-
+function computeHeadToHead(aId, bId) {
+  return computeFootballHeadToHead(model, aId, bId);
 }
 
 
@@ -5473,24 +4150,10 @@ function compareStatLine(
   bRaw = null
 ) {
 
-  const leftBetter =
-    aRaw !== null
-    &&
-    bRaw !== null
-    &&
-    Number(aRaw)
-    >
-    Number(bRaw);
-
-
-  const rightBetter =
-    aRaw !== null
-    &&
-    bRaw !== null
-    &&
-    Number(bRaw)
-    >
-    Number(aRaw);
+  const outcome = aRaw === null || bRaw === null ? "tie" : compareMetricValues(aRaw, bRaw);
+  const leftBetter = outcome === "left";
+  const rightBetter = outcome === "right";
+  const tied = outcome === "tie";
 
 
   return `
@@ -5498,15 +4161,18 @@ function compareStatLine(
     <div class="compareStatLine">
 
       <div class="compareSide ${leftBetter ? "better" : ""}">
-        ${esc(aDisplay)}
+        <span>${esc(aDisplay)}</span>
+        ${leftBetter ? `<span class="better-tag"><span aria-hidden="true">✓</span> ${esc(t("bestLabel"))}</span>` : ""}
       </div>
 
       <div class="compareCenter">
         ${esc(label)}
+        ${tied ? `<span class="tie-tag"><span aria-hidden="true">=</span> ${esc(t("tie"))}</span>` : ""}
       </div>
 
       <div class="compareSide ${rightBetter ? "better" : ""}">
-        ${esc(bDisplay)}
+        <span>${esc(bDisplay)}</span>
+        ${rightBetter ? `<span class="better-tag"><span aria-hidden="true">✓</span> ${esc(t("bestLabel"))}</span>` : ""}
       </div>
 
     </div>
@@ -5524,24 +4190,10 @@ function compareFormStatLine(
   bRaw = null
 ) {
 
-  const leftBetter =
-    aRaw !== null
-    &&
-    bRaw !== null
-    &&
-    Number(aRaw)
-    >
-    Number(bRaw);
-
-
-  const rightBetter =
-    aRaw !== null
-    &&
-    bRaw !== null
-    &&
-    Number(bRaw)
-    >
-    Number(aRaw);
+  const outcome = aRaw === null || bRaw === null ? "tie" : compareMetricValues(aRaw, bRaw);
+  const leftBetter = outcome === "left";
+  const rightBetter = outcome === "right";
+  const tied = outcome === "tie";
 
 
   return `
@@ -5549,15 +4201,18 @@ function compareFormStatLine(
     <div class="compareStatLine compareStatLineForm">
 
       <div class="compareSide compareFormSide ${leftBetter ? "better" : ""}">
-        ${esc(aDisplay)}
+        <span>${aDisplay}</span>
+        ${leftBetter ? `<span class="better-tag"><span aria-hidden="true">✓</span> ${esc(t("bestLabel"))}</span>` : ""}
       </div>
 
       <div class="compareCenter">
         ${esc(label)}
+        ${tied ? `<span class="tie-tag"><span aria-hidden="true">=</span> ${esc(t("tie"))}</span>` : ""}
       </div>
 
       <div class="compareSide compareFormSide ${rightBetter ? "better" : ""}">
-        ${esc(bDisplay)}
+        <span>${bDisplay}</span>
+        ${rightBetter ? `<span class="better-tag"><span aria-hidden="true">✓</span> ${esc(t("bestLabel"))}</span>` : ""}
       </div>
 
     </div>
@@ -5573,12 +4228,13 @@ function compareFormStatLine(
 
 function tile(
   label,
-  value
+  value,
+  tone = ""
 ) {
 
   return `
 
-    <div class="statTile">
+    <div class="statTile ${esc(tone)}">
 
       <div class="stLabel">
         ${esc(label)}
@@ -5592,6 +4248,27 @@ function tile(
 
   `;
 
+}
+
+
+function emptyState(icon, title, message, compact = false) {
+  return `
+    <div class="empty-state ${compact ? "compact" : ""}">
+      <span class="empty-icon" aria-hidden="true">${esc(icon)}</span>
+      <strong>${esc(title)}</strong>
+      <p>${esc(message)}</p>
+    </div>
+  `;
+}
+
+
+function renderFormDots(results, large = false) {
+  if (!Array.isArray(results) || !results.length) return `<span class="note">—</span>`;
+  const label = { win: t("win"), draw: t("draw"), loss: t("loss") };
+  return `<span class="result-dots ${large ? "large" : ""}" aria-label="${esc(results.map(result => label[result] || label.loss).join(", "))}">${results.map(result => {
+    const safeResult = result === "win" || result === "draw" ? result : "loss";
+    return `<span class="result-dot ${safeResult}" title="${esc(label[safeResult])}">${esc(label[safeResult].charAt(0))}</span>`;
+  }).join("")}</span>`;
 }
 
 
@@ -5930,17 +4607,12 @@ function playerName(
 
   return (
 
-    players.find(
-      p =>
-        String(p.id)
-        ===
-        String(id)
-    )
+    model.playerById?.get(String(id))
     ?.name
 
     ||
 
-    "Unknown"
+    t("unknown")
 
   );
 
@@ -5990,6 +4662,14 @@ function localISODate() {
 }
 
 
+function formatMatchDate(date) {
+  const parts = String(date || "").split("-").map(Number);
+  if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) return String(date || "");
+  return new Intl.DateTimeFormat(language === "ar" ? "ar-SA-u-ca-gregory" : "en", { day: "numeric", month: "short", year: "numeric" })
+    .format(new Date(parts[0], parts[1] - 1, parts[2]));
+}
+
+
 /* =========================================================
    MONTH LABEL
 ========================================================= */
@@ -6020,7 +4700,7 @@ function formatMonthLabel(
   return (
 
     new Intl.DateTimeFormat(
-      "en",
+      language === "ar" ? "ar-SA-u-ca-gregory" : "en",
       {
         month:
           "long",
@@ -6349,9 +5029,11 @@ function exportJSON() {
   a.remove();
 
 
-  URL.revokeObjectURL(
-    url
-  );
+    URL.revokeObjectURL(
+      url
+    );
+
+  notify(t("backupDone"));
 
 }
 
@@ -6386,6 +5068,8 @@ async function resetAllData() {
 
     }
 
+    notify(t("resetDone"));
+
 
     const playersSnap =
       await getDocs(
@@ -6415,9 +5099,7 @@ async function resetAllData() {
     console.error(e);
 
 
-    alert(
-      "Reset failed. Please try again."
-    );
+    notify(t("resetFailed"), "error");
 
   }
 

@@ -1,437 +1,121 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07110d" />
+  <meta name="description" content="Futbolista — football statistics for the squad." />
   <title>Futbolista</title>
-  <link rel="stylesheet" href="./styles.css?v=300001" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500102" />
+  <link rel="manifest" href="./manifest.json?v=500102" />
+  <link rel="stylesheet" href="./styles.css?v=500102" />
 </head>
 <body>
+<a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
 
-<header class="topbar">
-  <div class="brand">
-    <div class="appicon">⚽</div>
-    <div class="brandtxt">
-      <div class="title">Futbolista</div>
-    </div>
-  </div>
-
-  <div class="row">
-    <button id="btnAdminLogin" type="button" class="btn ghost"
-      onclick="event.preventDefault();event.stopPropagation();window.__adminLogin?.();return false;">
-      Admin Login
-    </button>
-
-    <button id="btnExportTop" type="button" class="btn ghost" data-admin="1"
-      onclick="event.preventDefault();event.stopPropagation();window.__exportNow?.();return false;">
-      Export
-    </button>
+<header class="topbar" id="topbar">
+  <a class="brand" href="#mainContent" aria-label="Futbolista home" data-i18n-aria="homeAria">
+    <span class="appicon" aria-hidden="true"><img src="./icon.svg" alt="" /></span>
+    <span class="brandtxt"><span class="title">Futbolista</span><span class="brand-tagline" data-i18n="tagline">The squad, in numbers.</span></span>
+  </a>
+  <div class="topbar-actions">
+    <button id="btnLanguage" type="button" class="btn btn-quiet btn-compact language-btn" aria-label="Switch language to Arabic" data-i18n-aria="languageAria"><span aria-hidden="true">文</span><span data-i18n="language">العربية</span></button>
+    <button id="btnAdminLogin" type="button" class="btn btn-quiet btn-compact"><span aria-hidden="true">⌁</span><span data-i18n="adminLogin">Admin Login</span></button>
+    <button id="btnExportTop" type="button" class="btn btn-quiet btn-compact" data-admin="1"><span aria-hidden="true">↓</span><span data-i18n="export">Export</span></button>
   </div>
 </header>
 
-<main class="app">
-
-  <!-- DASHBOARD -->
-  <section id="screen-dashboard" class="screen">
-
-    <div class="card">
-      <div class="card-title">In Form Players 🔥</div>
-      <div class="subnote">Last 5 matches · Win = 1 · Draw = 0.5 · Loss = 0</div>
-      <div id="inFormList" class="list note">No data yet.</div>
+<main id="mainContent" class="app" tabindex="-1">
+  <section id="screen-dashboard" class="screen" aria-labelledby="dashboardTitle">
+    <header class="screen-intro dashboard-intro">
+      <div><div class="eyebrow" data-i18n="dashboardEyebrow">Squad overview</div><h1 id="dashboardTitle" data-i18n="dashboardTitle">Matchday pulse</h1><p data-i18n="dashboardLead">Form, goals and the players setting the pace.</p></div>
+      <div class="season-strip" aria-label="Season summary"><div><strong id="seasonMatches">—</strong><span data-i18n="matches">Matches</span></div><div><strong id="seasonPlayers">—</strong><span data-i18n="players">Players</span></div><div><strong id="eligiblePlayers">—</strong><span data-i18n="ranked">Ranked</span></div></div>
+    </header>
+    <div class="dashboard-grid dashboard-feature-grid">
+      <article class="card feature-card form-card"><div class="card-icon fire" aria-hidden="true">↗</div><div class="card-heading"><div><div class="eyebrow" data-i18n="rightNow">Right now</div><h2 data-i18n="inForm">In Form Players</h2></div><span class="status-pill live"><span></span><span data-i18n="last5">Last 5</span></span></div><p class="subnote" data-i18n="formFormula">Win = 1 · Draw = 0.5 · Loss = 0</p><div id="inFormList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingForm">Loading form…</div></article>
+      <article class="card feature-card potm-card"><div class="card-icon crown" aria-hidden="true">★</div><div class="card-heading"><div><div class="eyebrow" data-i18n="monthlyAward">Monthly award</div><h2 data-i18n="playerMonth">Player of the Month</h2></div><span id="playerOfMonthMonth" class="status-pill">—</span></div><p class="subnote" data-i18n="monthFormula">Attendance first · results second · goals lighter weight</p><div id="playerOfMonthList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMonthly">Loading monthly rankings…</div></article>
     </div>
-
-    <div class="card">
-      <div class="card-title">Player of The Month</div>
-      <div class="subnote">
-        Attendance first · results second · goals lighter weight · score capped at 10
-      </div>
-      <div id="playerOfMonthList" class="list note">No monthly data yet.</div>
+    <div class="dashboard-grid dashboard-metric-grid">
+      <article class="card metric-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="finishing">Finishing</div><h2 data-i18n="topScorers">Top Scorers</h2></div><span class="metric-symbol" aria-hidden="true">⚽</span></div><div id="dashTopScorers" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingScorers">Loading scorers…</div></article>
+      <article class="card metric-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="momentum">Momentum</div><h2 data-i18n="bestStreak">Best Current Streak</h2></div><span class="metric-symbol" aria-hidden="true">⚡</span></div><div id="dashTopStreaks" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingStreaks">Loading streaks…</div></article>
+      <article class="card metric-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="consistency">Consistency</div><h2 data-i18n="bestWinPct">Best Win %</h2></div><span class="metric-symbol" aria-hidden="true">◎</span></div><div id="dashTopWinPct" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPct">Loading percentages…</div></article>
+      <article class="card metric-card latest-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="latest">Latest</div><h2 data-i18n="latestMatch">Latest Match</h2></div><span class="metric-symbol" aria-hidden="true">◷</span></div><div id="dashLatestMatch" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingLatest">Loading latest match…</div></article>
     </div>
-
-    <div class="card">
-      <div class="card-title">Top Scorers</div>
-      <div id="dashTopScorers" class="list note">No data yet.</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Best Current Streak</div>
-      <div id="dashTopStreaks" class="list note">No data yet.</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Best Win %</div>
-      <div id="dashTopWinPct" class="list note">No data yet.</div>
-    </div>
-
   </section>
 
-  <!-- LEADERBOARD -->
-  <section id="screen-leaderboard" class="screen hidden">
-
-    <div class="card">
-      <div class="card-h">
-        <div class="card-title">Leaderboard</div>
-
-        <div class="row">
-          <label class="label">Sort by</label>
-
-          <select id="lbSort" class="select">
-            <option value="form" selected>Form</option>
-            <option value="winPct">Win %</option>
-            <option value="goals">Goals</option>
-            <option value="gpm">Goals per Match</option>
-            <option value="wins">Wins</option>
-            <option value="matches">Matches</option>
-            <option value="curStreak">Current Win Streak</option>
-            <option value="bestStreak">Best Win Streak</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="leaderboardList" class="list note">No players yet.</div>
-    </div>
-
+  <section id="screen-leaderboard" class="screen hidden" aria-labelledby="leaderboardTitle">
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="competitive">Competitive ranking</div><h1 id="leaderboardTitle" data-i18n="leaderboard">Leaderboard</h1><p data-i18n="leaderboardLead">Eligible players ranked by the metric you choose.</p></div></header>
+    <article class="card"><div class="card-toolbar"><div><h2 data-i18n="standings">Standings</h2><p class="subnote" data-i18n="formDefault">Form is the default ranking.</p></div><label class="field-inline" for="lbSort"><span data-i18n="sortBy">Sort by</span><select id="lbSort" class="select"><option value="form" selected data-i18n="form">Form</option><option value="winPct" data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option></select></label></div><div id="leaderboardList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingLeaderboard">Loading leaderboard…</div></article>
   </section>
 
-  <!-- TABLE -->
-  <section id="screen-table" class="screen hidden">
-
-    <div class="card">
-
-      <div class="card-h">
-        <div class="card-title">All Players Table</div>
-
-        <div class="row">
-          <label class="label">Sort by</label>
-
-          <select id="tableSort" class="select">
-            <option value="winPct" selected>Win %</option>
-            <option value="goals">Goals</option>
-            <option value="gpm">Goals per Match</option>
-            <option value="wins">Wins</option>
-            <option value="matches">Matches</option>
-            <option value="curStreak">Current Win Streak</option>
-            <option value="bestStreak">Best Win Streak</option>
-            <option value="name">Name</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="tablewrap">
-        <table class="table">
-
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Name</th>
-              <th>Matches</th>
-              <th>Wins</th>
-              <th>Goals</th>
-              <th>Win %</th>
-              <th>Goals/Match</th>
-              <th>Current Streak</th>
-              <th>Best Streak</th>
-            </tr>
-          </thead>
-
-          <tbody id="tableBody">
-            <tr>
-              <td colspan="9" class="noteCell">No players yet.</td>
-            </tr>
-          </tbody>
-
-        </table>
-      </div>
-
-    </div>
-
+  <section id="screen-table" class="screen hidden" aria-labelledby="tableTitle">
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="breakdown">Full breakdown</div><h1 id="tableTitle" data-i18n="statsTable">Stats table</h1><p data-i18n="tableLead">Scan every competitive metric in one place.</p></div></header>
+    <article class="card table-card"><div class="card-toolbar"><div><h2 data-i18n="allEligible">All eligible players</h2><p class="subnote" data-i18n="swipeTable">Swipe the table horizontally on mobile.</p></div><label class="field-inline" for="tableSort"><span data-i18n="sortBy">Sort by</span><select id="tableSort" class="select"><option value="winPct" selected data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="name" data-i18n="name">Name</option></select></label></div><div class="tablewrap" tabindex="0" role="region" aria-label="Player statistics table" data-i18n-aria="tableAria"><table class="table"><thead><tr><th scope="col">#</th><th scope="col" data-i18n="name">Name</th><th scope="col" data-i18n="matches">Matches</th><th scope="col" data-i18n="wins">Wins</th><th scope="col" data-i18n="goals">Goals</th><th scope="col" data-i18n="winPct">Win %</th><th scope="col" data-i18n="gpm">Goals/Match</th><th scope="col" data-i18n="currentStreak">Current Streak</th><th scope="col" data-i18n="bestWinStreak">Best Streak</th></tr></thead><tbody id="tableBody"><tr><td colspan="9" class="noteCell" data-i18n="loadingStats">Loading statistics…</td></tr></tbody></table></div></article>
   </section>
 
-  <!-- PLAYER STATS -->
-  <section id="screen-playerstats" class="screen hidden">
-
-    <div class="card">
-
-      <div class="card-h">
-        <div class="card-title">Player Stats</div>
-        <div class="subnote">Tap a player to view profile.</div>
-      </div>
-
-      <div id="playerCards" class="playerCards note">No players yet.</div>
-
-    </div>
-
+  <section id="screen-playerstats" class="screen hidden" aria-labelledby="playersTitle">
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="squad">The squad</div><h1 id="playersTitle" data-i18n="playerStats">Player Stats</h1><p data-i18n="playersLead">Choose a player to open their full profile.</p></div></header>
+    <article class="card"><div class="directory-toolbar"><label class="field grow" for="playerSearch"><span data-i18n="searchPlayers">Search players</span><input id="playerSearch" class="input search-input" type="search" autocomplete="off" placeholder="Search by name…" data-i18n-placeholder="searchPlaceholder" /></label><label class="field directory-sort" for="playerSort"><span data-i18n="sortBy">Sort by</span><select id="playerSort" class="select"><option value="name" data-i18n="alpha">Alphabetical</option><option value="matches" data-i18n="mostMatches">Most matches</option><option value="goals" data-i18n="mostGoals">Most goals</option></select></label></div><div id="playerCards" class="playerCards skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPlayers">Loading players…</div></article>
   </section>
 
-  <!-- COMPARE -->
-  <section id="screen-compare" class="screen hidden">
-
-    <div class="card">
-
-      <div class="card-title">Compare</div>
-
-      <div class="gridForm compareSelectors">
-
-        <div>
-          <div class="label">Player A</div>
-          <select id="cmpPlayerA" class="select"></select>
-        </div>
-
-        <div>
-          <div class="label">Player B</div>
-          <select id="cmpPlayerB" class="select"></select>
-        </div>
-
-      </div>
-
-    </div>
-
-    <div id="compareResult" class="compareWrap note">
-      Select two different players.
-    </div>
-
+  <section id="screen-compare" class="screen hidden" aria-labelledby="compareTitle">
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="sideBySide">Side by side</div><h1 id="compareTitle" data-i18n="comparePlayers">Compare players</h1><p data-i18n="compareLead">Head-to-head, teammate record and individual numbers.</p></div></header>
+    <article class="card compare-picker-card"><div class="versus-selectors"><label class="field" for="cmpPlayerA"><span data-i18n="playerA">Player A</span><select id="cmpPlayerA" class="select"></select></label><button id="btnSwapPlayers" class="versus-chip swap-button" type="button" aria-label="Swap players" data-i18n-aria="swap"><span aria-hidden="true">⇄</span><span class="sr-only" data-i18n="swap">Swap players</span></button><label class="field" for="cmpPlayerB"><span data-i18n="playerB">Player B</span><select id="cmpPlayerB" class="select"></select></label></div></article>
+    <div id="compareResult" class="compareWrap" aria-live="polite"><div class="empty-state compact"><span class="empty-icon" aria-hidden="true">⇄</span><strong data-i18n="readyMatchup">Ready for a matchup</strong><p data-i18n="selectTwo">Select two different players to compare.</p></div></div>
   </section>
 
-  <!-- PLAYER PROFILE -->
-  <section id="screen-playerprofile" class="screen hidden">
-
-    <div class="card">
-
-      <div class="profileTop">
-
-        <button id="btnProfileBack" class="btn ghost backbtn" type="button">
-          ← Back
-        </button>
-
-        <div>
-          <div id="profileName" class="profileName">Player</div>
-          <div id="profileSub" class="subnote"></div>
-        </div>
-
-      </div>
-
-      <div id="profileStatsGrid" class="statGrid"></div>
-
-    </div>
-
-    <div class="card">
-      <div class="card-title">Form (Last 5 Matches)</div>
-      <div id="profileForm" class="formRow">—</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Most Teammates</div>
-      <div id="profileMates" class="matesList note">No data yet.</div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Never played with</div>
-      <div id="profileNever" class="neverList note">—</div>
-    </div>
-
+  <section id="screen-playerprofile" class="screen hidden" aria-labelledby="profileName">
+    <article class="card profile-hero"><button id="btnProfileBack" class="btn btn-quiet backbtn" type="button"><span aria-hidden="true" class="back-arrow">←</span> <span data-i18n="backPlayers">Players</span></button><div class="profileIdentity"><div id="profileInitial" class="profileAvatar" aria-hidden="true">P</div><div><div class="eyebrow" data-i18n="profile">Player profile</div><h1 id="profileName" class="profileName">Player</h1><div id="profileSub" class="subnote"></div></div></div><div id="profileStatsGrid" class="statGrid"></div></article>
+    <div class="profile-details-grid"><article class="card"><div class="card-heading"><h2 data-i18n="form">Form</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileForm" class="formRow">—</div></article><article class="card"><div class="card-heading"><h2 data-i18n="mostTeammates">Most Teammates</h2><span class="metric-symbol" aria-hidden="true">◉</span></div><div id="profileMates" class="matesList skeleton-list" aria-live="polite" data-i18n="loadingConnections">Loading connections…</div></article><article class="card full-span"><div class="card-heading"><h2 data-i18n="recentMatches">Recent matches</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileMatches" class="profile-match-list"></div></article><article class="card full-span"><h2 data-i18n="neverPlayed">Never played with</h2><div id="profileNever" class="neverList note">—</div></article></div>
   </section>
 
-  <!-- MATCH HISTORY -->
-  <section id="screen-history" class="screen hidden">
-
-    <div class="card">
-
-      <div class="card-title">Match History</div>
-
-      <div id="matchHistoryList" class="list note">
-        No matches yet.
-      </div>
-
-    </div>
-
+  <section id="screen-history" class="screen hidden" aria-labelledby="historyTitle">
+    <header class="screen-intro"><div><div class="eyebrow" data-i18n="archive">Match archive</div><h1 id="historyTitle" data-i18n="history">Match History</h1><p data-i18n="historyLead">Results, lineups, scorers and own goals.</p></div></header>
+    <article class="card history-tools"><div class="history-toolbar"><label class="field grow" for="historySearch"><span data-i18n="searchHistory">Search player</span><input id="historySearch" class="input search-input" type="search" autocomplete="off" placeholder="Find a player in matches…" data-i18n-placeholder="historyPlaceholder" /></label><label class="field history-period-field" for="historyPeriod"><span data-i18n="date">Date</span><select id="historyPeriod" class="select"><option value="all" data-i18n="allDates">All dates</option></select></label><div class="history-actions"><button id="btnExpandAll" type="button" class="btn btn-quiet" data-i18n="expandAll">Expand all</button><button id="btnCollapseAll" type="button" class="btn btn-quiet" data-i18n="collapseAll">Collapse all</button></div></div></article>
+    <div id="matchHistoryList" class="match-list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMatches">Loading matches…</div>
   </section>
 
-  <!-- PLAYERS ADMIN -->
-  <section id="screen-players" class="screen hidden" data-admin="1">
-
-    <div class="card">
-
-      <div class="card-title">Add Player</div>
-
-      <div class="row">
-        <input id="playerName" class="input" placeholder="Player name" />
-        <button id="btnAddPlayer" type="button" class="btn">Add</button>
-      </div>
-
-    </div>
-
-    <div class="card">
-
-      <div class="card-title">Players</div>
-
-      <div id="playersList" class="list note">
-        No players yet.
-      </div>
-
-    </div>
-
+  <section id="screen-players" class="screen hidden" data-admin="1" aria-labelledby="adminPlayersTitle">
+    <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="adminPlayersTitle" data-i18n="managePlayers">Manage players</h1><p data-i18n="manageLead">Add squad members and review recorded totals.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
+    <article class="card admin-action-card"><h2 data-i18n="addPlayer">Add player</h2><p class="subnote" data-i18n="uniqueNames">Names must be unique.</p><div class="action-row"><label class="field grow" for="playerName"><span data-i18n="playerName">Player name</span><input id="playerName" class="input" autocomplete="off" placeholder="e.g. Ahmed" data-i18n-placeholder="playerPlaceholder" /></label><button id="btnAddPlayer" type="button" class="btn btn-primary" data-i18n="addPlayer">Add player</button></div></article>
+    <article class="card"><h2 data-i18n="squadList">Squad list</h2><div id="playersList" class="list skeleton-list" aria-live="polite" data-i18n="loadingAdminPlayers">Loading players…</div></article>
   </section>
 
-  <!-- MATCH ENTRY ADMIN -->
-  <section id="screen-matches" class="screen hidden" data-admin="1">
-
-    <div class="card">
-
-      <div class="card-title">Add Match Entry (per player)</div>
-
-      <div class="gridForm">
-
-        <div>
-          <div class="label">Date</div>
-          <input id="logDate" class="input" type="date" />
-        </div>
-
-        <div>
-          <div class="label">Player</div>
-          <select id="logPlayer" class="select"></select>
-        </div>
-
-        <div>
-          <div class="label">Goals</div>
-          <input
-            id="logGoals"
-            class="input"
-            type="number"
-            min="0"
-            max="99"
-            value="0"
-          />
-        </div>
-
-        <div>
-          <div class="label">Result</div>
-
-          <select id="logResult" class="select">
-            <option value="win" selected>Win</option>
-            <option value="draw">Draw</option>
-            <option value="loss">Loss</option>
-          </select>
-        </div>
-
-        <div>
-          <div class="label">Team</div>
-
-          <select id="logSide" class="select">
-            <option value="A" selected>Team A</option>
-            <option value="B">Team B</option>
-          </select>
-        </div>
-
-        <div>
-          <div class="label">Goal Type</div>
-
-          <select id="logGoalType" class="select">
-            <option value="normal" selected>Normal</option>
-            <option value="own">Own Goal</option>
-          </select>
-        </div>
-
-      </div>
-
-      <button id="btnAddLog" type="button" class="btn full">
-        Add Entry
-      </button>
-
-    </div>
-
-    <div class="card">
-
-      <div class="card-title">Recent Entries</div>
-
-      <div id="logsList" class="list note">
-        No entries yet.
-      </div>
-
-    </div>
-
+  <section id="screen-matches" class="screen hidden" data-admin="1" aria-labelledby="entryTitle">
+    <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="entryTitle" data-i18n="matchEntry">Match entry</h1><p data-i18n="entryLead">Add one participation at a time. Existing match data stays untouched.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
+    <article class="card admin-action-card"><h2 data-i18n="addMatchEntry">Add match entry</h2><div class="gridForm entry-grid"><label class="field" for="logDate"><span data-i18n="date">Date</span><input id="logDate" class="input" type="date" /></label><label class="field" for="logPlayer"><span data-i18n="player">Player</span><select id="logPlayer" class="select"></select></label><label class="field" for="logGoals"><span data-i18n="goals">Goals</span><input id="logGoals" class="input" type="number" inputmode="numeric" min="0" max="99" value="0" /></label><label class="field" for="logResult"><span data-i18n="result">Result</span><select id="logResult" class="select"><option value="win" selected data-i18n="win">Win</option><option value="draw" data-i18n="draw">Draw</option><option value="loss" data-i18n="loss">Loss</option></select></label><label class="field" for="logSide"><span data-i18n="team">Team</span><select id="logSide" class="select"><option value="A" selected data-i18n="teamA">Team A</option><option value="B" data-i18n="teamB">Team B</option></select></label><label class="field" for="logGoalType"><span data-i18n="goalType">Goal type</span><select id="logGoalType" class="select"><option value="normal" selected data-i18n="normal">Normal</option><option value="own" data-i18n="ownGoal">Own Goal</option></select></label></div><div class="form-warning"><span aria-hidden="true">!</span> <span data-i18n="entryWarning">Normal and own-goal entries may coexist. Identical entry types are blocked.</span></div><button id="btnAddLog" type="button" class="btn btn-primary full" data-i18n="saveEntry">Save entry</button></article>
+    <article class="card"><h2 data-i18n="recentEntries">Recent entries</h2><div id="logsList" class="list skeleton-list" aria-live="polite" data-i18n="loadingEntries">Loading recent entries…</div></article>
   </section>
 
-  <!-- SETTINGS -->
-  <section id="screen-settings" class="screen hidden" data-admin="1">
-
-    <div class="card">
-
-      <div class="card-title">Backup</div>
-
-      <button id="btnExport" type="button" class="btn full">
-        Export JSON
-      </button>
-
-    </div>
-
-    <div class="card danger">
-
-      <div class="card-title">Danger Zone</div>
-
-      <button id="btnReset" type="button" class="btn dangerBtn full">
-        Reset all data
-      </button>
-
-    </div>
-
+  <section id="screen-settings" class="screen hidden" data-admin="1" aria-labelledby="settingsTitle">
+    <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="settingsTitle" data-i18n="settings">Settings</h1><p data-i18n="settingsLead">Backups and protected data actions.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
+    <article class="card settings-card"><div><div class="settings-icon" aria-hidden="true">↓</div><div><h2 data-i18n="backup">Backup</h2><p class="subnote" data-i18n="backupLead">Download players and raw Firestore logs as JSON.</p></div></div><button id="btnExport" type="button" class="btn btn-primary" data-i18n="exportJson">Export JSON</button></article>
+    <article class="card settings-card danger"><div><div class="settings-icon danger-icon" aria-hidden="true">!</div><div><h2 data-i18n="dangerZone">Danger Zone</h2><p class="subnote" data-i18n="dangerLead">Permanently deletes all players and logs after confirmation.</p></div></div><button id="btnReset" type="button" class="btn dangerBtn" data-i18n="resetAll">Reset all data</button></article>
   </section>
-
 </main>
 
-<nav class="bottomnav">
+<nav class="bottomnav" aria-label="Primary navigation" data-i18n-aria="primaryNav"><div class="bottomnav-shell"><div class="bottomnav-inner iconnav">
+  <button type="button" class="navbtn active" data-nav="dashboard" aria-current="page"><span class="ico" aria-hidden="true">⌂</span><span class="txt" data-i18n="navDashboard">Dashboard</span></button><button type="button" class="navbtn" data-nav="leaderboard"><span class="ico" aria-hidden="true">♛</span><span class="txt" data-i18n="navLeaderboard">Leaderboard</span></button><button type="button" class="navbtn" data-nav="table"><span class="ico" aria-hidden="true">▥</span><span class="txt" data-i18n="navTable">Table</span></button><button type="button" class="navbtn" data-nav="playerstats"><span class="ico" aria-hidden="true">◉</span><span class="txt" data-i18n="navPlayers">Players</span></button><button type="button" class="navbtn" data-nav="compare"><span class="ico" aria-hidden="true">⇄</span><span class="txt" data-i18n="navCompare">Compare</span></button><button type="button" class="navbtn" data-nav="history"><span class="ico" aria-hidden="true">◷</span><span class="txt" data-i18n="navHistory">History</span></button><button type="button" class="navbtn" data-nav="players" data-admin="1"><span class="ico" aria-hidden="true">♢</span><span class="txt" data-i18n="navAdmin">Admin</span></button><button type="button" class="navbtn" data-nav="matches" data-admin="1"><span class="ico" aria-hidden="true">＋</span><span class="txt" data-i18n="navEntry">Entry</span></button><button type="button" class="navbtn" data-nav="settings" data-admin="1"><span class="ico" aria-hidden="true">⚙</span><span class="txt" data-i18n="navSettings">Settings</span></button>
+</div><span class="nav-scroll-hint" aria-hidden="true">›</span></div></nav>
 
-  <div class="bottomnav-inner iconnav">
+<div id="loginModal" class="modal-backdrop hidden" role="presentation">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="loginTitle" aria-describedby="loginLead">
+    <button class="modal-close" type="button" data-close-modal aria-label="Close dialog" data-i18n-aria="close">×</button>
+    <div class="modal-icon" aria-hidden="true">⌁</div><h2 id="loginTitle" data-i18n="loginTitle">Admin sign in</h2><p id="loginLead" class="modal-lead" data-i18n="loginLead">Use the authorized administrator account to unlock management tools.</p>
+    <form id="loginForm" novalidate><label class="field" for="loginEmail"><span data-i18n="email">Email</span><input id="loginEmail" class="input" type="email" inputmode="email" autocomplete="username" required /></label><label class="field" for="loginPassword"><span data-i18n="password">Password</span><div class="password-wrap"><input id="loginPassword" class="input" type="password" autocomplete="current-password" required /><button id="btnTogglePassword" class="password-toggle" type="button" aria-pressed="false" data-i18n="showPassword">Show password</button></div></label><p id="loginError" class="form-error" role="alert" hidden></p><div class="modal-actions"><button type="button" class="btn btn-quiet" data-close-modal data-i18n="cancel">Cancel</button><button id="btnLoginSubmit" type="submit" class="btn btn-primary" data-i18n="signIn">Sign in</button></div></form>
+  </section>
+</div>
 
-    <button type="button" class="navbtn active" data-nav="dashboard">
-      <span class="ico">🏠</span>
-      <span class="txt">Dashboard</span>
-    </button>
+<div id="resetModal" class="modal-backdrop hidden" role="presentation">
+  <section class="modal danger-modal" role="dialog" aria-modal="true" aria-labelledby="resetTitle" aria-describedby="resetLead">
+    <button class="modal-close" type="button" data-close-modal aria-label="Close dialog" data-i18n-aria="close">×</button>
+    <div class="modal-icon danger-icon" aria-hidden="true">!</div><h2 id="resetTitle" data-i18n="resetTitle">Confirm permanent reset</h2><p id="resetLead" class="modal-lead" data-i18n="resetLead">This permanently deletes every player and match entry. A backup is strongly recommended first.</p>
+    <form id="resetForm" novalidate><label class="field" for="resetPhrase"><span data-i18n="typeReset">Type RESET to enable the destructive action.</span><input id="resetPhrase" class="input" type="text" autocomplete="off" spellcheck="false" placeholder="RESET" /></label><div class="modal-actions"><button type="button" class="btn btn-quiet" data-close-modal data-i18n="cancel">Cancel</button><button id="btnResetConfirm" type="submit" class="btn dangerBtn" disabled data-i18n="confirmReset">Permanently reset data</button></div></form>
+  </section>
+</div>
 
-    <button type="button" class="navbtn" data-nav="leaderboard">
-      <span class="ico">🏆</span>
-      <span class="txt">Leaderboard</span>
-    </button>
-
-    <button type="button" class="navbtn" data-nav="table">
-      <span class="ico">📊</span>
-      <span class="txt">Table</span>
-    </button>
-
-    <button type="button" class="navbtn" data-nav="playerstats">
-      <span class="ico">👥</span>
-      <span class="txt">Players</span>
-    </button>
-
-    <button type="button" class="navbtn" data-nav="compare">
-      <span class="ico">⚔️</span>
-      <span class="txt">Compare</span>
-    </button>
-
-    <button type="button" class="navbtn" data-nav="history">
-      <span class="ico">🗓️</span>
-      <span class="txt">History</span>
-    </button>
-
-    <button type="button" class="navbtn" data-nav="players" data-admin="1">
-      <span class="ico">🛡️</span>
-      <span class="txt">Admin</span>
-    </button>
-
-    <button type="button" class="navbtn" data-nav="matches" data-admin="1">
-      <span class="ico">➕</span>
-      <span class="txt">Entry</span>
-    </button>
-
-    <button type="button" class="navbtn" data-nav="settings" data-admin="1">
-      <span class="ico">⚙️</span>
-      <span class="txt">Settings</span>
-    </button>
-
-  </div>
-
-</nav>
-
-<script type="module" src="./app.js?v=300001"></script>
-
+<div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
+<script type="module" src="./app.js?v=500102"></script>
 </body>
 </html>

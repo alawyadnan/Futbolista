@@ -1,10 +1,18 @@
-const CACHE = "futbolista-cache-v150";
+const CACHE = "futbolista-cache-v500102";
 
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./data-engine.js",
+  "./i18n.js",
+  "./ux-utils.js",
+  "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./icon-maskable-512.png",
+  "./apple-touch-icon.png",
   "./manifest.json",
   "./sw.js"
 ];
@@ -34,6 +42,8 @@ self.addEventListener("fetch", (e) => {
     url.pathname.endsWith(".js") ||
     url.pathname.endsWith(".css") ||
     url.pathname.endsWith(".json") ||
+    url.pathname.endsWith(".png") ||
+    url.pathname.endsWith(".svg") ||
     url.pathname.endsWith("/sw.js");
 
   if (!isCore) return;
