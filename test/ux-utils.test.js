@@ -45,7 +45,8 @@ test("comparison outcomes identify both winners and exact ties", () => {
 test("localization covers direction, interpolation and count grammar", () => {
   assert.equal(directionFor("ar"), "rtl");
   assert.equal(directionFor("en"), "ltr");
-  assert.equal(translate("ar", "dashboardTitle"), "ملخص الفريق");
+  assert.equal(translate("ar", "dashboardTitle"), "إحصائيات التمرين");
+  assert.equal(translate("en", "dashboardTitle"), "Pickup Stats");
   assert.equal(translate("ar", "win"), "فوز");
   assert.equal(translate("ar", "shortWin"), "ف");
   assert.equal(translate("ar", "teamA"), "الفريق أ");

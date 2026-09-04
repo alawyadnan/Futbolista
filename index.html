@@ -7,9 +7,9 @@
   <meta name="description" content="Futbolista — football statistics for the squad." />
   <title>Futbolista</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500104" />
-  <link rel="manifest" href="./manifest.json?v=500104" />
-  <link rel="stylesheet" href="./styles.css?v=500104" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500105" />
+  <link rel="manifest" href="./manifest.json?v=500105" />
+  <link rel="stylesheet" href="./styles.css?v=500105" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -17,7 +17,7 @@
 <header class="topbar" id="topbar">
   <a class="brand" href="#mainContent" aria-label="Futbolista home" data-i18n-aria="homeAria">
     <span class="appicon" aria-hidden="true"><img src="./icon.svg" alt="" /></span>
-    <span class="brandtxt"><span class="title">Futbolista</span><span class="brand-tagline" data-i18n="tagline">The squad, in numbers.</span></span>
+    <span class="brandtxt"><span class="title">Futbolista</span></span>
   </a>
   <div class="topbar-actions">
     <button id="btnLanguage" type="button" class="btn btn-quiet btn-compact language-btn" aria-label="Switch language to Arabic" data-i18n-aria="languageAria"><span aria-hidden="true">文</span><span data-i18n="language">العربية</span></button>
@@ -29,7 +29,7 @@
 <main id="mainContent" class="app" tabindex="-1">
   <section id="screen-dashboard" class="screen" aria-labelledby="dashboardTitle">
     <header class="screen-intro dashboard-intro">
-      <div><h1 id="dashboardTitle" data-i18n="dashboardTitle">Matchday pulse</h1></div>
+      <div><h1 id="dashboardTitle" data-i18n="dashboardTitle">Pickup Stats</h1></div>
       <div class="season-strip" aria-label="Season summary"><div><strong id="seasonMatches">—</strong><span data-i18n="matches">Matches</span></div><div><strong id="seasonPlayers">—</strong><span data-i18n="players">Players</span></div></div>
     </header>
     <div class="dashboard-grid dashboard-feature-grid">
@@ -37,9 +37,9 @@
       <article class="card feature-card potm-card"><div class="card-icon crown" aria-hidden="true">★</div><div class="card-heading"><div><div class="eyebrow" data-i18n="monthlyAward">Monthly award</div><h2 data-i18n="playerMonth">Player of the Month</h2></div><span id="playerOfMonthMonth" class="status-pill">—</span></div><div id="playerOfMonthList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMonthly">Loading monthly rankings…</div></article>
     </div>
     <div class="dashboard-grid dashboard-metric-grid">
-      <article class="card metric-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="finishing">Finishing</div><h2 data-i18n="topScorers">Top Scorers</h2></div><span class="metric-symbol" aria-hidden="true">⚽</span></div><div id="dashTopScorers" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingScorers">Loading scorers…</div></article>
-      <article class="card metric-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="momentum">Momentum</div><h2 data-i18n="bestStreak">Best Current Streak</h2></div><span class="metric-symbol" aria-hidden="true">⚡</span></div><div id="dashTopStreaks" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingStreaks">Loading streaks…</div></article>
-      <article class="card metric-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="consistency">Consistency</div><h2 data-i18n="bestWinPct">Best Win %</h2></div><span class="metric-symbol" aria-hidden="true">◎</span></div><div id="dashTopWinPct" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPct">Loading percentages…</div></article>
+      <article class="card metric-card scorers-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="finishing">Finishing</div><h2 data-i18n="topScorers">Top Scorers</h2></div><span class="metric-symbol" aria-hidden="true">⚽</span></div><div id="dashTopScorers" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingScorers">Loading scorers…</div></article>
+      <article class="card metric-card streak-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="momentum">Momentum</div><h2 data-i18n="bestStreak">Best Current Streak</h2></div><span class="metric-symbol" aria-hidden="true">⚡</span></div><div id="dashTopStreaks" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingStreaks">Loading streaks…</div></article>
+      <article class="card metric-card win-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="consistency">Consistency</div><h2 data-i18n="bestWinPct">Best Win %</h2></div><span class="metric-symbol" aria-hidden="true">◎</span></div><div id="dashTopWinPct" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPct">Loading percentages…</div></article>
     </div>
   </section>
 
@@ -115,6 +115,6 @@
 </div>
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500104"></script>
+<script type="module" src="./app.js?v=500105"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ const messages = {
   en: {
     skip: "Skip to content", homeAria: "Futbolista home", tagline: "The squad, in numbers.",
     language: "العربية", languageAria: "Switch language to Arabic", adminLogin: "Admin Login", logout: "Logout", export: "Export",
-    dashboardEyebrow: "Squad overview", dashboardTitle: "Matchday pulse", dashboardLead: "Form, goals and the players setting the pace.",
+    dashboardEyebrow: "Squad overview", dashboardTitle: "Pickup Stats", dashboardLead: "Form, goals and the players setting the pace.",
     matches: "Matches", players: "Players", ranked: "Ranked", rightNow: "Right now", inForm: "In Form Players", last5: "Last 5",
     formFormula: "Win = 1 · Draw = 0.5 · Loss = 0", loadingForm: "Loading form…", monthlyAward: "Monthly award", playerMonth: "Player of the Month",
     monthFormula: "Attendance first · results second · goals lighter weight", loadingMonthly: "Loading monthly rankings…", finishing: "Finishing", topScorers: "Top Scorers",
@@ -37,7 +37,7 @@ const messages = {
   ar: {
     skip: "انتقل إلى المحتوى", homeAria: "الرئيسية في فوتبوليستا", tagline: "فريقنا بالأرقام.",
     language: "English", languageAria: "تغيير اللغة إلى الإنجليزية", adminLogin: "دخول الإدارة", logout: "تسجيل الخروج", export: "تصدير",
-    dashboardEyebrow: "إحصائيات الفريق", dashboardTitle: "ملخص الفريق", dashboardLead: "أبرز النتائج والأهداف ومستوى اللاعبين في مكان واحد.",
+    dashboardEyebrow: "إحصائيات الفريق", dashboardTitle: "إحصائيات التمرين", dashboardLead: "أبرز النتائج والأهداف ومستوى اللاعبين في مكان واحد.",
     matches: "المباريات", players: "اللاعبون", ranked: "في الترتيب", rightNow: "المستوى الحالي", inForm: "اللاعبون المتألقون", last5: "آخر 5 مباريات",
     formFormula: "الفوز نقطة · التعادل نصف نقطة · الخسارة بلا نقاط", loadingForm: "جارٍ تحميل النتائج الأخيرة…", monthlyAward: "جائزة الشهر", playerMonth: "لاعب الشهر",
     monthFormula: "الأولوية للحضور ثم النتائج، والأهداف عامل إضافي", loadingMonthly: "جارٍ تحميل ترتيب الشهر…", finishing: "الأهداف", topScorers: "الهدافون",

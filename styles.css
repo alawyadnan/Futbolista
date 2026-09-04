@@ -34,20 +34,20 @@ h2,.card-title{font-size:18px;line-height:1.2;letter-spacing:-.02em}
 .brand{display:flex;align-items:center;gap:11px;min-width:0;border-radius:14px}
 .appicon{width:44px;height:44px;flex:0 0 auto;display:grid;place-items:center;border-radius:15px;box-shadow:0 0 28px rgba(67,223,135,.13)}
 .appicon img{display:block;width:44px;height:44px}
-.brandtxt{display:flex;flex-direction:column;min-width:0}
-.title{font-size:18px;font-weight:900;letter-spacing:-.035em}
-.brand-tagline{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
+.brandtxt{display:flex;align-items:center;min-width:0}
+.title{font-size:19px;font-weight:900;letter-spacing:-.035em}
 .topbar-actions{display:flex;align-items:center;gap:8px}
 
 .app{position:relative;z-index:1;width:100%;max-width:1120px;margin:0 auto;padding:28px 18px calc(var(--nav-h) + 42px + env(safe-area-inset-bottom))}
 .screen-intro{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin:4px 2px 24px}
 .screen-intro p{margin-top:8px;color:var(--muted);font-size:14px;line-height:1.55}
+.dashboard-intro h1::after{content:"";display:block;width:54px;height:4px;margin-top:11px;border-radius:999px;background:linear-gradient(90deg,var(--green),var(--lime));box-shadow:0 0 20px rgba(67,223,135,.24)}
 .eyebrow{margin-bottom:7px;color:var(--green);font-size:10px;line-height:1;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
-.season-strip{display:flex;flex:0 0 auto;border:1px solid var(--line);border-radius:18px;background:rgba(13,24,19,.74);box-shadow:var(--shadow-soft);overflow:hidden}
+.season-strip{display:flex;flex:0 0 auto;border:1px solid rgba(67,223,135,.2);border-radius:18px;background:linear-gradient(145deg,rgba(19,39,29,.9),rgba(10,21,16,.88));box-shadow:var(--shadow-soft);overflow:hidden}
 .season-strip>div{min-width:86px;padding:12px 16px;text-align:center;border-left:1px solid var(--line)}
 .season-strip>div:first-child{border-left:0}
 .season-strip strong,.season-strip span{display:block}
-.season-strip strong{font-size:20px;line-height:1;font-variant-numeric:tabular-nums}
+.season-strip strong{color:var(--green);font-size:20px;line-height:1;font-variant-numeric:tabular-nums}
 .season-strip span{margin-top:6px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
 
 .dashboard-grid{display:grid;gap:16px}
@@ -64,6 +64,13 @@ h2,.card-title{font-size:18px;line-height:1.2;letter-spacing:-.02em}
 .potm-card .eyebrow{color:var(--yellow)}
 .metric-card{min-height:265px}
 .metric-symbol{display:grid;place-items:center;width:38px;height:38px;flex:0 0 auto;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.035);font-size:17px}
+.scorers-card .metric-symbol{border-color:rgba(67,223,135,.22);background:rgba(67,223,135,.08)}
+.streak-card::before{background:linear-gradient(90deg,var(--blue),transparent 80%)}
+.streak-card .eyebrow{color:var(--blue)}
+.streak-card .metric-symbol{border-color:rgba(105,174,252,.24);background:rgba(105,174,252,.09)}
+.win-card::before{background:linear-gradient(90deg,var(--yellow),transparent 80%)}
+.win-card .eyebrow{color:var(--yellow)}
+.win-card .metric-symbol{border-color:rgba(242,204,96,.24);background:rgba(242,204,96,.08)}
 .status-pill,.admin-badge{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:7px 9px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.035);color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 .status-pill.live>span:first-child{width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(67,223,135,.1)}
 .subnote{margin-top:7px;color:var(--muted);font-size:12px;line-height:1.55}
@@ -264,7 +271,6 @@ body:not(.is-admin) [data-admin="1"]{display:none!important}
   :root{--nav-h:68px;--radius-xl:20px}
   .topbar{min-height:62px;padding:8px 12px}
   .appicon,.appicon img{width:40px;height:40px}
-  .brand-tagline{display:none}
   .btn-compact{min-height:40px;padding:0 10px}
   .btn-compact span:first-child{display:none}
   .app{padding:20px 12px calc(var(--nav-h) + 38px + env(safe-area-inset-bottom))}
