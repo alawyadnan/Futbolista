@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { countText, directionFor, translate } from "../i18n.js";
-import { buildHistoryPeriods, compareMetricValues, filterAndSortPlayers, filterMatches, isResetConfirmation, selectDisplayMonth } from "../ux-utils.js";
+import { buildHistoryPeriods, buildPlayerAvatar, compareMetricValues, filterAndSortPlayers, filterMatches, isResetConfirmation, selectDisplayMonth } from "../ux-utils.js";
 
 test("month fallback prefers the current month when it has eligible data", () => {
   assert.equal(selectDisplayMonth("2026-09", ["2026-08", "2026-09"]), "2026-09");
@@ -40,6 +40,17 @@ test("comparison outcomes identify both winners and exact ties", () => {
   assert.equal(compareMetricValues(9, 4), "left");
   assert.equal(compareMetricValues(2, 7), "right");
   assert.equal(compareMetricValues(5, 5), "tie");
+});
+
+test("player avatars use useful stable initials and tones", () => {
+  const avatar = buildPlayerAvatar("Abdullah M");
+  assert.equal(avatar.initials, "AM");
+  assert.equal(Number.isInteger(avatar.tone), true);
+  assert.equal(avatar.tone >= 0 && avatar.tone < 5, true);
+  assert.equal(buildPlayerAvatar("Mustafa").initials, "MU");
+  assert.equal(buildPlayerAvatar("سيد أحمد").initials, "سأ");
+  assert.deepEqual(buildPlayerAvatar("Mustafa"), buildPlayerAvatar("Mustafa"));
+  assert.deepEqual(buildPlayerAvatar(""), { initials: "?", tone: 0 });
 });
 
 test("localization covers direction, interpolation and count grammar", () => {

@@ -65,3 +65,18 @@ export function compareMetricValues(left, right) {
   if (!Number.isFinite(a) || !Number.isFinite(b) || a === b) return "tie";
   return a > b ? "left" : "right";
 }
+
+export function buildPlayerAvatar(name) {
+  const cleaned = String(name || "").trim();
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const first = words[0] ? [...words[0]][0] : "";
+  const second = words.length > 1
+    ? [...words[words.length - 1]][0]
+    : words[0] ? [...words[0]].slice(1, 2).join("") : "";
+  const initials = `${first}${second}`.toLocaleUpperCase() || "?";
+  let hash = 0;
+  for (const character of cleaned.toLocaleLowerCase()) {
+    hash = ((hash * 31) + character.codePointAt(0)) >>> 0;
+  }
+  return { initials, tone: hash % 5 };
+}

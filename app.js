@@ -24,18 +24,19 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500105";
+} from "./data-engine.js?v=500106";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500105";
+import { countText, directionFor, translate } from "./i18n.js?v=500106";
 
 import {
   buildHistoryPeriods,
+  buildPlayerAvatar,
   compareMetricValues,
   filterAndSortPlayers,
   filterMatches,
   isResetConfirmation,
   selectDisplayMonth
-} from "./ux-utils.js?v=500105";
+} from "./ux-utils.js?v=500106";
 
 
 /* =========================================================
@@ -404,6 +405,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (card) openProfile(card.getAttribute("data-player-id"));
   });
 
+  document.addEventListener("click", event => {
+    const trigger = event.target.closest?.("[data-open-player]");
+    if (trigger) openProfile(trigger.getAttribute("data-open-player"));
+  });
+
   $("btnProfileBack")?.addEventListener("click", () => {
     currentProfileId = null;
     showScreen("playerstats", { scroll: false });
@@ -509,7 +515,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500105").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500106").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1666,6 +1672,9 @@ function renderInForm() {
 
           return {
 
+            id:
+              pid,
+
             name:
               p.name || "",
 
@@ -1754,7 +1763,7 @@ function renderInForm() {
           i
         ) => `
 
-          <div class="item">
+          <button type="button" class="item player-link" data-open-player="${esc(r.id)}" aria-label="${esc(t("openProfile", { name: r.name }))}">
 
             <div>
 
@@ -1776,7 +1785,7 @@ function renderInForm() {
 
             </div>
 
-          </div>
+          </button>
 
         `
       )
@@ -2162,7 +2171,7 @@ function monthPlayerItem(
 
   return `
 
-    <div class="item">
+    <button type="button" class="item player-link" data-open-player="${esc(r.playerId)}" aria-label="${esc(t("openProfile", { name: r.name }))}">
 
       <div>
 
@@ -2204,7 +2213,7 @@ function monthPlayerItem(
 
       </div>
 
-    </div>
+    </button>
 
   `;
 
@@ -2315,7 +2324,11 @@ function renderDashboard() {
 
                 `${medal(i)} ${esc(x.p.name)}`,
 
-                `${esc(countText(language, x.s.goals, "goal"))} · ${esc(t("gpm"))} ${fmt2(x.s.gpm)} · ${esc(t("winPct"))} ${fmtPct(x.s.winPct)}`
+                `${esc(countText(language, x.s.goals, "goal"))} · ${esc(t("gpm"))} ${fmt2(x.s.gpm)} · ${esc(t("winPct"))} ${fmtPct(x.s.winPct)}`,
+
+                x.p.id,
+
+                x.p.name
 
               )
 
@@ -2392,7 +2405,11 @@ function renderDashboard() {
 
                 `${medal(i)} ${esc(x.p.name)}`,
 
-                `${esc(t("current"))}: ${x.s.current} · ${esc(t("best"))}: ${x.s.best} · ${esc(countText(language, x.s.matches, "match"))}`
+                `${esc(t("current"))}: ${x.s.current} · ${esc(t("best"))}: ${x.s.best} · ${esc(countText(language, x.s.matches, "match"))}`,
+
+                x.p.id,
+
+                x.p.name
 
               )
 
@@ -2477,7 +2494,11 @@ function renderDashboard() {
 
                 `${medal(i)} ${esc(x.p.name)}`,
 
-                `${esc(t("winPct"))} ${fmtPct(x.s.winPct)} · ${esc(t("wins"))} ${x.s.wins}/${x.s.matches} · ${esc(countText(language, x.s.goals, "goal"))}`
+                `${esc(t("winPct"))} ${fmtPct(x.s.winPct)} · ${esc(t("wins"))} ${x.s.wins}/${x.s.matches} · ${esc(countText(language, x.s.goals, "goal"))}`,
+
+                x.p.id,
+
+                x.p.name
 
               )
 
@@ -2615,7 +2636,7 @@ function renderLeaderboard() {
             i
           ) => `
 
-            <div class="item leader-row">
+            <button type="button" class="item leader-row player-link" data-open-player="${esc(r.id)}" aria-label="${esc(t("openProfile", { name: r.name }))}">
               <div class="leader-main">
                 <span class="rank-badge ${i < 3 ? "top" : ""}">${i + 1}</span>
                 <div class="leader-copy">
@@ -2632,7 +2653,7 @@ function renderLeaderboard() {
                   </div>
                 </div>
               </div>
-            </div>
+            </button>
 
           `
         )
@@ -2825,12 +2846,15 @@ function renderPlayerCardsNameOnly() {
   box.innerHTML =
     sorted
       .map(
-        p => `
+        p => {
+          const avatar = buildPlayerAvatar(p.name);
+          return `
 
           <button type="button"
             class="pCard pCardNameOnly"
             data-player-id="${esc(p.id)}"
-            data-initial="${esc(String(p.name || "?").trim().charAt(0).toUpperCase() || "?")}"
+            data-initial="${esc(avatar.initials)}"
+            data-avatar-tone="${avatar.tone}"
             aria-label="${esc(t("openProfile", { name: p.name || t("player") }))}"
           >
 
@@ -2841,7 +2865,8 @@ function renderPlayerCardsNameOnly() {
 
           </button>
 
-        `
+        `;
+        }
       )
       .join("");
 
@@ -2919,7 +2944,9 @@ function renderPlayerProfile(
   }
 
   if ($("profileInitial")) {
-    $("profileInitial").textContent = String(p.name || "P").trim().charAt(0).toUpperCase() || "P";
+    const avatar = buildPlayerAvatar(p.name || "P");
+    $("profileInitial").textContent = avatar.initials;
+    $("profileInitial").dataset.avatarTone = String(avatar.tone);
   }
 
 
@@ -4864,27 +4891,29 @@ function medal(
 
 
 function dashItem(
-  t,
-  m
+  titleMarkup,
+  metaMarkup,
+  playerId = "",
+  playerDisplayName = ""
 ) {
 
   return `
 
-    <div class="item">
+    <button type="button" class="item player-link" data-open-player="${esc(playerId)}" aria-label="${esc(t("openProfile", { name: playerDisplayName }))}">
 
       <div>
 
         <div class="name">
-          ${t}
+          ${titleMarkup}
         </div>
 
         <div class="meta">
-          ${m}
+          ${metaMarkup}
         </div>
 
       </div>
 
-    </div>
+    </button>
 
   `;
 
