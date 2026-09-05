@@ -5,6 +5,8 @@ import {
   calculateMonthScores,
   computeHeadToHead,
   computeTeammates,
+  emptyModel,
+  isOwnGoal,
   matchKeyOf,
   normalizeResult
 } from "../data-engine.js";
@@ -155,6 +157,22 @@ test("distinct future match ids keep two same-day matches separate", () => {
   assert.equal(model.stats.a.goals, 3);
 });
 
+test("same-day matches use creation time for form and streak order", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-01-01", "loss", "A", 0, false, { matchId: "z-morning", createdAt: 100 }),
+    log("a", "2026-01-01", "win", "A", 0, false, { matchId: "a-evening", createdAt: 200 })
+  ]);
+  assert.deepEqual(model.forms.a.formResults, ["loss", "win"]);
+  assert.equal(model.stats.a.current, 1);
+});
+
+test("own-goal flags remain strict booleans for legacy compatibility", () => {
+  assert.equal(isOwnGoal({ ownGoal: true }), true);
+  assert.equal(isOwnGoal({ ownGoal: false }), false);
+  assert.equal(isOwnGoal({ ownGoal: "true" }), false);
+  assert.equal(isOwnGoal({}), false);
+});
+
 test("own goals from both teams are credited only to the opposing score", () => {
   const model = buildDataModel(players, [
     log("a", "2026-01-01", "draw", "A", 2),
@@ -186,6 +204,58 @@ test("head-to-head separates matches together from matches against", () => {
     togetherLosses: 0,
     togetherDraws: 1
   });
+});
+
+test("head-to-head covers player B wins, opposing draws, and losses together", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-02-01", "loss", "A"),
+    log("b", "2026-02-01", "win", "B"),
+    log("a", "2026-02-02", "draw", "A"),
+    log("b", "2026-02-02", "draw", "B"),
+    log("a", "2026-02-03", "loss", "A"),
+    log("b", "2026-02-03", "loss", "A")
+  ]);
+  assert.deepEqual(computeHeadToHead(model, "a", "b"), {
+    againstMatches: 2,
+    aWinsAgainst: 0,
+    bWinsAgainst: 1,
+    drawsAgainst: 1,
+    togetherMatches: 1,
+    togetherWins: 0,
+    togetherLosses: 1,
+    togetherDraws: 0
+  });
+});
+
+test("goal values are safely clamped before aggregation", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-03-01", "win", "A", -4),
+    log("a", "2026-03-02", "win", "A", 2.9),
+    log("a", "2026-03-03", "win", "A", 500),
+    log("a", "2026-03-04", "win", "A", "not-a-number")
+  ]);
+  assert.equal(model.stats.a.goals, 101);
+});
+
+test("monthly rows preserve draw and loss totals", () => {
+  const model = buildDataModel(players, [
+    log("a", "2026-04-01", "draw", "A", 1),
+    log("a", "2026-04-02", "loss", "A", 0)
+  ]);
+  const row = calculateMonthScores(model, "2026-04", id => id).find(item => item.playerId === "a");
+  assert.deepEqual({ matches: row.matches, wins: row.wins, draws: row.draws, losses: row.losses }, {
+    matches: 2,
+    wins: 0,
+    draws: 1,
+    losses: 1
+  });
+});
+
+test("empty model exposes every collection used by the UI", () => {
+  const model = emptyModel();
+  assert.equal(model.totalMatches, 0);
+  assert.equal(model.playerById.size, 0);
+  assert.equal(model.participationsByMonth.size, 0);
 });
 
 test("monthly score is capped at ten without mutating season totals", () => {

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { countText, directionFor, translate } from "../i18n.js";
-import { appRouteFor, buildHistoryPeriods, buildPlayerAvatar, compareMetricValues, filterAndSortPlayers, filterMatches, isResetConfirmation, isValidISODate, normalizePlayerName, paginateItems, parseAppRoute, playerNameKey, selectDisplayMonth } from "../ux-utils.js";
+import { appRouteFor, buildHistoryPeriods, buildPlayerAvatar, compareMetricValues, compareRouteFor, filterAndSortPlayers, filterMatches, isResetConfirmation, isValidISODate, normalizePlayerName, paginateItems, parseAppRoute, playerNameKey, publicAppUrl, selectDisplayMonth } from "../ux-utils.js";
 
 test("month fallback prefers the current month when it has eligible data", () => {
   assert.equal(selectDisplayMonth("2026-09", ["2026-08", "2026-09"]), "2026-09");
@@ -63,6 +63,26 @@ test("public routes support navigation and encoded player deep links", () => {
   assert.equal(appRouteFor("playerstats"), "#players");
   assert.equal(appRouteFor("playerprofile", "player id"), "#player/player%20id");
   assert.equal(appRouteFor("settings"), "#dashboard");
+});
+
+test("comparisons have stable shareable deep links", () => {
+  assert.equal(compareRouteFor("player a", "player/b"), "#compare/player%20a/player%2Fb");
+  assert.equal(compareRouteFor("a", "a"), "#compare");
+  assert.deepEqual(parseAppRoute("#compare/player%20a/player%2Fb"), {
+    screen: "compare",
+    playerId: "",
+    playerAId: "player a",
+    playerBId: "player/b"
+  });
+  assert.deepEqual(parseAppRoute("#compare/a/a"), { screen: "compare", playerId: "" });
+  assert.deepEqual(parseAppRoute("#compare/%E0%A4%A/b"), { screen: "compare", playerId: "" });
+});
+
+test("shared app links omit cache-busting query parameters", () => {
+  assert.equal(
+    publicAppUrl("https://ftbll.live/?release=old#dashboard", "#player/a%20b"),
+    "https://ftbll.live/#player/a%20b"
+  );
 });
 
 test("pagination returns a stable visible slice and remaining count", () => {
