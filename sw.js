@@ -1,62 +1,79 @@
-const CACHE = "futbolista-cache-v500200";
+const CACHE_PREFIX = "futbolista-cache-";
+const CACHE = `${CACHE_PREFIX}v500300`;
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./app.js",
-  "./data-engine.js",
-  "./i18n.js",
-  "./ux-utils.js",
+  "./styles.css?v=500300",
+  "./app.js?v=500300",
+  "./data-engine.js?v=500300",
+  "./i18n.js?v=500300",
+  "./ux-utils.js?v=500300",
   "./icon.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable-512.png",
-  "./apple-touch-icon.png",
-  "./manifest.json",
-  "./sw.js"
+  "./apple-touch-icon.png?v=500300",
+  "./manifest.json?v=500300"
 ];
 
-self.addEventListener("install", (e) => {
+self.addEventListener("install", event => {
   self.skipWaiting();
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
 });
 
-self.addEventListener("activate", (e) => {
-  e.waitUntil((async () => {
+self.addEventListener("activate", event => {
+  event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.map(k => (k === CACHE ? null : caches.delete(k))));
+    await Promise.all(keys
+      .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE)
+      .map(key => caches.delete(key)));
     await self.clients.claim();
   })());
 });
 
-// Network-first for core assets (so updates show)
-self.addEventListener("fetch", (e) => {
-  const req = e.request;
-  const url = new URL(req.url);
+async function fetchAndCache(request) {
+  const response = await fetch(request, { cache: "no-store" });
+  if (response.ok) {
+    const cache = await caches.open(CACHE);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function navigationResponse(request) {
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok) {
+      const cache = await caches.open(CACHE);
+      await cache.put("./index.html", response.clone());
+    }
+    return response;
+  } catch {
+    return (await caches.match("./index.html")) || (await caches.match("./")) || Response.error();
+  }
+}
+
+self.addEventListener("fetch", event => {
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  const isCore =
-    url.pathname.endsWith("/") ||
-    url.pathname.endsWith("/index.html") ||
-    url.pathname.endsWith(".js") ||
-    url.pathname.endsWith(".css") ||
-    url.pathname.endsWith(".json") ||
-    url.pathname.endsWith(".png") ||
-    url.pathname.endsWith(".svg") ||
-    url.pathname.endsWith("/sw.js");
+  if (request.mode === "navigate") {
+    event.respondWith(navigationResponse(request));
+    return;
+  }
 
-  if (!isCore) return;
+  const isCoreAsset = /\.(?:js|css|json|png|svg)$/.test(url.pathname);
+  if (!isCoreAsset) return;
 
-  e.respondWith((async () => {
+  event.respondWith((async () => {
     try {
-      const fresh = await fetch(req, { cache: "no-store" });
-      const cache = await caches.open(CACHE);
-      cache.put(req, fresh.clone());
-      return fresh;
+      return await fetchAndCache(request);
     } catch {
-      const cached = await caches.match(req);
-      return cached || fetch(req);
+      return (await caches.match(request)) || (await caches.match(request, { ignoreSearch: true })) || Response.error();
     }
   })());
 });

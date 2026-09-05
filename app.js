@@ -24,15 +24,16 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500200";
+} from "./data-engine.js?v=500300";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500200";
+import { countText, directionFor, translate } from "./i18n.js?v=500300";
 
 import {
   appRouteFor,
   buildHistoryPeriods,
   buildPlayerAvatar,
   compareMetricValues,
+  compareRouteFor,
   filterAndSortPlayers,
   filterMatches,
   isResetConfirmation,
@@ -41,8 +42,9 @@ import {
   paginateItems,
   parseAppRoute,
   playerNameKey,
+  publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500200";
+} from "./ux-utils.js?v=500300";
 
 
 /* =========================================================
@@ -115,11 +117,17 @@ let showPastMonths = false;
 
 let compareOptionsSignature = "";
 
+let pendingCompareRoute = null;
+
 let logPlayerOptionsSignature = "";
 
 let language = readLanguage();
 
 let playerDirectoryScrollY = 0;
+
+let profileReturnScreen = "playerstats";
+
+let profileReturnScrollY = 0;
 
 let showAllTeammates = false;
 
@@ -130,6 +138,10 @@ let historyInitialized = false;
 const HISTORY_PAGE_SIZE = 10;
 
 let historyVisibleCount = HISTORY_PAGE_SIZE;
+
+let sortedHistoryModel = null;
+
+let sortedHistoryMatches = [];
 
 const expandedMatchKeys = new Set();
 
@@ -166,10 +178,12 @@ const teamLabel = side => (
 
 function readLanguage() {
   try {
-    return localStorage.getItem("futbolista-language") === "ar" ? "ar" : "en";
+    const saved = localStorage.getItem("futbolista-language");
+    if (saved === "ar" || saved === "en") return saved;
   } catch {
-    return "en";
+    // Browser language remains a safe fallback when storage is unavailable.
   }
+  return navigator.language?.toLowerCase().startsWith("ar") ? "ar" : "en";
 }
 
 
@@ -246,8 +260,72 @@ function toggleLanguage() {
   renderLogPlayerOptions();
   renderCompareOptions();
   const screen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard";
+  updatePageContext(screen);
   renderScreenContents(screen);
   setActiveNav(screen === "playerprofile" ? "playerstats" : screen);
+}
+
+
+async function shareContent({ title, text, hash }) {
+  const url = publicAppUrl(window.location.href, hash);
+  if (typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title, text, url });
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+    }
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const input = document.createElement("textarea");
+      input.value = url;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      try {
+        document.body.appendChild(input);
+        input.select();
+        if (!document.execCommand("copy")) throw new Error("copy-command-failed");
+      } finally {
+        input.remove();
+      }
+    }
+    notify(t("linkCopied"));
+  } catch (error) {
+    console.error("Sharing failed:", error);
+    notify(t("shareFailed"), "error");
+  }
+}
+
+
+function sharePlayerProfile() {
+  const player = model.playerById?.get(String(currentProfileId || ""));
+  if (!player) return;
+  const name = player.name || t("player");
+  shareContent({
+    title: `${name} · Futbolista`,
+    text: t("shareProfileText", { name }),
+    hash: appRouteFor("playerprofile", currentProfileId)
+  });
+}
+
+
+function shareComparison() {
+  const playerAId = String($("cmpPlayerA")?.value || "");
+  const playerBId = String($("cmpPlayerB")?.value || "");
+  if (!playerAId || !playerBId || playerAId === playerBId) return;
+  const playerA = model.playerById?.get(playerAId);
+  const playerB = model.playerById?.get(playerBId);
+  if (!playerA || !playerB) return;
+  shareContent({
+    title: `${playerA.name} ${t("versus")} ${playerB.name} · Futbolista`,
+    text: t("shareComparisonText", { playerA: playerA.name, playerB: playerB.name }),
+    hash: compareRouteFor(playerAId, playerBId)
+  });
 }
 
 
@@ -400,6 +478,11 @@ document.addEventListener("DOMContentLoaded", () => {
   applyLanguage();
   if ($("logDate")) $("logDate").value = localISODate();
 
+  document.querySelector(".skip-link")?.addEventListener("click", event => {
+    event.preventDefault();
+    $("mainContent")?.focus();
+  });
+
   document.querySelectorAll(".navbtn").forEach(btn => {
     btn.addEventListener("click", event => {
       event.preventDefault();
@@ -429,9 +512,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnProfileBack")?.addEventListener("click", () => {
     currentProfileId = null;
-    showScreen("playerstats", { scroll: false });
-    setActiveNav("playerstats");
-    requestAnimationFrame(() => restoreScrollPosition(playerDirectoryScrollY));
+    showScreen(profileReturnScreen, { scroll: false });
+    const activeScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard";
+    setActiveNav(activeScreen);
+    requestAnimationFrame(() => restoreScrollPosition(profileReturnScrollY));
   });
 
   $("btnCompareProfile")?.addEventListener("click", () => {
@@ -444,15 +528,18 @@ document.addEventListener("DOMContentLoaded", () => {
     setActiveNav("compare");
   });
 
-  $("cmpPlayerA")?.addEventListener("change", renderCompare);
-  $("cmpPlayerB")?.addEventListener("change", renderCompare);
+  $("cmpPlayerA")?.addEventListener("change", handleCompareSelection);
+  $("cmpPlayerB")?.addEventListener("change", handleCompareSelection);
   $("btnSwapPlayers")?.addEventListener("click", () => {
     const a = $("cmpPlayerA");
     const b = $("cmpPlayerB");
     if (!a || !b) return;
     [a.value, b.value] = [b.value, a.value];
-    renderCompare();
+    handleCompareSelection();
   });
+
+  $("btnShareProfile")?.addEventListener("click", sharePlayerProfile);
+  $("btnShareComparison")?.addEventListener("click", shareComparison);
 
   $("playerSearch")?.addEventListener("input", renderPlayerCardsNameOnly);
   $("playerSort")?.addEventListener("change", renderPlayerCardsNameOnly);
@@ -473,8 +560,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const button = event.target.closest("[data-match-toggle]");
     if (!button) return;
     const key = button.dataset.matchToggle;
-    expandedMatchKeys.has(key) ? expandedMatchKeys.delete(key) : expandedMatchKeys.add(key);
-    renderMatchHistory();
+    const expanded = !expandedMatchKeys.has(key);
+    expanded ? expandedMatchKeys.add(key) : expandedMatchKeys.delete(key);
+    button.setAttribute("aria-expanded", String(expanded));
+    const card = button.closest(".matchCard");
+    card?.classList.toggle("expanded", expanded);
+    card?.classList.toggle("collapsed", !expanded);
+    const details = document.getElementById(button.getAttribute("aria-controls") || "");
+    if (details) details.hidden = !expanded;
   });
   $("btnExpandAll")?.addEventListener("click", () => {
     const matches = getFilteredMatches();
@@ -559,7 +652,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500200").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500300").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -690,6 +783,10 @@ async function addLogSafely() {
 
   }
 
+  if (!playersLoaded || !logsLoaded) {
+    return notify(t("dataStillLoading"), "warning");
+  }
+
 
   const playerId =
     $("logPlayer")?.value || "";
@@ -698,6 +795,10 @@ async function addLogSafely() {
   if (!playerId) {
     return notify(t("choosePlayer"), "warning");
 
+  }
+
+  if (!players.some(player => String(player.id) === String(playerId))) {
+    return notify(t("choosePlayer"), "warning");
   }
 
 
@@ -882,6 +983,8 @@ async function addLogSafely() {
       }
     );
 
+    if ($("logGoals")) $("logGoals").value = "0";
+    if ($("logGoalType")) $("logGoalType").value = "normal";
     notify(t("saved"));
 
 
@@ -951,6 +1054,8 @@ function handleSnapshotError(
     error
   );
 
+  scheduleRender();
+
 }
 
 
@@ -1014,16 +1119,27 @@ function syncScreenFromLocation() {
   const previousScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "";
   const route = parseAppRoute(window.location.hash);
   currentProfileId = route.screen === "playerprofile" ? route.playerId : null;
+  if (route.screen === "compare") {
+    pendingCompareRoute = {
+      playerAId: route.playerAId || "",
+      playerBId: route.playerBId || ""
+    };
+    applyPendingCompareRoute();
+  }
   showScreen(route.screen, { scroll: false, updateRoute: false });
   setActiveNav(route.screen === "playerprofile" ? "playerstats" : route.screen);
 
   const activeScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "");
   if (activeScreen !== route.screen) return;
 
-  const canonical = appRouteFor(route.screen, route.playerId);
+  const canonical = route.screen === "compare"
+    ? compareRouteFor(route.playerAId, route.playerBId)
+    : appRouteFor(route.screen, route.playerId);
   if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
 
-  if (previousScreen === "playerprofile" && route.screen === "playerstats") {
+  if (previousScreen === "playerprofile" && route.screen === profileReturnScreen) {
+    requestAnimationFrame(() => restoreScrollPosition(profileReturnScrollY));
+  } else if (previousScreen === "playerprofile" && route.screen === "playerstats") {
     requestAnimationFrame(() => restoreScrollPosition(playerDirectoryScrollY));
   } else if (previousScreen && previousScreen !== route.screen) {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -1062,6 +1178,8 @@ function showScreen(
 
   target?.classList.remove("hidden");
 
+  updatePageContext(name);
+
   renderScreenContents(name);
 
   if (updateRoute) updateLocationForScreen(name, { replace: replaceRoute });
@@ -1073,6 +1191,28 @@ function showScreen(
     });
   }
 
+}
+
+
+function updatePageContext(screen, customLabel = "") {
+  const titleKeys = {
+    dashboard: "dashboardTitle",
+    leaderboard: "leaderboard",
+    table: "statsTable",
+    playerstats: "playerStats",
+    compare: "comparePlayers",
+    history: "history",
+    players: "managePlayers",
+    matches: "matchEntry",
+    settings: "settings"
+  };
+  const player = screen === "playerprofile"
+    ? model.playerById?.get(String(currentProfileId || ""))
+    : null;
+  const label = customLabel || player?.name || t(titleKeys[screen] || (screen === "playerprofile" ? "profile" : "dashboardTitle"));
+  document.title = `${label} · Futbolista`;
+  const status = $("routeStatus");
+  if (status && status.textContent !== label) status.textContent = label;
 }
 
 
@@ -1235,7 +1375,7 @@ function isOwnGoal(
   l
 ) {
 
-  return !!l?.ownGoal;
+  return l?.ownGoal === true;
 
 }
 
@@ -1581,7 +1721,7 @@ function renderCompareOptions() {
     ===
     compareOptionsSignature
   ) {
-
+    applyPendingCompareRoute();
     return;
 
   }
@@ -1670,6 +1810,40 @@ function renderCompareOptions() {
   compareOptionsSignature =
     signature;
 
+  applyPendingCompareRoute();
+
+}
+
+
+function applyPendingCompareRoute() {
+  if (!pendingCompareRoute || !playersLoaded) return;
+  const a = $("cmpPlayerA");
+  const b = $("cmpPlayerB");
+  if (!a || !b) return;
+  const validIds = new Set(players.map(player => String(player.id)));
+  const aId = validIds.has(String(pendingCompareRoute.playerAId))
+    ? String(pendingCompareRoute.playerAId)
+    : "";
+  const bId = validIds.has(String(pendingCompareRoute.playerBId)) && pendingCompareRoute.playerBId !== aId
+    ? String(pendingCompareRoute.playerBId)
+    : "";
+  a.value = aId;
+  b.value = bId;
+  pendingCompareRoute = null;
+  const canonical = compareRouteFor(aId, bId);
+  if (window.location.hash.startsWith("#compare") && window.location.hash !== canonical) {
+    window.history.replaceState(null, "", canonical);
+  }
+}
+
+
+function handleCompareSelection() {
+  pendingCompareRoute = null;
+  renderCompare();
+  if (!$("screen-compare")?.classList.contains("hidden")) {
+    const hash = compareRouteFor($("cmpPlayerA")?.value, $("cmpPlayerB")?.value);
+    if (window.location.hash !== hash) window.history.replaceState(null, "", hash);
+  }
 }
 
 
@@ -1823,27 +1997,20 @@ function renderInForm() {
           i
         ) => `
 
-          <button type="button" class="item player-link" data-open-player="${esc(r.id)}" aria-label="${esc(t("openProfile", { name: r.name }))}">
+          <button type="button" class="item player-link" data-open-player="${esc(r.id)}">
 
             <div>
 
               <div class="name">
-                ${medal(i)} ${esc(r.name)}
+                ${medal(i)} <bdi dir="auto">${esc(r.name)}</bdi>
               </div>
 
-              <div class="meta">
-
-                ${esc(t("score"))}:
-                <b>${formatFormPoints(r.formPoints)}</b>
-
-                ·
-
-                ${esc(t("last5"))}:
+              <div class="meta form-meta">
+                <span>${esc(t("score"))}: <b>${formatFormPoints(r.formPoints)}</b></span>
                 ${renderFormDots(r.formResults)}
-
               </div>
 
-            </div>
+            </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
 
           </button>
 
@@ -2231,12 +2398,12 @@ function monthPlayerItem(
 
   return `
 
-    <button type="button" class="item player-link" data-open-player="${esc(r.playerId)}" aria-label="${esc(t("openProfile", { name: r.name }))}">
+    <button type="button" class="item player-link" data-open-player="${esc(r.playerId)}">
 
       <div>
 
         <div class="name">
-          ${medal(i)} ${esc(r.name)}
+          ${medal(i)} <bdi dir="auto">${esc(r.name)}</bdi>
         </div>
 
         <div class="meta">
@@ -2271,7 +2438,7 @@ function monthPlayerItem(
 
         </div>
 
-      </div>
+      </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
 
     </button>
 
@@ -2382,7 +2549,7 @@ function renderDashboard() {
 
               dashItem(
 
-                `${medal(i)} ${esc(x.p.name)}`,
+                `${medal(i)} <bdi dir="auto">${esc(x.p.name)}</bdi>`,
 
                 `${esc(countText(language, x.s.goals, "goal"))} · ${esc(t("gpm"))} ${fmt2(x.s.gpm)} · ${esc(t("winPct"))} ${fmtPct(x.s.winPct)}`,
 
@@ -2463,7 +2630,7 @@ function renderDashboard() {
 
               dashItem(
 
-                `${medal(i)} ${esc(x.p.name)}`,
+                `${medal(i)} <bdi dir="auto">${esc(x.p.name)}</bdi>`,
 
                 `${esc(t("current"))}: ${x.s.current} · ${esc(t("best"))}: ${x.s.best} · ${esc(countText(language, x.s.matches, "match"))}`,
 
@@ -2552,7 +2719,7 @@ function renderDashboard() {
 
               dashItem(
 
-                `${medal(i)} ${esc(x.p.name)}`,
+                `${medal(i)} <bdi dir="auto">${esc(x.p.name)}</bdi>`,
 
                 `${esc(t("winPct"))} ${fmtPct(x.s.winPct)} · ${esc(t("wins"))} ${x.s.wins}/${x.s.matches} · ${esc(countText(language, x.s.goals, "goal"))}`,
 
@@ -2696,23 +2863,23 @@ function renderLeaderboard() {
             i
           ) => `
 
-            <button type="button" class="item leader-row player-link" data-open-player="${esc(r.id)}" aria-label="${esc(t("openProfile", { name: r.name }))}">
+            <button type="button" class="item leader-row player-link" data-open-player="${esc(r.id)}">
               <div class="leader-main">
                 <span class="rank-badge ${i < 3 ? "top" : ""}">${i + 1}</span>
                 <div class="leader-copy">
-                  <div class="name">${esc(r.name)}</div>
+                  <div class="name"><bdi dir="auto">${esc(r.name)}</bdi></div>
                   <div class="leader-metrics">
-                    <span class="metric-chip">${esc(t("form"))} <strong>${formatFormPoints(r.formPoints)}</strong></span>
+                    <span class="metric-chip ${sortBy === "form" ? "is-sort-key" : ""}">${esc(t("form"))} <strong>${formatFormPoints(r.formPoints)}</strong></span>
                     <span class="metric-chip">${renderFormDots(r.formResults)}</span>
-                    <span class="metric-chip">${esc(t("matches"))} <strong>${r.matches}</strong></span>
-                    <span class="metric-chip">${esc(t("wins"))} <strong>${r.wins}</strong></span>
-                    <span class="metric-chip">${esc(t("goals"))} <strong>${r.goals}</strong></span>
-                    <span class="metric-chip">${esc(t("winPct"))} <strong>${fmtPct(r.winPct)}</strong></span>
-                    <span class="metric-chip">${esc(t("gpm"))} <strong>${fmt2(r.gpm)}</strong></span>
-                    <span class="metric-chip">${esc(t("current"))} <strong>${r.curStreak}</strong> · ${esc(t("best"))} ${r.bestStreak}</span>
+                    <span class="metric-chip ${sortBy === "matches" ? "is-sort-key" : ""}">${esc(t("matches"))} <strong>${r.matches}</strong></span>
+                    <span class="metric-chip ${sortBy === "wins" ? "is-sort-key" : ""}">${esc(t("wins"))} <strong>${r.wins}</strong></span>
+                    <span class="metric-chip ${sortBy === "goals" ? "is-sort-key" : ""}">${esc(t("goals"))} <strong>${r.goals}</strong></span>
+                    <span class="metric-chip ${sortBy === "winPct" ? "is-sort-key" : ""}">${esc(t("winPct"))} <strong>${fmtPct(r.winPct)}</strong></span>
+                    <span class="metric-chip ${sortBy === "gpm" ? "is-sort-key" : ""}">${esc(t("gpm"))} <strong>${fmt2(r.gpm)}</strong></span>
+                    <span class="metric-chip ${sortBy === "curStreak" || sortBy === "bestStreak" ? "is-sort-key" : ""}">${esc(t("current"))} <strong>${r.curStreak}</strong> · ${esc(t("best"))} ${r.bestStreak}</span>
                   </div>
                 </div>
-              </div>
+              </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
             </button>
 
           `
@@ -2831,21 +2998,21 @@ function renderTable() {
 
               <td>${idx + 1}</td>
 
-              <td><button type="button" class="inline-player-link table-player-link" data-open-player="${esc(r.id)}" aria-label="${esc(t("openProfile", { name: r.name }))}">${esc(r.name)}</button></td>
+              <td data-sort-key="name"><button type="button" class="inline-player-link table-player-link" data-open-player="${esc(r.id)}"><bdi dir="auto">${esc(r.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span></button></td>
 
-              <td>${r.matches}</td>
+              <td data-sort-key="matches">${r.matches}</td>
 
-              <td>${r.wins}</td>
+              <td data-sort-key="wins">${r.wins}</td>
 
-              <td>${r.goals}</td>
+              <td data-sort-key="goals">${r.goals}</td>
 
-              <td>${fmtPct(r.winPct)}</td>
+              <td data-sort-key="winPct">${fmtPct(r.winPct)}</td>
 
-              <td>${fmt2(r.gpm)}</td>
+              <td data-sort-key="gpm">${fmt2(r.gpm)}</td>
 
-              <td>${r.curStreak}</td>
+              <td data-sort-key="curStreak">${r.curStreak}</td>
 
-              <td>${r.bestStreak}</td>
+              <td data-sort-key="bestStreak">${r.bestStreak}</td>
 
             </tr>
 
@@ -2856,6 +3023,14 @@ function renderTable() {
       :
 
       `<tr><td colspan="9" class="noteCell">${esc(t("noRanked"))}</td></tr>`;
+
+  const table = body.closest("table");
+  table?.querySelectorAll("[data-sort-key]").forEach(cell => {
+    cell.classList.toggle("is-sort-key", cell.dataset.sortKey === sortBy);
+  });
+  table?.querySelectorAll("thead th[aria-sort]").forEach(header => header.removeAttribute("aria-sort"));
+  const activeHeader = table?.querySelector(`thead th[data-sort-key="${sortBy}"]`);
+  activeHeader?.setAttribute("aria-sort", sortBy === "name" ? "ascending" : "descending");
 
 }
 
@@ -2918,13 +3093,12 @@ function renderPlayerCardsNameOnly() {
             data-player-id="${esc(p.id)}"
             data-initial="${esc(avatar.initials)}"
             data-avatar-tone="${avatar.tone}"
-            aria-label="${esc(t("openProfile", { name: p.name || t("player") }))}"
           >
 
             <div class="pName">
-              ${esc(p.name || "")}
+              <bdi dir="auto">${esc(p.name || "")}</bdi>
               <span class="pCardMeta">${esc(countText(language, p.stats.matches || 0, "match"))} · ${esc(countText(language, p.stats.goals || 0, "goal"))}</span>
-            </div>
+            </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
 
           </button>
 
@@ -2944,7 +3118,12 @@ function openProfile(
   pid
 ) {
 
-  playerDirectoryScrollY = window.scrollY;
+  const sourceScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "playerstats";
+  if (sourceScreen !== "playerprofile") {
+    profileReturnScreen = sourceScreen;
+    profileReturnScrollY = window.scrollY;
+    if (sourceScreen === "playerstats") playerDirectoryScrollY = window.scrollY;
+  }
 
   showAllTeammates = false;
 
@@ -2959,11 +3138,6 @@ function openProfile(
 
   setActiveNav(
     "playerstats"
-  );
-
-
-  renderPlayerProfile(
-    currentProfileId
   );
 
 }
@@ -2992,6 +3166,8 @@ function renderPlayerProfile(
     return;
 
   }
+
+  updatePageContext("playerprofile", p.name || t("profile"));
 
 
   const s =
@@ -3137,6 +3313,7 @@ function renderProfileMatches(pid) {
     box.innerHTML = emptyState("◷", t("noMatches"), t("noProfileMatches"), true);
     return;
   }
+
   box.innerHTML = matches.map(participation => {
     const match = model.matchSummaries.get(participation.matchKey);
     const score = match ? `${match.scoreA}–${match.scoreB}` : "—";
@@ -3291,12 +3468,12 @@ function renderTeammates(
               index
             ) => `
 
-              <button type="button" class="mateRow player-link" data-open-player="${esc(id)}" aria-label="${esc(t("openProfile", { name: playerName(id) }))}">
+              <button type="button" class="mateRow player-link" data-open-player="${esc(id)}">
 
                 <div class="playerName">
                   <span class="mate-rank" aria-hidden="true">${index + 1}</span>
-                  ${esc(playerName(id))}
-                </div>
+                  <bdi dir="auto">${esc(playerName(id))}</bdi>
+                </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
 
                 <div class="mate-count-badge">
                   ${esc(countText(language, c, "match"))}
@@ -3354,13 +3531,13 @@ function computeTeammates(pid) {
 function renderMatchHistory() {
   const box = $("matchHistoryList");
   if (!box) return;
-  renderHistoryOptions();
   const allMatches = getSortedMatches();
+  renderHistoryOptions(allMatches);
   if (!allMatches.length) {
     box.innerHTML = emptyState("◷", t("noMatches"), t("noMatchesLead"));
     return;
   }
-  const matches = getFilteredMatches();
+  const matches = getFilteredMatches(allMatches);
   if (!historyInitialized) {
     expandedMatchKeys.add(String(allMatches[0].matchKey));
     historyInitialized = true;
@@ -3406,22 +3583,25 @@ function renderMatchHistory() {
 
 
 function getSortedMatches() {
-  return Array.from(model.matchSummaries.values()).sort((a, b) =>
+  if (sortedHistoryModel === model) return sortedHistoryMatches;
+  sortedHistoryModel = model;
+  sortedHistoryMatches = Array.from(model.matchSummaries.values()).sort((a, b) =>
     String(b.date).localeCompare(String(a.date))
-    || Math.max(...b.parts.map(part => part.createdAt || 0), 0) - Math.max(...a.parts.map(part => part.createdAt || 0), 0)
+    || Number(b.createdAt || 0) - Number(a.createdAt || 0)
   );
+  return sortedHistoryMatches;
 }
 
 
-function getFilteredMatches() {
-  return filterMatches(getSortedMatches(), playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all");
+function getFilteredMatches(sortedMatches = getSortedMatches()) {
+  return filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all");
 }
 
 
-function renderHistoryOptions() {
+function renderHistoryOptions(sortedMatches = getSortedMatches()) {
   const select = $("historyPeriod");
   if (!select) return;
-  const periods = buildHistoryPeriods(getSortedMatches());
+  const periods = buildHistoryPeriods(sortedMatches);
   const signature = `${language}:${periods.months.join("|")}:${periods.years.join("|")}`;
   if (signature === historyOptionsSignature) return;
   const current = select.value || "all";
@@ -3574,9 +3754,10 @@ function sideLines(
 
             <div class="teamLine">
 
-              <button type="button" class="playerName inline-player-link" data-open-player="${esc(x.playerId)}" aria-label="${esc(t("openProfile", { name }))}">
-                ${esc(name)}
+              <button type="button" class="playerName inline-player-link" data-open-player="${esc(x.playerId)}">
+                <bdi dir="auto">${esc(name)}</bdi>
                 ${ownGoalBadge}
+                <span class="sr-only">${esc(t("openProfileAction"))}</span>
               </button>
 
               <div class="playerGoals">
@@ -3880,12 +4061,17 @@ function renderCompare() {
   const box =
     $("compareResult");
 
+  const shareButton =
+    $("btnShareComparison");
+
 
   if (!box) {
 
     return;
 
   }
+
+  shareButton?.classList.add("hidden");
 
 
   if (
@@ -3902,7 +4088,6 @@ function renderCompare() {
     return;
 
   }
-
 
   const aPlayer =
     players.find(
@@ -3934,6 +4119,9 @@ function renderCompare() {
     return;
 
   }
+
+  shareButton?.classList.remove("hidden");
+  updatePageContext("compare", `${aPlayer.name} ${t("versus")} ${bPlayer.name}`);
 
 
   const aStats =
@@ -3981,16 +4169,16 @@ function renderCompare() {
 
       <div class="compareHeader horizontal">
 
-        <button type="button" class="compareName inline-player-link" data-open-player="${esc(aId)}" aria-label="${esc(t("openProfile", { name: aPlayer.name }))}">
-          ${esc(aPlayer.name)}
+        <button type="button" class="compareName inline-player-link" data-open-player="${esc(aId)}">
+          <bdi dir="auto">${esc(aPlayer.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span>
         </button>
 
         <div class="compareVs">
           ${esc(t("versus"))}
         </div>
 
-        <button type="button" class="compareName inline-player-link" data-open-player="${esc(bId)}" aria-label="${esc(t("openProfile", { name: bPlayer.name }))}">
-          ${esc(bPlayer.name)}
+        <button type="button" class="compareName inline-player-link" data-open-player="${esc(bId)}">
+          <bdi dir="auto">${esc(bPlayer.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span>
         </button>
 
       </div>
@@ -4000,9 +4188,9 @@ function renderCompare() {
 
     <div class="card">
 
-      <div class="card-title">
+      <h2 class="card-title">
         ${esc(t("headToHead"))}
-      </div>
+      </h2>
 
       <div class="compareRows">
 
@@ -4035,9 +4223,9 @@ function renderCompare() {
 
     <div class="card">
 
-      <div class="card-title">
+      <h2 class="card-title">
         ${esc(t("teammatesRecord"))}
-      </div>
+      </h2>
 
       <div class="compareRows">
 
@@ -4076,9 +4264,9 @@ function renderCompare() {
 
     <div class="card">
 
-      <div class="card-title">
+      <h2 class="card-title">
         ${esc(t("individualStats"))}
-      </div>
+      </h2>
 
       <div class="compareTable">
 
@@ -4985,7 +5173,7 @@ function dashItem(
 
   return `
 
-    <button type="button" class="item player-link" data-open-player="${esc(playerId)}" aria-label="${esc(t("openProfile", { name: playerDisplayName }))}">
+    <button type="button" class="item player-link" data-open-player="${esc(playerId)}">
 
       <div>
 
@@ -4997,7 +5185,7 @@ function dashItem(
           ${metaMarkup}
         </div>
 
-      </div>
+      </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
 
     </button>
 
@@ -5135,6 +5323,9 @@ function exportJSON() {
 
 async function resetAllData() {
 
+  let deletedLogs = 0;
+  let deletedPlayers = 0;
+
   try {
 
     const logsSnap =
@@ -5157,10 +5348,9 @@ async function resetAllData() {
         )
       );
 
+      deletedLogs += 1;
+
     }
-
-    notify(t("resetDone"));
-
 
     const playersSnap =
       await getDocs(
@@ -5182,7 +5372,11 @@ async function resetAllData() {
         )
       );
 
+      deletedPlayers += 1;
+
     }
+
+    notify(t("resetDone"));
 
 
   } catch (e) {
@@ -5190,7 +5384,12 @@ async function resetAllData() {
     console.error(e);
 
 
-    notify(t("resetFailed"), "error");
+    notify(
+      deletedLogs || deletedPlayers
+        ? t("resetPartial", { logs: deletedLogs, players: deletedPlayers })
+        : t("resetFailed"),
+      "error"
+    );
 
   }
 

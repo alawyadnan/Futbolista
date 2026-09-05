@@ -112,7 +112,7 @@ const PUBLIC_ROUTE_SCREENS = new Set([
 
 export function parseAppRoute(hash = "") {
   const raw = String(hash || "").replace(/^#\/?/, "");
-  const [route = "", encodedPlayerId = ""] = raw.split("/");
+  const [route = "", encodedPlayerId = "", encodedPlayerBId = ""] = raw.split("/");
   if (route === "player" && encodedPlayerId) {
     try {
       const playerId = decodeURIComponent(encodedPlayerId).trim();
@@ -120,6 +120,19 @@ export function parseAppRoute(hash = "") {
     } catch {
       return { screen: "dashboard", playerId: "" };
     }
+  }
+  if (route === "compare") {
+    if (!encodedPlayerId && !encodedPlayerBId) return { screen: "compare", playerId: "" };
+    try {
+      const playerAId = decodeURIComponent(encodedPlayerId).trim();
+      const playerBId = decodeURIComponent(encodedPlayerBId).trim();
+      if (playerAId && playerBId && playerAId !== playerBId) {
+        return { screen: "compare", playerId: "", playerAId, playerBId };
+      }
+    } catch {
+      // Invalid comparison links safely fall back to the empty comparison screen.
+    }
+    return { screen: "compare", playerId: "" };
   }
   const screen = route === "players" ? "playerstats" : route;
   return PUBLIC_ROUTE_SCREENS.has(screen)
@@ -133,6 +146,24 @@ export function appRouteFor(screen, playerId = "") {
   }
   if (screen === "playerstats") return "#players";
   return `#${PUBLIC_ROUTE_SCREENS.has(screen) ? screen : "dashboard"}`;
+}
+
+export function compareRouteFor(playerAId = "", playerBId = "") {
+  const aId = String(playerAId || "").trim();
+  const bId = String(playerBId || "").trim();
+  if (!aId || !bId || aId === bId) return "#compare";
+  return `#compare/${encodeURIComponent(aId)}/${encodeURIComponent(bId)}`;
+}
+
+export function publicAppUrl(currentUrl, hash) {
+  try {
+    const url = new URL(String(currentUrl || ""));
+    url.search = "";
+    url.hash = String(hash || "#dashboard");
+    return url.toString();
+  } catch {
+    return String(hash || "#dashboard");
+  }
 }
 
 export function paginateItems(items = [], visibleCount = 10) {

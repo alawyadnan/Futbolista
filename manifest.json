@@ -2,7 +2,7 @@
   "name": "Futbolista",
   "short_name": "Futbolista",
   "id": "./",
-  "start_url": "./?v=500200#dashboard",
+  "start_url": "./?v=500300#dashboard",
   "scope": "./",
   "display": "standalone",
   "background_color": "#050907",

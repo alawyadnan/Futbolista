@@ -39,8 +39,8 @@ function compareRawOldestFirst(a, b) {
 
 function compareParticipationsOldestFirst(a, b) {
   return a.date.localeCompare(b.date)
-    || a.matchKey.localeCompare(b.matchKey)
     || a.createdAt - b.createdAt
+    || a.matchKey.localeCompare(b.matchKey)
     || a.playerId.localeCompare(b.playerId);
 }
 
@@ -127,6 +127,7 @@ export function buildDataModel(players = [], rawLogs = []) {
     matchSummaries.set(matchKey, {
       matchKey,
       date: parts.reduce((latest, part) => part.date > latest ? part.date : latest, ""),
+      createdAt: parts.reduce((latest, part) => Math.max(latest, part.createdAt || 0), 0),
       parts, teamA, teamB,
       scoreA: sum(teamA, "normalGoals") + sum(teamB, "ownGoals"),
       scoreB: sum(teamB, "normalGoals") + sum(teamA, "ownGoals")
