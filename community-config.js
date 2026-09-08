@@ -1,3 +1,3 @@
-// Enable only after reviewing/deploying firestore.rules and testing the launch
-// checklist in COMMUNITY-RELEASE.md. This is a rollout gate, NOT a security rule.
-export const COMMUNITY_ENABLED = false;
+// Rules published and public/private read boundaries verified on 2026-09-08.
+// This rollout gate is NOT a security rule; Firestore enforces every write.
+export const COMMUNITY_ENABLED = true;

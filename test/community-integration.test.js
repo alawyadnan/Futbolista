@@ -25,8 +25,8 @@ test('comparison is embedded in the profile with one opponent selector and no st
   assert.doesNotMatch(read('app.js'),/cmpPlayerA|pendingCompareRoute|screen-compare/);
   assert.equal((index.match(/id="cmpPlayerB"/g)||[]).length,1);
 });
-test('community rollout is disabled and emulator routing is explicit and loopback-only',()=>{
-  assert.match(read('community-config.js'),/COMMUNITY_ENABLED = false/);
+test('approved community release is enabled and emulator routing stays explicit and loopback-only',()=>{
+  assert.match(read('community-config.js'),/COMMUNITY_ENABLED = true/);
   const app=read('app.js');
   assert.match(app,/\['127\.0\.0\.1', 'localhost'\]\.includes\(location\.hostname\)/);
   assert.match(app,/get\('emulator'\) === '1'/);
