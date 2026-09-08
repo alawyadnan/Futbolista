@@ -7,7 +7,8 @@ import {
   getDocs,
   deleteDoc,
   doc,
-  onSnapshot
+  onSnapshot,
+  connectFirestoreEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import {
@@ -16,7 +17,8 @@ import {
   setPersistence,
   browserLocalPersistence,
   signInWithEmailAndPassword,
-  signOut
+  signOut,
+  connectAuthEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
@@ -24,9 +26,14 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500300";
+} from "./data-engine.js?v=500400";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500300";
+import { countText, directionFor, translate } from "./i18n.js?v=500400";
+import { computePlayerProgress, computePlayerRecords } from "./insights-engine.js?v=500400";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500400";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500400";
+import { resolvePublicPlayers } from "./community-engine.js?v=500400";
+import { createCommunity } from "./community.js?v=500400";
 
 import {
   appRouteFor,
@@ -34,6 +41,7 @@ import {
   buildPlayerAvatar,
   compareMetricValues,
   compareRouteFor,
+  createRenderScheduler,
   filterAndSortPlayers,
   filterMatches,
   isResetConfirmation,
@@ -44,7 +52,7 @@ import {
   playerNameKey,
   publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500300";
+} from "./ux-utils.js?v=500400";
 
 
 /* =========================================================
@@ -61,11 +69,19 @@ const firebaseConfig = {
 const ADMIN_EMAIL = "admin@ftbll.live";
 
 
-const app = initializeApp(firebaseConfig);
+// Explicit loopback-only mode never connects emulated writes to production.
+const localEmulator = ['127.0.0.1', 'localhost'].includes(location.hostname)
+  && new URLSearchParams(location.search).get('emulator') === '1';
+const communityEnabled = COMMUNITY_ENABLED || localEmulator;
+const app = initializeApp(localEmulator ? { ...firebaseConfig, projectId: 'demo-futbolista', apiKey: 'demo-key', authDomain: 'localhost' } : firebaseConfig);
 
 const db = getFirestore(app);
 
 const auth = getAuth(app);
+if (localEmulator) {
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+}
 
 
 setPersistence(
@@ -90,6 +106,9 @@ const logsRef = collection(
 ========================================================= */
 
 let players = [];
+let rawPlayers = [];
+let publicProfiles = new Map();
+let community = null;
 
 let rawLogs = [];
 
@@ -99,11 +118,21 @@ let logsLoaded = false;
 
 let loadError = false;
 
+let retryingData = false;
+
+let hasDataModel = false;
+
+let snapshotGeneration = 0;
+
+let unsubscribePlayers = null;
+
+let unsubscribeLogs = null;
+
 let isAdmin = false;
 
 let currentProfileId = null;
 
-let renderQueued = false;
+const scheduleRender = createRenderScheduler(() => renderAll());
 
 let addPlayerBusy = false;
 
@@ -117,11 +146,14 @@ let showPastMonths = false;
 
 let compareOptionsSignature = "";
 
-let pendingCompareRoute = null;
+let comparisonOpen = false;
+let comparisonPlayerId = "";
 
 let logPlayerOptionsSignature = "";
 
 let language = readLanguage();
+let pinnedPlayerId = null;
+try { pinnedPlayerId = readPinnedPlayer(localStorage); } catch {}
 
 let playerDirectoryScrollY = 0;
 
@@ -262,42 +294,59 @@ function toggleLanguage() {
   const screen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard";
   updatePageContext(screen);
   renderScreenContents(screen);
+  community?.render();
   setActiveNav(screen === "playerprofile" ? "playerstats" : screen);
 }
 
 
 async function shareContent({ title, text, hash }) {
   const url = publicAppUrl(window.location.href, hash);
-  if (typeof navigator.share === "function") {
-    try {
-      await navigator.share({ title, text, url });
-      return;
-    } catch (error) {
-      if (error?.name === "AbortError") return;
-    }
-  }
-
+  const previousFocus = document.activeElement;
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-    } else {
-      const input = document.createElement("textarea");
-      input.value = url;
-      input.setAttribute("readonly", "");
-      input.style.position = "fixed";
-      input.style.opacity = "0";
+    if (typeof navigator.share === "function") {
       try {
-        document.body.appendChild(input);
-        input.select();
-        if (!document.execCommand("copy")) throw new Error("copy-command-failed");
-      } finally {
-        input.remove();
+        await navigator.share({ title, text, url });
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") return;
       }
     }
+
+    await copyTextToClipboard(url);
     notify(t("linkCopied"));
   } catch (error) {
     console.error("Sharing failed:", error);
     notify(t("shareFailed"), "error");
+  } finally {
+    if (previousFocus?.isConnected && !previousFocus.closest?.(".hidden, [inert]")) {
+      previousFocus.focus?.({ preventScroll: true });
+    }
+  }
+}
+
+
+async function copyTextToClipboard(url) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(url);
+      return;
+    } catch {
+      // Some browsers expose the API but deny it; retain the user-gesture fallback.
+    }
+  }
+  const input = document.createElement("textarea");
+  input.value = url;
+  input.tabIndex = -1;
+  input.setAttribute("readonly", "");
+  input.setAttribute("aria-hidden", "true");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  try {
+    document.body.appendChild(input);
+    input.select();
+    if (!document.execCommand("copy")) throw new Error("copy-command-failed");
+  } finally {
+    input.remove();
   }
 }
 
@@ -315,7 +364,7 @@ function sharePlayerProfile() {
 
 
 function shareComparison() {
-  const playerAId = String($("cmpPlayerA")?.value || "");
+  const playerAId = String(currentProfileId || "");
   const playerBId = String($("cmpPlayerB")?.value || "");
   if (!playerAId || !playerBId || playerAId === playerBId) return;
   const playerA = model.playerById?.get(playerAId);
@@ -332,6 +381,8 @@ function shareComparison() {
 function updateAuthButton() {
   const button = $("btnAdminLogin");
   if (!button) return;
+  button.classList.toggle("hidden", communityEnabled && !isAdmin);
+  $("btnAccount")?.classList.toggle("hidden", !communityEnabled || isAdmin);
   button.innerHTML = isAdmin
     ? `<span aria-hidden="true">↪</span><span>${esc(t("logout"))}</span>`
     : `<span aria-hidden="true">⌁</span><span>${esc(t("adminLogin"))}</span>`;
@@ -437,7 +488,12 @@ function closeModal() {
     element.inert = false;
   });
   if (activeModal.id === "loginModal") {
-    if ($("loginPassword")) $("loginPassword").value = "";
+    if ($("loginPassword")) {
+      $("loginPassword").value = "";
+      $("loginPassword").type = "password";
+    }
+    $("btnTogglePassword")?.setAttribute("aria-pressed", "false");
+    if ($("btnTogglePassword")) $("btnTogglePassword").textContent = t("showPassword");
     if ($("loginError")) $("loginError").hidden = true;
   }
   const previous = modalReturnFocus;
@@ -483,6 +539,16 @@ document.addEventListener("DOMContentLoaded", () => {
     $("mainContent")?.focus();
   });
 
+  if (communityEnabled) {
+    if (localEmulator) $("emulatorNotice")?.classList.remove("hidden");
+    $("btnAccount")?.classList.remove("hidden");
+    community = createCommunity({ db, auth, getModel: () => model, getPlayers: () => players, isDataReady, t, esc, notify, openProfile,
+      showAccount: () => { showScreen('account'); setActiveNav('playerstats'); },
+      onProfilesChanged: profiles => { publicProfiles = profiles; players = resolvePublicPlayers(rawPlayers, profiles); scheduleRender(); }
+    });
+    $("btnAccount")?.addEventListener("click", () => { showScreen('account'); setActiveNav('playerstats'); });
+  }
+
   document.querySelectorAll(".navbtn").forEach(btn => {
     btn.addEventListener("click", event => {
       event.preventDefault();
@@ -508,6 +574,19 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", event => {
     const trigger = event.target.closest?.("[data-open-player]");
     if (trigger) openProfile(trigger.getAttribute("data-open-player"));
+    const match = event.target.closest?.("[data-open-match]");
+    if (match) openHistoryMatch(match.getAttribute("data-open-match"));
+  });
+
+  $("btnPinPlayer")?.addEventListener("click", () => {
+    if (!currentProfileId) return;
+    const next = pinnedPlayerId === currentProfileId ? null : currentProfileId;
+    let saved = false;
+    try { saved = writePinnedPlayer(localStorage, next); } catch {}
+    if (!saved) return notify(t("pinFailed"), "warning");
+    pinnedPlayerId = next;
+    renderPinButton();
+    notify(t(next ? "pinSaved" : "pinRemoved"));
   });
 
   $("btnProfileBack")?.addEventListener("click", () => {
@@ -520,23 +599,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnCompareProfile")?.addEventListener("click", () => {
     if (!currentProfileId) return;
-    const first = $("cmpPlayerA");
-    const second = $("cmpPlayerB");
-    if (first) first.value = currentProfileId;
-    if (second?.value === currentProfileId) second.value = "";
-    showScreen("compare");
-    setActiveNav("compare");
+    comparisonOpen = true;
+    renderProfileComparison();
+    updateLocationForScreen("playerprofile");
+    $("profileComparison")?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    $("cmpPlayerB")?.focus({ preventScroll: true });
   });
-
-  $("cmpPlayerA")?.addEventListener("change", handleCompareSelection);
+  $("btnCloseComparison")?.addEventListener("click", () => {
+    comparisonOpen = false;
+    renderProfileComparison();
+    updateLocationForScreen("playerprofile");
+    updatePageContext("playerprofile");
+    $("btnCompareProfile")?.focus({ preventScroll: true });
+  });
   $("cmpPlayerB")?.addEventListener("change", handleCompareSelection);
-  $("btnSwapPlayers")?.addEventListener("click", () => {
-    const a = $("cmpPlayerA");
-    const b = $("cmpPlayerB");
-    if (!a || !b) return;
-    [a.value, b.value] = [b.value, a.value];
-    handleCompareSelection();
-  });
 
   $("btnShareProfile")?.addEventListener("click", sharePlayerProfile);
   $("btnShareComparison")?.addEventListener("click", shareComparison);
@@ -568,6 +644,7 @@ document.addEventListener("DOMContentLoaded", () => {
     card?.classList.toggle("collapsed", !expanded);
     const details = document.getElementById(button.getAttribute("aria-controls") || "");
     if (details) details.hidden = !expanded;
+    if (expanded) community?.refreshHistory();
   });
   $("btnExpandAll")?.addEventListener("click", () => {
     const matches = getFilteredMatches();
@@ -585,6 +662,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!event.target.closest("[data-toggle-teammates]")) return;
     showAllTeammates = !showAllTeammates;
     if (currentProfileId) renderTeammates(currentProfileId);
+    $("profileMates")?.querySelector("[data-toggle-teammates]")?.focus({ preventScroll: true });
   });
 
   $("btnAdminLogin")?.addEventListener("click", window.__adminLogin);
@@ -614,8 +692,10 @@ document.addEventListener("DOMContentLoaded", () => {
     isAdmin = !!user && email === ADMIN_EMAIL.toLowerCase();
     document.body.classList.toggle("is-admin", isAdmin);
     updateAuthButton();
+    updateDataActionState();
 
-    if (user && !isAdmin) {
+    community?.onAuth(user, isAdmin);
+    if (user && !isAdmin && !communityEnabled) {
       notify(t("invalidAdmin"), "error");
       await signOut(auth).catch(console.error);
     }
@@ -627,32 +707,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  /* No orderBy: legacy Firestore documents without createdAt remain readable. */
-  onSnapshot(playersRef, snap => {
-    players = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) =>
-      Number(a.createdAt || 0) - Number(b.createdAt || 0)
-      || String(a.name || "").localeCompare(String(b.name || ""))
-    );
-    playersLoaded = true;
-    players.forEach(player => pendingPlayerNames.delete(playerNameKey(player.name)));
-    scheduleRender();
-  }, handleSnapshotError);
-
-  onSnapshot(logsRef, snap => {
-    rawLogs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(compareRawLogsNewestFirst);
-    logsLoaded = true;
-    rawLogs.forEach(log => {
-      const type = isOwnGoal(log) ? "own" : "normal";
-      pendingLogTypes.delete(`${matchKeyOf(log)}::${String(log.playerId || "")}::${type}`);
-    });
-    scheduleRender();
-  }, handleSnapshotError);
+  startDataSubscriptions();
 
   syncScreenFromLocation();
 
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in navigator && !localEmulator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500300").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500400").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -676,6 +737,9 @@ async function addPlayerSafely() {
 
   }
 
+  if (!isDataReady()) {
+    return notify(t("dataStillLoading"), "warning");
+  }
 
   const name = normalizePlayerName($("playerName")?.value);
 
@@ -688,7 +752,7 @@ async function addPlayerSafely() {
 
   const normalizedNameKey = playerNameKey(name);
 
-  const exists = players.some(p => playerNameKey(p.name) === normalizedNameKey)
+  const exists = rawPlayers.some(p => playerNameKey(p.name) === normalizedNameKey)
     || pendingPlayerNames.has(normalizedNameKey);
 
 
@@ -783,7 +847,7 @@ async function addLogSafely() {
 
   }
 
-  if (!playersLoaded || !logsLoaded) {
+  if (!isDataReady()) {
     return notify(t("dataStillLoading"), "warning");
   }
 
@@ -970,9 +1034,7 @@ async function addLogSafely() {
 
   try {
 
-    await addDoc(
-      logsRef,
-      {
+    const entry = {
         playerId,
         goals,
         result,
@@ -980,8 +1042,9 @@ async function addLogSafely() {
         ownGoal,
         date,
         createdAt: Date.now()
-      }
-    );
+      };
+    if (community) await community.saveMatchEntry(entry);
+    else await addDoc(logsRef,entry);
 
     if ($("logGoals")) $("logGoals").value = "0";
     if ($("logGoalType")) $("logGoalType").value = "normal";
@@ -1034,6 +1097,7 @@ function setButtonBusy(
   btn.textContent =
     text;
 
+  updateDataActionState();
 }
 
 
@@ -1041,75 +1105,121 @@ function setButtonBusy(
    FIREBASE ERROR
 ========================================================= */
 
-function handleSnapshotError(
-  error
-) {
+function isDataReady() {
+  return playersLoaded && logsLoaded && !loadError;
+}
 
+
+function updateDataActionState() {
+  const unavailable = !isAdmin || !isDataReady();
+  for (const id of ["btnExportTop", "btnExport", "btnAddPlayer", "btnAddLog"]) {
+    const button = $(id);
+    if (!button) continue;
+    button.disabled = unavailable
+      || (id === "btnAddPlayer" && addPlayerBusy)
+      || (id === "btnAddLog" && addLogBusy);
+  }
+}
+
+
+function startDataSubscriptions(retry = false) {
+  const generation = ++snapshotGeneration;
+  unsubscribePlayers?.();
+  unsubscribeLogs?.();
+  unsubscribePlayers = null;
+  unsubscribeLogs = null;
+  playersLoaded = false;
+  logsLoaded = false;
+  loadError = false;
+  retryingData = retry;
+  updateDataActionState();
+  updateDataStatus();
+
+  let nextPlayers = players;
+  let nextLogs = rawLogs;
+  const acceptedSnapshot = () => generation === snapshotGeneration && !loadError;
+  const receivedSnapshot = () => {
+    if (isDataReady()) {
+      rawPlayers = nextPlayers;
+      players = resolvePublicPlayers(rawPlayers, publicProfiles);
+      rawLogs = nextLogs;
+      retryingData = false;
+    }
+    updateDataActionState();
+    scheduleRender();
+  };
+  const failedSnapshot = error => handleSnapshotError(error, generation);
+
+  // No orderBy: legacy documents without createdAt remain readable.
+  try {
+    unsubscribePlayers = onSnapshot(playersRef, snap => {
+      if (!acceptedSnapshot()) return;
+      nextPlayers = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) =>
+        Number(a.createdAt || 0) - Number(b.createdAt || 0)
+        || String(a.name || "").localeCompare(String(b.name || ""))
+      );
+      playersLoaded = true;
+      nextPlayers.forEach(player => pendingPlayerNames.delete(playerNameKey(player.name)));
+      receivedSnapshot();
+    }, failedSnapshot);
+
+    unsubscribeLogs = onSnapshot(logsRef, snap => {
+      if (!acceptedSnapshot()) return;
+      nextLogs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(compareRawLogsNewestFirst);
+      logsLoaded = true;
+      nextLogs.forEach(log => {
+        const type = isOwnGoal(log) ? "own" : "normal";
+        pendingLogTypes.delete(`${matchKeyOf(log)}::${String(log.playerId || "")}::${type}`);
+      });
+      receivedSnapshot();
+    }, failedSnapshot);
+  } catch (error) {
+    failedSnapshot(error);
+  }
+}
+
+
+function handleSnapshotError(error, generation = snapshotGeneration) {
+  if (generation !== snapshotGeneration || loadError) return;
   loadError = true;
-
+  retryingData = false;
+  updateDataActionState();
   notify(t("loadFailed"), "error");
-
-  console.error(
-    "Firebase snapshot error:",
-    error
-  );
-
+  console.error("Firebase snapshot error:", error);
   scheduleRender();
+}
 
+
+function updateDataStatus() {
+  let banner = $("dataStatusBanner");
+  if (!loadError && !retryingData) {
+    if (banner?.contains(document.activeElement)) $("mainContent")?.focus({ preventScroll: true });
+    banner?.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement("aside");
+    banner.id = "dataStatusBanner";
+    banner.className = "data-status-banner";
+    banner.setAttribute("role", "status");
+    banner.setAttribute("aria-live", "polite");
+    banner.innerHTML = `<div class="data-status-copy"><strong id="dataStatusTitle"></strong><p id="dataStatusMessage"></p></div><button id="btnRetryData" type="button" class="btn btn-quiet" data-retry-data></button>`;
+    banner.addEventListener("click", event => {
+      if (event.target.closest?.("[data-retry-data]") && loadError) startDataSubscriptions(true);
+    });
+    $("mainContent")?.prepend(banner);
+  }
+  banner.classList.toggle("is-retrying", retryingData);
+  $("dataStatusTitle").textContent = t(retryingData ? "retryingData" : "noData");
+  $("dataStatusMessage").textContent = t(retryingData ? "dataStillLoading" : "loadFailed");
+  $("btnRetryData").textContent = t(retryingData ? "retryingData" : "retryData");
+  $("btnRetryData").disabled = retryingData;
 }
 
 
 /* =========================================================
    RENDER QUEUE
 ========================================================= */
-
-function scheduleRender() {
-
-  if (renderQueued) {
-
-    return;
-
-  }
-
-
-  renderQueued = true;
-
-
-  const run = () => {
-
-    renderQueued = false;
-
-    renderAll();
-
-  };
-
-
-  /*
-    Coalesce multiple Firebase updates
-    into one UI render.
-  */
-
-  if (
-    typeof requestAnimationFrame
-    ===
-    "function"
-  ) {
-
-    requestAnimationFrame(
-      run
-    );
-
-  } else {
-
-    setTimeout(
-      run,
-      0
-    );
-
-  }
-
-}
-
 
 /* =========================================================
    NAVIGATION
@@ -1119,21 +1229,16 @@ function syncScreenFromLocation() {
   const previousScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "";
   const route = parseAppRoute(window.location.hash);
   currentProfileId = route.screen === "playerprofile" ? route.playerId : null;
-  if (route.screen === "compare") {
-    pendingCompareRoute = {
-      playerAId: route.playerAId || "",
-      playerBId: route.playerBId || ""
-    };
-    applyPendingCompareRoute();
-  }
+  comparisonOpen = route.comparison === true;
+  comparisonPlayerId = route.comparisonPlayerId || "";
   showScreen(route.screen, { scroll: false, updateRoute: false });
   setActiveNav(route.screen === "playerprofile" ? "playerstats" : route.screen);
 
   const activeScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "");
   if (activeScreen !== route.screen) return;
 
-  const canonical = route.screen === "compare"
-    ? compareRouteFor(route.playerAId, route.playerBId)
+  const canonical = route.screen === "playerprofile" && comparisonOpen
+    ? currentComparisonRoute()
     : appRouteFor(route.screen, route.playerId);
   if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
 
@@ -1150,10 +1255,15 @@ function syncScreenFromLocation() {
 function updateLocationForScreen(name, { replace = false } = {}) {
   const section = document.getElementById(`screen-${name}`);
   if (!section || section.dataset.admin === "1") return;
-  const nextHash = appRouteFor(name, name === "playerprofile" ? currentProfileId : "");
+  const nextHash = name === "playerprofile" && comparisonOpen
+    ? currentComparisonRoute()
+    : appRouteFor(name, name === "playerprofile" ? currentProfileId : "");
   if (window.location.hash === nextHash) return;
   window.history[replace ? "replaceState" : "pushState"](null, "", nextHash);
 }
+
+
+function currentComparisonRoute() { return compareRouteFor(currentProfileId, comparisonPlayerId); }
 
 function showScreen(
   name,
@@ -1179,10 +1289,12 @@ function showScreen(
   target?.classList.remove("hidden");
 
   updatePageContext(name);
+  if (name === 'account' && !communityEnabled) { showScreen('dashboard', { scroll: false, replaceRoute: true }); return; }
 
   renderScreenContents(name);
 
   if (updateRoute) updateLocationForScreen(name, { replace: replaceRoute });
+  community?.render();
 
   if (scroll) {
     window.scrollTo({
@@ -1200,11 +1312,11 @@ function updatePageContext(screen, customLabel = "") {
     leaderboard: "leaderboard",
     table: "statsTable",
     playerstats: "playerStats",
-    compare: "comparePlayers",
     history: "history",
     players: "managePlayers",
     matches: "matchEntry",
-    settings: "settings"
+    settings: "settings",
+    account: "account"
   };
   const player = screen === "playerprofile"
     ? model.playerById?.get(String(currentProfileId || ""))
@@ -1488,6 +1600,8 @@ function emptyModel() {
 
 function renderAll() {
 
+  updateDataStatus();
+
   if (loadError) {
     renderLoadFailure(document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard");
     return;
@@ -1505,6 +1619,8 @@ function renderAll() {
   model =
     buildFootballDataModel(players, rawLogs);
 
+  hasDataModel = true;
+
 
   renderLogPlayerOptions();
 
@@ -1513,14 +1629,19 @@ function renderAll() {
   const activeScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard";
 
   renderScreenContents(activeScreen);
+  community?.render();
 
 }
 
 
 function renderScreenContents(screen) {
 
-  if (loadError) return renderLoadFailure(screen);
-  if (!playersLoaded || !logsLoaded) return;
+  updateDataStatus();
+  if (screen === "account") { community?.render(); return; }
+  if (!hasDataModel) {
+    if (loadError) return renderLoadFailure(screen);
+    if (!isDataReady()) return;
+  }
 
   if (screen === "dashboard") {
     renderInForm();
@@ -1534,8 +1655,7 @@ function renderScreenContents(screen) {
     renderPlayerCardsNameOnly();
   } else if (screen === "playerprofile" && currentProfileId) {
     renderPlayerProfile(currentProfileId);
-  } else if (screen === "compare") {
-    renderCompare();
+
   } else if (screen === "history") {
     renderMatchHistory();
   } else if (screen === "players") {
@@ -1553,11 +1673,16 @@ function renderScreenContents(screen) {
 
 
 function renderLoadFailure(screen) {
+  updateDataStatus();
+  if (hasDataModel) return;
   document.querySelectorAll(`#screen-${screen} .skeleton-list`).forEach(element => {
     element.classList.remove("skeleton-list");
     element.removeAttribute("aria-busy");
     element.innerHTML = emptyState("!", t("noData"), t("noDataLead"), true);
   });
+  if (screen === "table" && $("tableBody")) {
+    $("tableBody").innerHTML = `<tr><td colspan="9" class="noteCell">${esc(t("noData"))}</td></tr>`;
+  }
 }
 
 
@@ -1667,185 +1792,32 @@ function renderLogPlayerOptions() {
 ========================================================= */
 
 function renderCompareOptions() {
-
-  const a =
-    $("cmpPlayerA");
-
-
-  const b =
-    $("cmpPlayerB");
-
-
-  if (
-    !a ||
-    !b
-  ) {
-
-    return;
-
+  const select = $("cmpPlayerB");
+  if (!select || !playersLoaded) return;
+  const sorted = players.filter(player => String(player.id) !== currentProfileId).sort((a,b) => String(a.name).localeCompare(String(b.name)));
+  const signature = `${language}:${currentProfileId}:` + sorted.map(player => `${player.id}:${player.name}`).join("|");
+  if (signature !== compareOptionsSignature) {
+    select.innerHTML = `<option value="">${esc(t("selectPlayer"))}</option>` + sorted.map(player => `<option value="${esc(player.id)}">${esc(player.name)}</option>`).join("");
+    compareOptionsSignature = signature;
   }
-
-
-  const sorted =
-    players
-      .slice()
-      .sort(
-        (
-          x,
-          y
-        ) =>
-
-          String(
-            x.name || ""
-          )
-          .localeCompare(
-            String(
-              y.name || ""
-            )
-          )
-
-      );
-
-
-  const signature =
-    `${language}:` + sorted
-      .map(
-        p =>
-          `${p.id}:${p.name}`
-      )
-      .join("|");
-
-
-  if (
-    signature
-    ===
-    compareOptionsSignature
-  ) {
-    applyPendingCompareRoute();
-    return;
-
-  }
-
-
-  const aCur =
-    a.value;
-
-
-  const bCur =
-    b.value;
-
-
-  const options =
-
-    `<option value="">${esc(t("selectPlayer"))}</option>`
-
-    +
-
-    sorted
-      .map(
-        p =>
-
-          `<option value="${esc(p.id)}">${esc(p.name || "")}</option>`
-
-      )
-      .join("");
-
-
-  a.innerHTML =
-    options;
-
-
-  b.innerHTML =
-    options;
-
-
-  if (
-    aCur
-    &&
-    sorted.some(
-      p =>
-        String(p.id)
-        ===
-        String(aCur)
-    )
-  ) {
-
-    a.value =
-      aCur;
-
-  }
-
-
-  if (
-    bCur
-    &&
-    sorted.some(
-      p =>
-        String(p.id)
-        ===
-        String(bCur)
-    )
-  ) {
-
-    b.value =
-      bCur;
-
-  }
-
-
-  if (
-    a.value
-    &&
-    b.value
-    &&
-    a.value ===
-    b.value
-  ) {
-
-    b.value = "";
-
-  }
-
-
-  compareOptionsSignature =
-    signature;
-
-  applyPendingCompareRoute();
-
+  if (!sorted.some(player => String(player.id) === comparisonPlayerId)) comparisonPlayerId = "";
+  select.value = comparisonPlayerId;
 }
 
-
-function applyPendingCompareRoute() {
-  if (!pendingCompareRoute || !playersLoaded) return;
-  const a = $("cmpPlayerA");
-  const b = $("cmpPlayerB");
-  if (!a || !b) return;
-  const validIds = new Set(players.map(player => String(player.id)));
-  const aId = validIds.has(String(pendingCompareRoute.playerAId))
-    ? String(pendingCompareRoute.playerAId)
-    : "";
-  const bId = validIds.has(String(pendingCompareRoute.playerBId)) && pendingCompareRoute.playerBId !== aId
-    ? String(pendingCompareRoute.playerBId)
-    : "";
-  a.value = aId;
-  b.value = bId;
-  pendingCompareRoute = null;
-  const canonical = compareRouteFor(aId, bId);
-  if (window.location.hash.startsWith("#compare") && window.location.hash !== canonical) {
-    window.history.replaceState(null, "", canonical);
-  }
+function renderProfileComparison() {
+  $("profileComparison")?.classList.toggle("hidden", !comparisonOpen);
+  $("btnCompareProfile")?.setAttribute("aria-expanded", String(comparisonOpen));
+  $("btnCompareProfile")?.setAttribute("aria-controls", "profileComparison");
+  if (!comparisonOpen) return;
+  renderCompareOptions();
+  renderCompare();
 }
-
 
 function handleCompareSelection() {
-  pendingCompareRoute = null;
+  comparisonPlayerId = $("cmpPlayerB")?.value || "";
   renderCompare();
-  if (!$("screen-compare")?.classList.contains("hidden")) {
-    const hash = compareRouteFor($("cmpPlayerA")?.value, $("cmpPlayerB")?.value);
-    if (window.location.hash !== hash) window.history.replaceState(null, "", hash);
-  }
+  updateLocationForScreen("playerprofile", { replace: true });
 }
-
 
 /* =========================================================
    IN FORM PLAYERS
@@ -2452,6 +2424,7 @@ function monthPlayerItem(
 ========================================================= */
 
 function renderDashboard() {
+  renderPinnedPlayer();
 
   if ($("seasonMatches")) $("seasonMatches").textContent = model.totalMatches;
   if ($("seasonPlayers")) $("seasonPlayers").textContent = players.length;
@@ -3126,6 +3099,8 @@ function openProfile(
   }
 
   showAllTeammates = false;
+  comparisonOpen = false;
+  comparisonPlayerId = "";
 
   currentProfileId =
     String(pid);
@@ -3296,6 +3271,13 @@ function renderPlayerProfile(
   }
 
   renderProfileMatches(String(pid));
+  renderProfileInsights(String(pid));
+  renderPinButton();
+  renderProfileComparison();
+  const publicProfile = community?.getProfile(pid);
+  if ($("profileSub") && publicProfile?.preferredNumber !== null && publicProfile?.preferredNumber !== undefined) {
+    $("profileSub").textContent = `${t("preferredNumber")} · ${publicProfile.preferredNumber}`;
+  }
 
 
   renderTeammates(
@@ -3318,12 +3300,92 @@ function renderProfileMatches(pid) {
     const match = model.matchSummaries.get(participation.matchKey);
     const score = match ? `${match.scoreA}–${match.scoreB}` : "—";
     const ownGoal = participation.ownGoals ? `<span class="own-goal-tag">${esc(t("ownGoal"))}${participation.ownGoals > 1 ? ` ×${participation.ownGoals}` : ""}</span>` : "";
-    return `<div class="profile-match-row">
+    return `<button type="button" class="profile-match-row" data-open-match="${esc(participation.matchKey)}">
       <span class="result-badge ${participation.result}" aria-label="${esc(t(participation.result))}">${esc(shortResultLabel(participation.result))}</span>
       <div><strong>${esc(formatMatchDate(participation.date))}</strong><span>${esc(teamLabel(participation.side))} · ${esc(countText(language, participation.normalGoals, "goal"))}</span></div>
-      ${ownGoal}<b>${score}</b>
-    </div>`;
+      ${ownGoal}<b dir="ltr" aria-label="${esc(match ? t("matchScoreAria", { a: match.scoreA, b: match.scoreB }) : "—")}">${score}</b><span class="sr-only">${esc(t("details"))}</span>
+    </button>`;
   }).join("");
+}
+
+function renderPinButton() {
+  const button = $("btnPinPlayer");
+  if (!button) return;
+  const pinned = pinnedPlayerId === currentProfileId;
+  button.setAttribute("aria-pressed", String(pinned));
+  button.innerHTML = `<span aria-hidden="true">${pinned ? "★" : "☆"}</span><span>${esc(t(pinned ? "unpinPlayer" : "pinPlayer"))}</span>`;
+}
+
+function renderPinnedPlayer() {
+  const box = $("pinnedPlayer");
+  if (!box) return;
+  const player = players.find(p => String(p.id) === pinnedPlayerId);
+  box.classList.toggle("hidden", !player);
+  if (!player) { box.replaceChildren(); return; }
+  const stats = model.stats[pinnedPlayerId] || emptyStats();
+  const avatar = buildPlayerAvatar(player.name);
+  box.innerHTML = `<button type="button" class="pinned-link" data-open-player="${esc(player.id)}">
+    <span class="pinned-avatar" data-avatar-tone="${avatar.tone}" aria-hidden="true">${esc(avatar.initials)}</span>
+    <span class="pinned-identity"><span class="eyebrow">${esc(t("pinnedPlayer"))}</span><strong><bdi dir="auto">${esc(player.name)}</bdi></strong></span>
+    <span class="pinned-stats"><span><b>${stats.goals}</b> ${esc(t("goals"))}</span><span><b>${fmtPct(stats.winPct)}</b> ${esc(t("winPct"))}</span></span>
+    <span class="sr-only">${esc(t("openProfileAction"))}</span></button>`;
+}
+
+function appearanceWindowLabel(count) {
+  return count === 1 ? t("lastAppearance") : count === 2 ? t("lastTwoAppearances") : t("lastAppearances", { count });
+}
+
+function renderProfileInsights(pid) {
+  const box = $("profileInsights");
+  if (!box) return;
+  const progress = computePlayerProgress(model, pid);
+  const records = computePlayerRecords(model, pid);
+  if (!progress.current.matches) { box.replaceChildren(); return; }
+  const maxGoals = Math.max(1, ...progress.recentMatches.map(match => match.goals));
+  const chart = progress.recentMatches.map(match => {
+    const label = `${formatMatchDate(match.date)} · ${t(match.result)} · ${countText(language, match.goals, "goal")}`;
+    return `<button type="button" class="goal-column ${match.result}" data-open-match="${esc(match.matchKey)}" aria-label="${esc(label + ". " + t("details"))}" title="${esc(label)}">
+      <span class="goal-stem"><span class="goal-value">${match.goals}</span><span class="goal-bar" style="height:${Math.max(3, match.goals / maxGoals * 92)}px"></span></span>
+      <span class="goal-result">${esc(shortResultLabel(match.result))}</span></button>`;
+  }).join("");
+  const progressRow = (label, key, format = String, deltaKey = key) => {
+    const delta = progress.deltas?.[deltaKey] || 0;
+    const change = delta ? `<bdi dir="ltr">${delta > 0 ? "+" : "−"}${Math.abs(delta)}</bdi>${key === "winPct" ? ` <span>${esc(t("percentagePoints"))}</span>` : ""}` : esc(t("unchanged"));
+    return `<tr><th scope="row">${esc(t(label))}</th><td>${esc(format(progress.current[key]))}</td><td>${esc(format(progress.previous[key]))}</td><td class="progress-delta ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}">${change}</td></tr>`;
+  };
+  const best = records.bestScoringMatch;
+  const recordTile = (value, label, detail, key = null) => `<${key ? "button type=\"button\"" : "div"} class="personal-record" ${key ? `data-open-match="${esc(key)}"` : ""}><span>${esc(t(label))}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small>${key ? `<span class="sr-only">${esc(t("details"))}</span>` : ""}</${key ? "button" : "div"}>`;
+  box.innerHTML = `
+    <article class="card goals-card"><div class="card-heading"><h2>${esc(t("goalTimeline"))}</h2><span class="status-pill">${esc(appearanceWindowLabel(progress.recentMatches.length))}</span></div>
+      <div class="goals-chart" dir="ltr">${chart}</div><div class="chart-axis" dir="ltr"><span>${esc(t("oldest"))}</span><span>${esc(t("newest"))}</span></div>
+      <div class="chart-legend">${["win", "draw", "loss"].map(result => `<span class="${result}"><i aria-hidden="true"></i>${esc(t(result))}</span>`).join("")}</div>
+    </article>
+    <article class="card progress-card"><div class="card-heading"><h2>${esc(t("playerProgress"))}</h2></div>
+      ${progress.canCompare ? `<table class="progress-table"><thead><tr><th scope="col"><span class="sr-only">${esc(t("individualStats"))}</span></th><th scope="col">${esc(t("currentFive"))}</th><th scope="col">${esc(t("previousFive"))}</th><th scope="col">${esc(t("performanceChange"))}</th></tr></thead><tbody>${progressRow("goals", "goals")}${progressRow("wins", "wins")}${progressRow("winPct", "winPct", fmtPct, "winPctPoints")}</tbody></table>` : `<div class="progress-preview">${tile(t("goals"), progress.current.goals)}${tile(t("winPct"), fmtPct(progress.current.winPct))}</div><p class="note">${esc(appearanceWindowLabel(progress.current.matches))} · ${esc(t("comparisonUnlock"))}</p>`}
+    </article>
+    <article class="card records-card"><div class="card-heading"><h2>${esc(t("personalRecords"))}</h2></div><div class="personal-records">
+      ${recordTile(best?.goals || 0, "bestScoringMatch", best ? formatMatchDate(best.date) : "—", best?.latestMatchKey)}
+      ${recordTile(records.hatTricks, "hatTricks", t("hatTrickThreshold"))}
+      ${recordTile(fmtPct(records.scoringRate), "scoredIn", countText(language, records.scoringMatches, "match"))}
+      ${recordTile(records.unbeatenBest, "unbeatenBest", t("unbeatenNow", { count: records.unbeatenCurrent }))}
+    </div></article>`;
+}
+
+function openHistoryMatch(matchKey) {
+  const index = getSortedMatches().findIndex(match => String(match.matchKey) === String(matchKey));
+  if (index < 0) return;
+  if ($("historySearch")) $("historySearch").value = "";
+  if ($("historyPeriod")) $("historyPeriod").value = "all";
+  historyVisibleCount = Math.max(HISTORY_PAGE_SIZE, index + 1);
+  expandedMatchKeys.add(String(matchKey));
+  historyInitialized = true;
+  showScreen("history", { scroll: false });
+  setActiveNav("history");
+  requestAnimationFrame(() => {
+    const button = [...document.querySelectorAll("[data-match-toggle]")].find(item => item.dataset.matchToggle === String(matchKey));
+    button?.scrollIntoView({ block: "start", behavior: "instant" });
+    button?.focus({ preventScroll: true });
+  });
 }
 
 
@@ -3573,12 +3635,14 @@ function renderMatchHistory() {
               ${sideLines(match.teamB)}
             </section>
           </div>
+          ${community?.historyMarkup(key) || ''}
         </div>
       </article>`;
   }).join("") + (page.remaining ? `
     <button type="button" class="btn btn-quiet history-more" data-history-more>
       <span>${esc(t("showMoreMatches"))}</span><strong>${page.remaining}</strong>
     </button>` : "");
+  community?.refreshHistory();
 }
 
 
@@ -4042,12 +4106,7 @@ function renderLogs() {
 
 function renderCompare() {
 
-  const aId =
-    String(
-      $("cmpPlayerA")?.value
-      ||
-      ""
-    );
+  const aId = String(currentProfileId || "");
 
 
   const bId =
@@ -4082,7 +4141,8 @@ function renderCompare() {
     aId === bId
   ) {
 
-    box.innerHTML = emptyState("⇄", t("readyMatchup"), t("selectTwo"), true);
+    box.replaceChildren();
+    updatePageContext("playerprofile");
 
 
     return;
@@ -4169,7 +4229,8 @@ function renderCompare() {
 
       <div class="compareHeader horizontal">
 
-        <button type="button" class="compareName inline-player-link" data-open-player="${esc(aId)}">
+        <button type="button" class="compareName compare-player-a inline-player-link" data-open-player="${esc(aId)}">
+          <span class="compare-avatar" aria-hidden="true">${esc(buildPlayerAvatar(aPlayer.name).initials)}</span>
           <bdi dir="auto">${esc(aPlayer.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span>
         </button>
 
@@ -4177,7 +4238,8 @@ function renderCompare() {
           ${esc(t("versus"))}
         </div>
 
-        <button type="button" class="compareName inline-player-link" data-open-player="${esc(bId)}">
+        <button type="button" class="compareName compare-player-b inline-player-link" data-open-player="${esc(bId)}">
+          <span class="compare-avatar" aria-hidden="true">${esc(buildPlayerAvatar(bPlayer.name).initials)}</span>
           <bdi dir="auto">${esc(bPlayer.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span>
         </button>
 
@@ -4221,7 +4283,7 @@ function renderCompare() {
     </div>
 
 
-    <div class="card">
+    <div class="card compare-together">
 
       <h2 class="card-title">
         ${esc(t("teammatesRecord"))}
@@ -4435,23 +4497,24 @@ function compareStatLine(
 
   return `
 
-    <div class="compareStatLine">
+    <div class="compareStatLine compare-metric">
 
       <div class="compareSide ${leftBetter ? "better" : ""}">
         <span>${esc(aDisplay)}</span>
-        ${leftBetter ? `<span class="better-tag"><span aria-hidden="true">✓</span> ${esc(t("bestLabel"))}</span>` : ""}
+        ${leftBetter ? `<span class="sr-only">${esc(t("bestLabel"))}</span>` : ""}
       </div>
 
       <div class="compareCenter">
         ${esc(label)}
-        ${tied ? `<span class="tie-tag"><span aria-hidden="true">=</span> ${esc(t("tie"))}</span>` : ""}
+        ${tied ? `<span class="sr-only">${esc(t("tie"))}</span>` : ""}
       </div>
 
       <div class="compareSide ${rightBetter ? "better" : ""}">
         <span>${esc(bDisplay)}</span>
-        ${rightBetter ? `<span class="better-tag"><span aria-hidden="true">✓</span> ${esc(t("bestLabel"))}</span>` : ""}
+        ${rightBetter ? `<span class="sr-only">${esc(t("bestLabel"))}</span>` : ""}
       </div>
 
+      <div class="compare-bars" aria-hidden="true"><span style="--bar-width:${aRaw > 0 ? aRaw / Math.max(aRaw, bRaw) * 100 : 0}%"></span><span style="--bar-width:${bRaw > 0 ? bRaw / Math.max(aRaw, bRaw) * 100 : 0}%"></span></div>
     </div>
 
   `;
@@ -5240,6 +5303,9 @@ function esc(
 
 function exportJSON() {
 
+  if (!isAdmin) return notify(t("adminRequired"), "warning");
+  if (!isDataReady()) return notify(t("dataStillLoading"), "warning");
+
   /*
     Export RAW Firebase data,
     not aggregated data.
@@ -5253,7 +5319,7 @@ function exportJSON() {
       new Date()
         .toISOString(),
 
-    players,
+    players: rawPlayers,
 
     logs:
       rawLogs

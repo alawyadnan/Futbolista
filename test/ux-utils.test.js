@@ -66,16 +66,19 @@ test("public routes support navigation and encoded player deep links", () => {
 });
 
 test("comparisons have stable shareable deep links", () => {
-  assert.equal(compareRouteFor("player a", "player/b"), "#compare/player%20a/player%2Fb");
-  assert.equal(compareRouteFor("a", "a"), "#compare");
+  assert.equal(compareRouteFor("player a", "player/b"), "#player/player%20a/compare/player%2Fb");
+  assert.equal(compareRouteFor("a", "a"), "#player/a/compare");
   assert.deepEqual(parseAppRoute("#compare/player%20a/player%2Fb"), {
-    screen: "compare",
-    playerId: "",
-    playerAId: "player a",
-    playerBId: "player/b"
+    screen: "playerprofile",
+    playerId: "player a",
+    comparison: true,
+    comparisonPlayerId: "player/b"
   });
-  assert.deepEqual(parseAppRoute("#compare/a/a"), { screen: "compare", playerId: "" });
-  assert.deepEqual(parseAppRoute("#compare/%E0%A4%A/b"), { screen: "compare", playerId: "" });
+  assert.deepEqual(parseAppRoute("#compare/a/a"), { screen: "playerstats", playerId: "" });
+  assert.deepEqual(parseAppRoute("#compare/%E0%A4%A/b"), { screen: "playerstats", playerId: "" });
+  assert.deepEqual(parseAppRoute("#player/a/compare/b"), { screen: "playerprofile", playerId: "a", comparison: true, comparisonPlayerId: "b" });
+  assert.deepEqual(parseAppRoute("#player/a/compare"), { screen: "playerprofile", playerId: "a", comparison: true, comparisonPlayerId: "" });
+  assert.deepEqual(parseAppRoute("#compare"), { screen: "playerstats", playerId: "" });
 });
 
 test("shared app links omit cache-busting query parameters", () => {

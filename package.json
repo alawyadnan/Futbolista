@@ -3,6 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test test/*.test.js",
+    "test:rules": "firebase emulators:exec --project demo-futbolista --only firestore \"node --test rules-test/*.test.js\"",
+    "emulators": "firebase emulators:start --project demo-futbolista --only auth,firestore"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "firebase": "12.10.0",
+    "firebase-tools": "15.29.0"
   }
 }

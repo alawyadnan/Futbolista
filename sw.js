@@ -1,20 +1,25 @@
 const CACHE_PREFIX = "futbolista-cache-";
-const CACHE = `${CACHE_PREFIX}v500300`;
+const CACHE = `${CACHE_PREFIX}v500400`;
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=500300",
-  "./app.js?v=500300",
-  "./data-engine.js?v=500300",
-  "./i18n.js?v=500300",
-  "./ux-utils.js?v=500300",
+  "./styles.css?v=500400",
+  "./app.js?v=500400",
+  "./data-engine.js?v=500400",
+  "./i18n.js?v=500400",
+  "./ux-utils.js?v=500400",
+  "./insights-engine.js?v=500400",
+  "./personalization.js?v=500400",
+  "./community-config.js?v=500400",
+  "./community-engine.js?v=500400",
+  "./community.js?v=500400",
   "./icon.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable-512.png",
-  "./apple-touch-icon.png?v=500300",
-  "./manifest.json?v=500300"
+  "./apple-touch-icon.png?v=500400",
+  "./manifest.json?v=500400"
 ];
 
 self.addEventListener("install", event => {
@@ -32,11 +37,43 @@ self.addEventListener("activate", event => {
   })());
 });
 
+async function cacheResponse(request, response) {
+  try {
+    const cache = await caches.open(CACHE);
+    await cache.put(request, response.clone());
+  } catch {
+    // A full or unavailable cache must not hide a successful network response.
+  }
+}
+
+async function cachedAsset(request) {
+  try {
+    const cache = await caches.open(CACHE);
+    return (await cache.match(request)) || (await cache.match(request, { ignoreSearch: true }));
+  } catch {
+    return undefined;
+  }
+}
+
+async function cachedNavigation() {
+  try {
+    const cache = await caches.open(CACHE);
+    return (await cache.match("./index.html")) || (await cache.match("./"));
+  } catch {
+    return undefined;
+  }
+}
+
+function isServerError(response) {
+  return response.status >= 500 && response.status <= 599;
+}
+
 async function fetchAndCache(request) {
   const response = await fetch(request, { cache: "no-store" });
   if (response.ok) {
-    const cache = await caches.open(CACHE);
-    await cache.put(request, response.clone());
+    await cacheResponse(request, response);
+  } else if (isServerError(response)) {
+    return (await cachedAsset(request)) || response;
   }
   return response;
 }
@@ -45,12 +82,13 @@ async function navigationResponse(request) {
   try {
     const response = await fetch(request, { cache: "no-store" });
     if (response.ok) {
-      const cache = await caches.open(CACHE);
-      await cache.put("./index.html", response.clone());
+      await cacheResponse("./index.html", response);
+    } else if (isServerError(response)) {
+      return (await cachedNavigation()) || response;
     }
     return response;
   } catch {
-    return (await caches.match("./index.html")) || (await caches.match("./")) || Response.error();
+    return (await cachedNavigation()) || Response.error();
   }
 }
 
@@ -73,7 +111,7 @@ self.addEventListener("fetch", event => {
     try {
       return await fetchAndCache(request);
     } catch {
-      return (await caches.match(request)) || (await caches.match(request, { ignoreSearch: true })) || Response.error();
+      return (await cachedAsset(request)) || Response.error();
     }
   })());
 });

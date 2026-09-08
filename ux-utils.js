@@ -106,38 +106,33 @@ const PUBLIC_ROUTE_SCREENS = new Set([
   "leaderboard",
   "table",
   "playerstats",
-  "compare",
+  "account",
   "history"
 ]);
 
 export function parseAppRoute(hash = "") {
   const raw = String(hash || "").replace(/^#\/?/, "");
-  const [route = "", encodedPlayerId = "", encodedPlayerBId = ""] = raw.split("/");
-  if (route === "player" && encodedPlayerId) {
-    try {
-      const playerId = decodeURIComponent(encodedPlayerId).trim();
-      if (playerId) return { screen: "playerprofile", playerId };
-    } catch {
-      return { screen: "dashboard", playerId: "" };
-    }
-  }
-  if (route === "compare") {
-    if (!encodedPlayerId && !encodedPlayerBId) return { screen: "compare", playerId: "" };
-    try {
-      const playerAId = decodeURIComponent(encodedPlayerId).trim();
-      const playerBId = decodeURIComponent(encodedPlayerBId).trim();
-      if (playerAId && playerBId && playerAId !== playerBId) {
-        return { screen: "compare", playerId: "", playerAId, playerBId };
+  const [route = "", first = "", third = "", fourth = ""] = raw.split("/");
+  try {
+    if (route === "player" && first) {
+      const playerId = decodeURIComponent(first).trim();
+      if (!playerId) return { screen: "dashboard", playerId: "" };
+      if (third === "compare") {
+        const comparisonPlayerId = decodeURIComponent(fourth).trim();
+        return { screen: "playerprofile", playerId, comparison: true, comparisonPlayerId: comparisonPlayerId === playerId ? "" : comparisonPlayerId };
       }
-    } catch {
-      // Invalid comparison links safely fall back to the empty comparison screen.
+      return { screen: "playerprofile", playerId };
     }
-    return { screen: "compare", playerId: "" };
-  }
+    // Previously shared links keep working, but land inside the first profile.
+    if (route === "compare") {
+      const playerId = decodeURIComponent(first).trim(), comparisonPlayerId = decodeURIComponent(third).trim();
+      return playerId && comparisonPlayerId && playerId !== comparisonPlayerId
+        ? { screen: "playerprofile", playerId, comparison: true, comparisonPlayerId }
+        : { screen: "playerstats", playerId: "" };
+    }
+  } catch { return { screen: route === "compare" ? "playerstats" : "dashboard", playerId: "" }; }
   const screen = route === "players" ? "playerstats" : route;
-  return PUBLIC_ROUTE_SCREENS.has(screen)
-    ? { screen, playerId: "" }
-    : { screen: "dashboard", playerId: "" };
+  return PUBLIC_ROUTE_SCREENS.has(screen) ? { screen, playerId: "" } : { screen: "dashboard", playerId: "" };
 }
 
 export function appRouteFor(screen, playerId = "") {
@@ -149,10 +144,10 @@ export function appRouteFor(screen, playerId = "") {
 }
 
 export function compareRouteFor(playerAId = "", playerBId = "") {
-  const aId = String(playerAId || "").trim();
-  const bId = String(playerBId || "").trim();
-  if (!aId || !bId || aId === bId) return "#compare";
-  return `#compare/${encodeURIComponent(aId)}/${encodeURIComponent(bId)}`;
+  const aId = String(playerAId || "").trim(), bId = String(playerBId || "").trim();
+  if (!aId) return "#players";
+  const route = `#player/${encodeURIComponent(aId)}/compare`;
+  return bId && aId !== bId ? `${route}/${encodeURIComponent(bId)}` : route;
 }
 
 export function publicAppUrl(currentUrl, hash) {
@@ -170,4 +165,63 @@ export function paginateItems(items = [], visibleCount = 10) {
   const count = Math.max(1, Math.floor(Number(visibleCount) || 0));
   const visible = items.slice(0, count);
   return { visible, remaining: Math.max(0, items.length - visible.length) };
+}
+
+// Keep an in-progress form stable across background snapshots or a language
+// change. Values live only in this synchronous call, never in browser storage.
+// The caller must not preserve across an account or form-state transition.
+export function renderWithFormDraft(root, render, preserve = true) {
+  const form = root?.querySelector('form');
+  const active = root?.ownerDocument?.activeElement;
+  const focused = !!form?.contains(active);
+  const draft = preserve && form && (focused || form.dataset.dirty === 'true') ? {
+    id: form.id,
+    dirty: form.dataset.dirty,
+    fields: [...form.elements].filter(field => field.name).map(field => ({
+      name: field.name, value: field.value, checked: field.checked
+    })),
+    focus: focused ? active.id : '',
+    start: focused ? active.selectionStart : null,
+    end: focused ? active.selectionEnd : null
+  } : null;
+  render();
+  const next = root?.querySelector('form');
+  if (!draft || next?.id !== draft.id) return;
+  if (draft.dirty) next.dataset.dirty = draft.dirty;
+  for (const saved of draft.fields) {
+    const field = next.elements.namedItem(saved.name);
+    if (!field) continue;
+    field.value = saved.value;
+    if (typeof saved.checked === 'boolean') field.checked = saved.checked;
+  }
+  const target = [...next.elements].find(field => field.id === draft.focus);
+  target?.focus({ preventScroll: true });
+  if (target && Number.isInteger(draft.start) && Number.isInteger(draft.end)) {
+    target.setSelectionRange(draft.start, draft.end);
+  }
+}
+
+// Frame callbacks may be suspended by Safari or background/PWA windows. A
+// bounded timer keeps data rendering from remaining queued indefinitely.
+export function createRenderScheduler(render, {
+  requestFrame = globalThis.requestAnimationFrame?.bind(globalThis),
+  cancelFrame = globalThis.cancelAnimationFrame?.bind(globalThis),
+  setTimer = globalThis.setTimeout.bind(globalThis),
+  clearTimer = globalThis.clearTimeout.bind(globalThis)
+} = {}) {
+  let pending = null;
+  return () => {
+    if (pending) return;
+    const ticket = { frame: null, timer: null };
+    pending = ticket;
+    const run = () => {
+      if (pending !== ticket) return;
+      pending = null;
+      if (ticket.frame !== null) cancelFrame?.(ticket.frame);
+      if (ticket.timer !== null) clearTimer(ticket.timer);
+      render();
+    };
+    ticket.timer = setTimer(run, 100);
+    if (requestFrame) ticket.frame = requestFrame(run);
+  };
 }

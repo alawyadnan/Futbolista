@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    // Preserve the existing administrator identity (including legacy sessions).
+    function admin() { return signedIn() && request.auth.token.email == 'admin@ftbll.live'; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function userPath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function claimPath(pid) { return /databases/$(database)/documents/playerClaims/$(pid); }
+    function requestPath(uid) { return /databases/$(database)/documents/accountRequests/$(uid); }
+    function playerExists(pid) { return pid is string && exists(/databases/$(database)/documents/players/$(pid)); }
+    function linked() { return verified() && exists(userPath(request.auth.uid)); }
+    function ownsPlayer(pid) { return linked() && get(userPath(request.auth.uid)).data.playerId == pid; }
+    function cleanName(name) { return name is string && name.size() > 0 && name.size() <= 40 && name.matches('^[^<>\\x00-\\x1F\\x7F]+$') && !name.matches('^\\s.*|.*\\s$'); }
+    function profileValid(data) {
+      return data.keys().hasAll(['displayName', 'preferredNumber', 'updatedAt'])
+        && data.keys().hasOnly(['displayName', 'preferredNumber', 'updatedAt'])
+        && cleanName(data.displayName)
+        && (data.preferredNumber == null || (data.preferredNumber is int && data.preferredNumber >= 0 && data.preferredNumber <= 99))
+        && data.updatedAt == request.time;
+    }
+
+    // Existing football collections stay public-read / admin-write. No new
+    // profile, ballot or account path grants authority over either collection.
+    match /players/{playerId} { allow read: if true; allow write: if admin(); }
+    match /logs/{logId} { allow read: if true; allow write: if admin(); }
+
+    match /accountRequests/{uid} {
+      allow get: if admin() || (signedIn() && request.auth.uid == uid);
+      allow list: if admin();
+      function validRequest() {
+        let d = request.resource.data;
+        return d.keys().hasAll(['requestedPlayerId', 'email', 'status', 'createdAt', 'updatedAt'])
+          && d.keys().hasOnly(['requestedPlayerId', 'email', 'status', 'createdAt', 'updatedAt'])
+          && playerExists(d.requestedPlayerId) && d.email == request.auth.token.email;
+      }
+      allow create: if verified() && request.auth.uid == uid && !exists(userPath(uid))
+        && validRequest() && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if (
+        verified() && request.auth.uid == uid && !exists(userPath(uid)) && validRequest()
+        && resource.data.status in ['pending', 'rejected'] && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+      ) || (
+        admin() && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time
+        && (request.resource.data.status == 'rejected' || (
+          request.resource.data.status == 'approved'
+          && getAfter(userPath(uid)).data.playerId == resource.data.requestedPlayerId
+          && getAfter(claimPath(resource.data.requestedPlayerId)).data.uid == uid
+        ))
+      );
+      allow delete: if false;
+    }
+
+    // Two immutable locks in the SAME atomic approval transaction enforce both
+    // directions of uniqueness, including simultaneous admin approval attempts.
+    match /users/{uid} {
+      allow get: if admin() || (signedIn() && request.auth.uid == uid);
+      allow list: if admin();
+      allow create: if admin()
+        && request.resource.data.keys().hasAll(['playerId', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['playerId', 'createdAt'])
+        && playerExists(request.resource.data.playerId) && request.resource.data.createdAt == request.time
+        && getAfter(claimPath(request.resource.data.playerId)).data.uid == uid
+        && getAfter(requestPath(uid)).data.status == 'approved'
+        && getAfter(requestPath(uid)).data.requestedPlayerId == request.resource.data.playerId;
+      allow update, delete: if false;
+    }
+    match /playerClaims/{playerId} {
+      allow read: if admin();
+      allow create: if admin() && playerExists(playerId)
+        && request.resource.data.keys().hasAll(['uid', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid is string && request.resource.data.createdAt == request.time
+        && getAfter(userPath(request.resource.data.uid)).data.playerId == playerId;
+      allow update, delete: if false;
+    }
+    match /playerProfiles/{playerId} {
+      allow read: if true;
+      allow create: if admin() && playerExists(playerId) && profileValid(request.resource.data)
+        && getAfter(claimPath(playerId)).data.uid is string;
+      allow update: if ownsPlayer(playerId) && profileValid(request.resource.data);
+      allow delete: if false;
+    }
+
+    match /sessionVotes/{sessionId} {
+      allow read: if true;
+      function candidatesValid(ids) {
+        return ids is list && ids.size() >= 1 && ids.size() <= 100
+          && ids.toSet().size() == ids.size();
+      }
+      function entryPath() {
+        return /databases/$(database)/documents/logs/$(request.resource.data.firstEntryId);
+      }
+      function openingEntryValid() {
+        let entry = getAfter(entryPath()).data;
+        let key = ('matchId' in entry && entry.matchId is string && entry.matchId.size() > 0)
+          ? entry.matchId : entry.date;
+        return request.resource.data.firstEntryId is string && !exists(entryPath())
+          && request.resource.data.matchKey == key && request.resource.data.date == entry.date
+          && request.resource.data.candidatePlayerIds == [entry.playerId];
+      }
+      // The first football entry and the server timestamp commit atomically.
+      // Further entries can append candidates, but can NEVER restart the clock.
+      allow create: if admin()
+        && request.resource.data.keys().hasAll(['matchKey', 'date', 'candidatePlayerIds', 'openedAt', 'firstEntryId'])
+        && request.resource.data.keys().hasOnly(['matchKey', 'date', 'candidatePlayerIds', 'openedAt', 'firstEntryId'])
+        && request.resource.data.matchKey is string && request.resource.data.matchKey.size() > 0
+        && request.resource.data.date is string
+        && candidatesValid(request.resource.data.candidatePlayerIds)
+        && request.resource.data.openedAt == request.time && openingEntryValid();
+      // Only the trusted football administrator can maintain the candidate
+      // snapshot. Existing choices stay valid: removal and late edits are denied.
+      allow update: if admin() && request.time >= resource.data.openedAt
+        && request.time < resource.data.openedAt + duration.value(24, 'h')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['candidatePlayerIds'])
+        && candidatesValid(request.resource.data.candidatePlayerIds)
+        && request.resource.data.candidatePlayerIds.hasAll(resource.data.candidatePlayerIds);
+      allow delete: if false;
+      match /ballots/{uid} {
+        function session() { return get(/databases/$(database)/documents/sessionVotes/$(sessionId)).data; }
+        function open() { return request.time >= session().openedAt && request.time < session().openedAt + duration.value(24, 'h'); }
+        function closed() { return request.time >= session().openedAt + duration.value(24, 'h'); }
+        // Ballots are private while open (even from the admin). After closing,
+        // transparent ID-only ballots allow verifiable public client-side totals.
+        allow get: if closed() || (signedIn() && request.auth.uid == uid);
+        allow list: if closed();
+        function validBallot() {
+          let d = request.resource.data;
+          let choices = [d.firstPlayerId, d.secondPlayerId, d.thirdPlayerId];
+          return linked() && request.auth.uid == uid && open() && session().candidatePlayerIds.size() >= 4
+            && d.keys().hasAll(['voterPlayerId', 'firstPlayerId', 'secondPlayerId', 'thirdPlayerId', 'submittedAt', 'updatedAt'])
+            && d.keys().hasOnly(['voterPlayerId', 'firstPlayerId', 'secondPlayerId', 'thirdPlayerId', 'submittedAt', 'updatedAt'])
+            && d.voterPlayerId == get(userPath(uid)).data.playerId
+            && d.firstPlayerId is string && d.secondPlayerId is string && d.thirdPlayerId is string
+            && choices.toSet().size() == 3 && !(d.voterPlayerId in choices)
+            && session().candidatePlayerIds.hasAll(choices) && d.updatedAt == request.time;
+        }
+        allow create: if validBallot() && request.resource.data.submittedAt == request.time;
+        allow update: if validBallot() && request.resource.data.submittedAt == resource.data.submittedAt;
+        allow delete: if false;
+      }
+    }
+    // Unknown collections remain denied. Merge carefully with reviewed live
+    // rules if the production project has other applications/collections.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

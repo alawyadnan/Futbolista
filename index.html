@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500300" />
-  <link rel="manifest" href="./manifest.json?v=500300" />
-  <link rel="stylesheet" href="./styles.css?v=500300" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500400" />
+  <link rel="manifest" href="./manifest.json?v=500400" />
+  <link rel="stylesheet" href="./styles.css?v=500400" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -37,17 +37,21 @@
   </a>
   <div class="topbar-actions">
     <button id="btnLanguage" type="button" class="btn btn-quiet btn-compact language-btn" aria-label="Switch language to Arabic" data-i18n-aria="languageAria"><span aria-hidden="true">文</span><span data-i18n="language">العربية</span></button>
+    <button id="btnAccount" type="button" class="btn btn-quiet btn-compact hidden" data-i18n="account">Account</button>
     <button id="btnAdminLogin" type="button" class="btn btn-quiet btn-compact"><span aria-hidden="true">⌁</span><span data-i18n="adminLogin">Admin Login</span></button>
     <button id="btnExportTop" type="button" class="btn btn-quiet btn-compact" data-admin="1"><span aria-hidden="true">↓</span><span data-i18n="export">Export</span></button>
   </div>
 </header>
 
+<aside id="emulatorNotice" class="emulator-notice hidden" data-i18n="localTest"></aside>
 <main id="mainContent" class="app" tabindex="-1">
   <section id="screen-dashboard" class="screen" aria-labelledby="dashboardTitle">
     <header class="screen-intro dashboard-intro">
       <div><h1 id="dashboardTitle" data-i18n="dashboardTitle">Pickup Stats</h1></div>
       <div class="season-strip" aria-label="Season summary" data-i18n-aria="seasonSummary"><div><strong id="seasonMatches">—</strong><span data-i18n="matches">Matches</span></div><div><strong id="seasonPlayers">—</strong><span data-i18n="players">Players</span></div></div>
     </header>
+    <article id="dashboardVoting" class="card mvp-voting hidden"></article>
+    <div id="pinnedPlayer" class="pinned-player hidden"></div>
     <div class="dashboard-grid dashboard-feature-grid">
       <article class="card feature-card form-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="rightNow">Right now</div><h2 data-i18n="inForm">In Form Players</h2></div><span class="status-pill live"><span aria-hidden="true"></span><span data-i18n="last5">Last 5</span></span></div><p class="subnote" data-i18n="formFormula">Win = 1 · Draw = 0.5 · Loss = 0</p><div id="inFormList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingForm">Loading form…</div></article>
       <article class="card feature-card potm-card"><div class="card-icon crown" aria-hidden="true">★</div><div class="card-heading"><div><div class="eyebrow" data-i18n="monthlyAward">Monthly award</div><h2 data-i18n="playerMonth">Player of the Month</h2></div><span id="playerOfMonthMonth" class="status-pill">—</span></div><div id="playerOfMonthList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMonthly">Loading monthly rankings…</div></article>
@@ -74,14 +78,15 @@
     <article class="card"><div class="directory-toolbar"><label class="field grow" for="playerSearch"><span data-i18n="searchPlayers">Search players</span><input id="playerSearch" class="input search-input" type="search" autocomplete="off" placeholder="Search by name…" data-i18n-placeholder="searchPlaceholder" /></label><label class="field directory-sort" for="playerSort"><span data-i18n="sortBy">Sort by</span><select id="playerSort" class="select"><option value="name" data-i18n="alpha">Alphabetical</option><option value="matches" data-i18n="mostMatches">Most matches</option><option value="goals" data-i18n="mostGoals">Most goals</option></select></label></div><div id="playerCards" class="playerCards skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPlayers">Loading players…</div></article>
   </section>
 
-  <section id="screen-compare" class="screen hidden" aria-labelledby="compareTitle">
-    <header class="screen-intro"><div><div class="eyebrow" data-i18n="sideBySide">Side by side</div><h1 id="compareTitle" data-i18n="comparePlayers">Compare players</h1></div></header>
-    <article class="card compare-picker-card"><div class="versus-selectors"><label class="field" for="cmpPlayerA"><span data-i18n="playerA">Player A</span><select id="cmpPlayerA" class="select"></select></label><button id="btnSwapPlayers" class="versus-chip swap-button" type="button" aria-label="Swap players" data-i18n-aria="swap"><span aria-hidden="true">⇄</span><span class="sr-only" data-i18n="swap">Swap players</span></button><label class="field" for="cmpPlayerB"><span data-i18n="playerB">Player B</span><select id="cmpPlayerB" class="select"></select></label></div><div class="compare-actions"><button id="btnShareComparison" class="btn btn-quiet hidden" type="button"><span aria-hidden="true">↗</span><span data-i18n="shareComparison">Share comparison</span></button></div></article>
-    <div id="compareResult" class="compareWrap" aria-live="polite"><div class="empty-state compact"><span class="empty-icon" aria-hidden="true">⇄</span><strong data-i18n="readyMatchup">Ready for a matchup</strong><p data-i18n="selectTwo">Select two different players to compare.</p></div></div>
-  </section>
 
   <section id="screen-playerprofile" class="screen hidden" aria-labelledby="profileName">
     <article class="card profile-hero"><div class="profile-actions"><button id="btnProfileBack" class="btn btn-quiet backbtn" type="button"><span aria-hidden="true" class="back-arrow">←</span> <span data-i18n="back">Back</span></button><div class="profile-action-group"><button id="btnCompareProfile" class="btn btn-quiet" type="button"><span aria-hidden="true">⇄</span><span data-i18n="comparePlayer">Compare player</span></button><button id="btnShareProfile" class="btn btn-quiet icon-action" type="button" aria-label="Share player profile" data-i18n-aria="shareProfile"><span aria-hidden="true">↗</span><span class="sr-only" data-i18n="shareProfile">Share player profile</span></button></div></div><div class="profileIdentity"><div id="profileInitial" class="profileAvatar" aria-hidden="true">P</div><div><div class="eyebrow" data-i18n="profile">Player profile</div><h1 id="profileName" class="profileName">Player</h1><div id="profileSub" class="subnote"></div></div></div><div id="profileStatsGrid" class="statGrid"></div><div id="profileRecord" class="record-overview"></div></article>
+    <button id="btnPinPlayer" class="btn btn-quiet pin-button" type="button" aria-pressed="false"><span aria-hidden="true">☆</span><span data-i18n="pinPlayer">Pin to home</span></button>
+    <section id="profileComparison" class="profile-comparison hidden" aria-labelledby="comparisonHeading">
+      <article class="card"><div class="card-heading"><h2 id="comparisonHeading" data-i18n="comparePlayer">Compare player</h2><button id="btnCloseComparison" type="button" class="btn btn-quiet" data-i18n="closeComparison">Close comparison</button></div><label class="field" for="cmpPlayerB"><span data-i18n="compareWith">Compare with</span><select id="cmpPlayerB" class="select"></select></label><div class="compare-actions"><button id="btnShareComparison" class="btn btn-quiet hidden" type="button" data-i18n="shareComparison">Share comparison</button></div></article>
+      <div id="compareResult" class="compareWrap" aria-live="polite"></div>
+    </section>
+    <div id="profileInsights" class="profile-insights"></div>
     <div class="profile-details-grid"><article class="card"><div class="card-heading"><h2 data-i18n="form">Form</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileForm" class="formRow">—</div></article><article class="card"><div class="card-heading"><h2 data-i18n="mostTeammates">Most Teammates</h2><span class="metric-symbol" aria-hidden="true">◉</span></div><div id="profileMates" class="matesList skeleton-list" aria-live="polite" data-i18n="loadingConnections">Loading connections…</div></article><article class="card full-span"><div class="card-heading"><h2 data-i18n="recentMatches">Recent matches</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileMatches" class="profile-match-list"></div></article><article class="card full-span"><h2 data-i18n="neverPlayed">Never played with</h2><div id="profileNever" class="neverList note">—</div></article></div>
   </section>
 
@@ -91,13 +96,16 @@
     <div id="matchHistoryList" class="match-list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMatches">Loading matches…</div>
   </section>
 
+  <section id="screen-account" class="screen hidden" aria-labelledby="accountTitle"><header class="screen-intro"><h1 id="accountTitle" data-i18n="account">Account</h1></header><div id="accountContent"></div></section>
   <section id="screen-players" class="screen hidden" data-admin="1" aria-labelledby="adminPlayersTitle">
+    <article id="accountRequests" class="card hidden" data-admin="1"></article>
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="adminPlayersTitle" data-i18n="managePlayers">Manage players</h1><p data-i18n="manageLead">Add squad members and review recorded totals.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
     <article class="card admin-action-card"><h2 data-i18n="addPlayer">Add player</h2><p class="subnote" data-i18n="uniqueNames">Names must be unique.</p><div class="action-row"><label class="field grow" for="playerName"><span data-i18n="playerName">Player name</span><input id="playerName" class="input" autocomplete="off" maxlength="60" placeholder="e.g. Ahmed" data-i18n-placeholder="playerPlaceholder" /></label><button id="btnAddPlayer" type="button" class="btn btn-primary" data-i18n="addPlayer">Add player</button></div></article>
     <article class="card"><h2 data-i18n="squadList">Squad list</h2><div id="playersList" class="list skeleton-list" aria-live="polite" data-i18n="loadingAdminPlayers">Loading players…</div></article>
   </section>
 
   <section id="screen-matches" class="screen hidden" data-admin="1" aria-labelledby="entryTitle">
+    <article id="adminVoting" class="card hidden" data-admin="1"></article>
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="entryTitle" data-i18n="matchEntry">Match entry</h1><p data-i18n="entryLead">Add one participation at a time. Existing match data stays untouched.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
     <article class="card admin-action-card"><h2 data-i18n="addMatchEntry">Add match entry</h2><div class="gridForm entry-grid"><label class="field" for="logDate"><span data-i18n="date">Date</span><input id="logDate" class="input" type="date" /></label><label class="field" for="logPlayer"><span data-i18n="player">Player</span><select id="logPlayer" class="select"></select></label><label class="field" for="logGoals"><span data-i18n="goals">Goals</span><input id="logGoals" class="input" type="number" inputmode="numeric" min="0" max="99" value="0" /></label><label class="field" for="logResult"><span data-i18n="result">Result</span><select id="logResult" class="select"><option value="win" selected data-i18n="win">Win</option><option value="draw" data-i18n="draw">Draw</option><option value="loss" data-i18n="loss">Loss</option></select></label><label class="field" for="logSide"><span data-i18n="team">Team</span><select id="logSide" class="select"><option value="A" selected data-i18n="teamA">Team A</option><option value="B" data-i18n="teamB">Team B</option></select></label><label class="field" for="logGoalType"><span data-i18n="goalType">Goal type</span><select id="logGoalType" class="select"><option value="normal" selected data-i18n="normal">Normal</option><option value="own" data-i18n="ownGoal">Own Goal</option></select></label></div><div class="form-warning"><span aria-hidden="true">!</span> <span data-i18n="entryWarning">Normal and own-goal entries may coexist. Identical entry types are blocked.</span></div><button id="btnAddLog" type="button" class="btn btn-primary full" data-i18n="saveEntry">Save entry</button></article>
     <article class="card"><h2 data-i18n="recentEntries">Recent entries</h2><div id="logsList" class="list skeleton-list" aria-live="polite" data-i18n="loadingEntries">Loading recent entries…</div></article>
@@ -115,7 +123,6 @@
   <button type="button" class="navbtn" data-nav="leaderboard"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h8v3c0 4-2.4 6-4 6S8 11 8 7V4Z"/><path d="M8 6H5v1a4 4 0 0 0 4 4M16 6h3v1a4 4 0 0 1-4 4M12 13v4M9 20h6M10 17h4"/></svg></span><span class="txt" data-i18n="navLeaderboard">Leaderboard</span></button>
   <button type="button" class="navbtn" data-nav="table"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 10h16M9 5v14M15 5v14"/></svg></span><span class="txt" data-i18n="navTable">Table</span></button>
   <button type="button" class="navbtn" data-nav="playerstats"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3.5 19c.5-3.3 2.3-5 5.5-5s5 1.7 5.5 5M14 15c.8-.7 1.8-1 3-1 2.3 0 3.7 1.3 4 4"/></svg></span><span class="txt" data-i18n="navPlayers">Players</span></button>
-  <button type="button" class="navbtn" data-nav="compare"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h13M15 4l3 3-3 3M19 17H6M9 14l-3 3 3 3"/></svg></span><span class="txt" data-i18n="navCompare">Compare</span></button>
   <button type="button" class="navbtn" data-nav="history"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg></span><span class="txt" data-i18n="navHistory">History</span></button>
   <button type="button" class="navbtn" data-nav="players" data-admin="1"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.5-2.5 7.6-7 10-4.5-2.4-7-5.5-7-10V6l7-3Z"/><circle cx="12" cy="10" r="2"/><path d="M8.5 16c.6-2 1.7-3 3.5-3s2.9 1 3.5 3"/></svg></span><span class="txt" data-i18n="navAdmin">Admin</span></button>
   <button type="button" class="navbtn" data-nav="matches" data-admin="1"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg></span><span class="txt" data-i18n="navEntry">Entry</span></button>
@@ -140,6 +147,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500300"></script>
+<script type="module" src="./app.js?v=500400"></script>
 </body>
 </html>
