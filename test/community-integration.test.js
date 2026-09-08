@@ -54,6 +54,17 @@ test('admin entry atomically starts automatic voting; no separate completion act
   assert.match(community,/firstEntryId:entryRef\.id,openedAt:serverTimestamp\(\)/);
   assert.doesNotMatch(community,/completeSessionForm|confirmSessionComplete|sessionAlreadyOpen/);
 });
+test('voting UI binds the selected workout, restricts attendance and offers accessible rank controls',()=>{
+  const source=read('community.js'),rules=read('firestore.rules');
+  assert.match(source,/const participating = session\.candidatePlayerIds\.includes\(link\?\.playerId\)/);
+  assert.match(source,/link && participating && enoughCandidates/);
+  assert.match(source,/sessions\.find\(item => item\.id === form\.dataset\.session\)/);
+  assert.match(source,/id="votingSession"/);
+  assert.match(source,/data-vote-up/);
+  assert.match(source,/aria-label="\$\{esc\(t\('moveVoteUp'/);
+  assert.match(rules,/d\.voterPlayerId in session\(\)\.candidatePlayerIds/);
+  for(const key of ['participantRequired','moveVoteUp','rankThreeLead','trainingDate','chooseTraining'])for(const language of ['ar','en'])assert.notEqual(translate(language,key,{rank:'1'}),key);
+});
 test('default tests never invoke Firebase, and write-based tools require explicit opt-in',()=>{
   const pkg=JSON.parse(read('package.json'));
   assert.equal(pkg.scripts.test,'node --test test/*.test.js');

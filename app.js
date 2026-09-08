@@ -26,14 +26,14 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500400";
+} from "./data-engine.js?v=500401";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500400";
-import { computePlayerProgress, computePlayerRecords } from "./insights-engine.js?v=500400";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500400";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500400";
-import { resolvePublicPlayers } from "./community-engine.js?v=500400";
-import { createCommunity } from "./community.js?v=500400";
+import { countText, directionFor, translate } from "./i18n.js?v=500401";
+import { computePlayerProgress, computePlayerRecords } from "./insights-engine.js?v=500401";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500401";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500401";
+import { resolvePublicPlayers } from "./community-engine.js?v=500401";
+import { createCommunity } from "./community.js?v=500401";
 
 import {
   appRouteFor,
@@ -52,7 +52,7 @@ import {
   playerNameKey,
   publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500400";
+} from "./ux-utils.js?v=500401";
 
 
 /* =========================================================
@@ -713,7 +713,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator && !localEmulator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500400").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500401").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });

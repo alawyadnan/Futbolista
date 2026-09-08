@@ -1,25 +1,25 @@
 const CACHE_PREFIX = "futbolista-cache-";
-const CACHE = `${CACHE_PREFIX}v500400`;
+const CACHE = `${CACHE_PREFIX}v500401`;
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=500400",
-  "./app.js?v=500400",
-  "./data-engine.js?v=500400",
-  "./i18n.js?v=500400",
-  "./ux-utils.js?v=500400",
-  "./insights-engine.js?v=500400",
-  "./personalization.js?v=500400",
-  "./community-config.js?v=500400",
-  "./community-engine.js?v=500400",
-  "./community.js?v=500400",
+  "./styles.css?v=500401",
+  "./app.js?v=500401",
+  "./data-engine.js?v=500401",
+  "./i18n.js?v=500401",
+  "./ux-utils.js?v=500401",
+  "./insights-engine.js?v=500401",
+  "./personalization.js?v=500401",
+  "./community-config.js?v=500401",
+  "./community-engine.js?v=500401",
+  "./community.js?v=500401",
   "./icon.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable-512.png",
-  "./apple-touch-icon.png?v=500400",
-  "./manifest.json?v=500400"
+  "./apple-touch-icon.png?v=500401",
+  "./manifest.json?v=500401"
 ];
 
 self.addEventListener("install", event => {

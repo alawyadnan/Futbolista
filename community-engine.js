@@ -60,6 +60,7 @@ export function validateBallot({ session, user, choices, now = Date.now() }) {
   if (!user?.playerId) return 'linkedRequired';
   if (votingState(session, now).state !== 'open') return 'votingClosed';
   if (session.candidatePlayerIds.length < 4) return 'sessionTooSmall';
+  if (!session.candidatePlayerIds.includes(user.playerId)) return 'participantRequired';
   if (!Array.isArray(choices) || choices.length !== 3 || choices.some(id => typeof id !== 'string' || !id)) return 'chooseThree';
   if (new Set(choices).size !== 3) return 'uniqueChoices';
   if (choices.includes(user.playerId)) return 'noSelfVote';
@@ -68,6 +69,22 @@ export function validateBallot({ session, user, choices, now = Date.now() }) {
 }
 
 export function ballotChoices(ballot) { return CHOICE_FIELDS.map(key => ballot?.[key] || ''); }
+
+// Keep the selected workout stable as newer entries arrive. A new account sees
+// its most recent eligible workout first; participation never crosses dates.
+export function selectVotingSession(sessions, selectedId = '', playerId = '', now = Date.now()) {
+  const open = sessions.filter(session => votingState(session, now).state === 'open');
+  return open.find(session => session.id === selectedId)
+    || open.find(session => session.candidatePlayerIds.includes(playerId)) || open[0] || null;
+}
+
+export function moveVoteChoiceUp(choices, rank) {
+  const reordered = [...choices];
+  if (choices.length === 3 && Number.isInteger(rank) && rank > 0 && rank < 3 && choices[rank]) {
+    [reordered[rank - 1], reordered[rank]] = [reordered[rank], reordered[rank - 1]];
+  }
+  return reordered;
+}
 
 // No client-supplied points or names are read. UID is the deterministic doc ID.
 // Even malformed imported ballots cannot inflate the tally or create extra ranks.
@@ -78,7 +95,7 @@ export function tallyBallots(session, ballots, now = Date.now()) {
   let totalBallots = 0;
   for (const ballot of ballots) {
     const choices = ballotChoices(ballot);
-    if (!ballot.uid || seenUids.has(ballot.uid) || !ballot.voterPlayerId || new Set(choices).size !== 3
+    if (!ballot.uid || seenUids.has(ballot.uid) || !rows.has(ballot.voterPlayerId) || new Set(choices).size !== 3
       || choices.includes(ballot.voterPlayerId) || choices.some(id => !rows.has(id))) continue;
     seenUids.add(ballot.uid);
     totalBallots++;

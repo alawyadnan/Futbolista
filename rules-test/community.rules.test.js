@@ -51,6 +51,14 @@ test('second account cannot claim a linked player; same account cannot claim two
 test('rejected requests may be resubmitted but only admin may reject',async()=>{const db=dbFor('alice');await setDoc(doc(db,'accountRequests','alice'),requestData('alice','a'));await assertFails(updateDoc(doc(db,'accountRequests','alice'),{status:'rejected',updatedAt:serverTimestamp()}));await assertSucceeds(updateDoc(doc(adminDb(),'accountRequests','alice'),{status:'rejected',updatedAt:serverTimestamp()}));await assertSucceeds(updateDoc(doc(db,'accountRequests','alice'),{status:'pending',requestedPlayerId:'b',updatedAt:serverTimestamp()}));});
 test('linked owner changes only safe presentation fields, not playerId/stats/another profile',async()=>{await seedLink();await seedLink('bob','b');const db=dbFor('alice');await assertSucceeds(updateDoc(doc(db,'playerProfiles','a'),{displayName:'أحمد',preferredNumber:0,updatedAt:serverTimestamp()}));await assertFails(updateDoc(doc(db,'playerProfiles','a'),{playerId:'b',updatedAt:serverTimestamp()}));await assertFails(updateDoc(doc(db,'playerProfiles','a'),{goals:99,updatedAt:serverTimestamp()}));await assertFails(updateDoc(doc(db,'users','alice'),{playerId:'b'}));await assertFails(updateDoc(doc(db,'playerProfiles','b'),{displayName:'Stolen',updatedAt:serverTimestamp()}));});
 test('profile validation rejects blank, markup, long names and invalid numbers',async()=>{await seedLink();const ref=doc(dbFor('alice'),'playerProfiles','a');for(const displayName of ['', '   ', ' leading','trailing ','<script>','x'.repeat(41)])await assertFails(updateDoc(ref,{displayName,updatedAt:serverTimestamp()}));for(const preferredNumber of [-1,100,2.5,'9'])await assertFails(updateDoc(ref,{preferredNumber,updatedAt:serverTimestamp()}));await assertSucceeds(updateDoc(ref,{preferredNumber:null,updatedAt:serverTimestamp()}));});
+test('direct profile writes reject Unicode controls, bidi overrides and invisible whitespace names',async()=>{
+  await seedLink();
+  const ref=doc(dbFor('alice'),'playerProfiles','a');
+  for(const displayName of ['\u0085bad','\u202Ebad','A\u200F','\u061CBad','\u2066Bad\u2069','\u00A0','\u2002name','name\u00A0']) {
+    await assert.rejects(updateDoc(ref,{displayName,updatedAt:serverTimestamp()}),{code:'permission-denied'},`Reject codepoints: ${[...displayName].map(c=>c.codePointAt(0).toString(16)).join(' ')}`);
+  }
+  await assertSucceeds(updateDoc(ref,{displayName:'يوسف محمد',updatedAt:serverTimestamp()}));
+});
 test('admin starts server-timed voting atomically with the first entry, never reopens it',async()=>{
   await assertFails(openWithEntry('unapproved',{db:dbFor('alice')}));
   await assertSucceeds(openWithEntry('automatic'));
@@ -107,8 +115,28 @@ test('clock starts at first entry, but ballots wait for at least four recorded c
   const ballot={...ballotData('e'),firstPlayerId:'a',secondPlayerId:'b',thirdPlayerId:'c'};
   const ballotRef=doc(dbFor('alice'),'sessionVotes','building','ballots','alice');
   await assertFails(setDoc(ballotRef,ballot));
-  await updateDoc(ref,{candidatePlayerIds:['a','b','c','d']});
+  await updateDoc(ref,{candidatePlayerIds:['a','b','c','e']});
   await assertSucceeds(setDoc(ballotRef,ballot));
+});
+test('linked non-participants cannot create OR update a ballot, even with three valid choices',async()=>{
+  await seedSession(); await seedLink('alice','e');
+  const ref=doc(dbFor('alice'),'sessionVotes','open','ballots','alice');
+  await assertFails(setDoc(ref,ballotData('e')));
+  await seed(db=>setDoc(doc(db,'sessionVotes','open','ballots','alice'),ballotData('e')));
+  await assertFails(updateDoc(ref,{firstPlayerId:'c',secondPlayerId:'b',updatedAt:serverTimestamp()}));
+});
+test('attendance on one date never authorizes voting for another workout',async()=>{
+  await seedLink(); await seedSession('attended');
+  await seed(db=>setDoc(doc(db,'sessionVotes','not-attended'),{...sessionData(),date:'2026-09-07',matchKey:'2026-09-07',candidatePlayerIds:['b','c','d','e']}));
+  await assertSucceeds(setDoc(doc(dbFor('alice'),'sessionVotes','attended','ballots','alice'),ballotData()));
+  await assertFails(setDoc(doc(dbFor('alice'),'sessionVotes','not-attended','ballots','alice'),ballotData()));
+});
+test('an absent player becomes eligible only after admin records them in that session',async()=>{
+  await seedSession(); await seedLink('alice','e');
+  const ref=doc(dbFor('alice'),'sessionVotes','open','ballots','alice');
+  await assertFails(setDoc(ref,ballotData('e')));
+  await assertSucceeds(updateDoc(doc(adminDb(),'sessionVotes','open'),{candidatePlayerIds:['a','b','c','d','e']}));
+  await assertSucceeds(setDoc(ref,ballotData('e')));
 });
 test('guest, unapproved and unverified users cannot vote',async()=>{await seedSession();await assertFails(setDoc(doc(guestDb(),'sessionVotes','open','ballots','guest'),ballotData()));await assertFails(setDoc(doc(dbFor('alice'),'sessionVotes','open','ballots','alice'),ballotData()));await seedLink();await assertFails(setDoc(doc(dbFor('alice',false),'sessionVotes','open','ballots','alice'),ballotData()));});
 test('one UID owns one ballot; voter cannot impersonate another account or player',async()=>{await seedSession();await seedLink();const db=dbFor('alice');await assertSucceeds(setDoc(doc(db,'sessionVotes','open','ballots','alice'),ballotData()));await assertFails(setDoc(doc(db,'sessionVotes','open','ballots','other-id'),ballotData()));await assertFails(updateDoc(doc(db,'sessionVotes','open','ballots','alice'),{voterPlayerId:'b',updatedAt:serverTimestamp()}));});

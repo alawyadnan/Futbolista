@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, planEntryVoting, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500400';
-import { renderWithFormDraft } from './ux-utils.js?v=500400';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500401';
+import { renderWithFormDraft } from './ux-utils.js?v=500401';
 
 export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount }) {
   const $ = id => document.getElementById(id);
@@ -10,15 +10,20 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   let ownStops = [], adminStop = null, ballotStop = null, busy = false, authMode = 'signin';
   let generation = 0, lastPhase = '', timer = null, expiryTimer = null, ballotDirty = false;
   let accountView = '';
+  let selectedSessionId = '';
   const results = new Map(), resultLoads = new Map();
   const publicStops = [];
   const playerName = id => getPlayers().find(player => String(player.id) === id)?.name || t('unknown');
-  const errorMessage = error => t(error?.code === 'auth/too-many-requests' ? 'tooManyAttempts' : error?.code === 'auth/weak-password' ? 'strongPassword' : error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','sessionTooLarge','sessionTooSmall'].includes(error.message) ? error.message : 'communityFailed');
+  const errorMessage = error => t(error?.code === 'auth/too-many-requests' ? 'tooManyAttempts' : error?.code === 'auth/weak-password' ? 'strongPassword' : error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','participantRequired','sessionTooLarge','sessionTooSmall'].includes(error.message) ? error.message : 'communityFailed');
   const button = (action, label, extra = '') => `<button type="button" class="btn btn-quiet" data-community-action="${action}" ${extra}>${esc(t(label))}</button>`;
   const field = (id, label, type = 'text', value = '', extra = '') => `<label class="field" for="${id}"><span>${esc(t(label))}</span><input id="${id}" name="${id}" class="input" type="${type}" value="${esc(value)}" ${extra}></label>`;
   const option = (id, label, selected = '') => `<option value="${esc(id)}" ${id === selected ? 'selected' : ''}>${esc(label)}</option>`;
 
-  function latestOpen() { return sessions.find(session => votingState(session).state === 'open') || null; }
+  function activeSession() { return selectVotingSession(sessions,selectedSessionId,link?.playerId); }
+  const sessionDate = session => {
+    const date = new Date(`${session.date}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? session.date : new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar-SA-u-ca-gregory' : 'en-GB',{day:'numeric',month:'long',year:'numeric'}).format(date);
+  };
   function render() { renderAccount(); renderRequests(); renderAdminVoting(); renderVoting(); }
   function renderAccount() {
     const view = `${generation}:${authMode}:${accountReady}:${accountError}:${link?.playerId || ''}:${linkRequest?.status || ''}`;
@@ -90,7 +95,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   }
 
   function bindOwnBallot(session) {
-    const key = session && user ? `${session.id}/${user.uid}` : '';
+    const key = session && user?.emailVerified && session.candidatePlayerIds.includes(link?.playerId) ? `${session.id}/${user.uid}` : '';
     if (key === ballotKey) return;
     ballotStop?.(); ballotStop = null; ballotKey = key; ownBallot = null;
     if (key && link) ballotStop = onSnapshot(doc(db,'sessionVotes',session.id,'ballots',user.uid), snap => { if (ballotKey !== key) return; ownBallot = snap.exists() ? snap.data() : null; renderVoting(); }, error => { if (ballotKey === key) notify(errorMessage(error),'error'); });
@@ -99,7 +104,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   function renderVoting() {
     const box = $('dashboardVoting');
     if (!box) return;
-    const session = latestOpen();
+    const session = activeSession();
     bindOwnBallot(session);
     box.classList.toggle('hidden', !session);
     if (!session) { box.replaceChildren(); return; }
@@ -107,12 +112,20 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const choices = ballotDirty && box.dataset.session === session.id && previousChoices.length === 3 ? previousChoices : ballotChoices(ownBallot);
     box.dataset.session = session.id;
     const enoughCandidates = session.candidatePlayerIds.length >= 4;
-    const allowed = !!(user?.emailVerified && link && enoughCandidates);
+    const participating = session.candidatePlayerIds.includes(link?.playerId);
+    const allowed = !!(user?.emailVerified && link && participating && enoughCandidates);
     const candidates = session.candidatePlayerIds.filter(id => id !== link?.playerId);
-    box.innerHTML = `<div class="card-heading"><div><div class="eyebrow">${esc(session.date)}</div><h2>${esc(t('sessionMvp'))}</h2></div><span class="status-pill live">${esc(t('votingOpen'))}</span></div>
+    const openSessions = sessions.filter(item => votingState(item).state === 'open');
+    box.innerHTML = `<div class="card-heading"><div><div class="eyebrow">${esc(t('trainingDate'))} · <time datetime="${esc(session.date)}">${esc(sessionDate(session))}</time></div><h2>${esc(t('sessionMvp'))}</h2></div><span class="status-pill live">${esc(t('votingOpen'))}</span></div>
+      ${openSessions.length > 1 ? `<label class="field voting-session" for="votingSession"><span>${esc(t('chooseTraining'))}</span><select class="select" id="votingSession">${openSessions.map(item => option(item.id,sessionDate(item),session.id)).join('')}</select></label>` : ''}
       <div class="voting-clock"><span>${esc(t('votingEndsIn'))}</span><strong data-vote-countdown></strong></div>
-      ${allowed ? `<form id="ballotForm">${['firstChoice','secondChoice','thirdChoice'].map((label,index) => `<label class="vote-choice" for="voteChoice${index}"><span class="vote-rank">${index+1}</span><span class="field"><span>${esc(t(label))}<small>${index === 2 ? esc(t('onePoint')) : `${[5,3][index]} ${esc(t('votePoints'))}`}</small></span><select id="voteChoice${index}" class="select" data-vote-rank="${index}" required>${option('',t('selectPlayer'))}${candidates.map(id => option(id,playerName(id),choices[index])).join('')}</select></span></label>`).join('')}
+      ${allowed ? `<form id="ballotForm" data-session="${esc(session.id)}"><p class="vote-guidance">${esc(t('rankThreeLead'))}</p><fieldset class="vote-ranking"><legend class="sr-only">${esc(t('rankThreeLead'))}</legend>${['firstChoice','secondChoice','thirdChoice'].map((label,index) => `<div class="vote-choice" data-rank="${index}"><span class="vote-rank" aria-hidden="true">${index+1}</span><div class="vote-choice-body"><label class="field" for="voteChoice${index}"><span>${esc(t(label))}<small>${index === 2 ? esc(t('onePoint')) : `${[5,3][index]} ${esc(t('votePoints'))}`}</small></span><select id="voteChoice${index}" class="select" data-vote-rank="${index}" required>${option('',t('selectPlayer'))}${candidates.map(id => option(id,playerName(id),choices[index])).join('')}</select></label>${index ? `<button type="button" class="vote-reorder" data-vote-up="${index}" aria-label="${esc(t('moveVoteUp',{rank:t(index === 1 ? 'firstChoice' : 'secondChoice')}))}">${esc(t('moveUp'))}</button>` : ''}</div></div>`).join('')}</fieldset>
         <p class="note">${esc(t('ballotPrivacy'))}</p><div class="vote-submit"><span class="vote-saved">${ownBallot ? esc(t('youVoted')) : ''}</span><button class="btn btn-primary" type="submit">${esc(t(ownBallot ? 'updateVote' : 'submitVote'))}</button></div></form>` : !enoughCandidates ? `<p class="note">${esc(t('votingCandidatesPending'))}</p>` : `<p class="note">${esc(t('linkedRequired'))}</p>${button('open-account',user ? 'account' : 'signIn')}`}`;
+    if (!allowed && enoughCandidates && link && !participating) {
+      const note = box.querySelector('.note');
+      note.textContent = t('participantRequired');
+      box.querySelector('[data-community-action="open-account"]')?.remove();
+    }
     updateChoiceAvailability(); updateCountdown();
   }
 
@@ -120,9 +133,10 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const selects = [...document.querySelectorAll('[data-vote-rank]')];
     const values = selects.map(select => select.value);
     selects.forEach(select => [...select.options].forEach(option => { option.disabled = !!option.value && option.value !== select.value && values.includes(option.value); }));
+    document.querySelectorAll('[data-vote-up]').forEach(button => { button.disabled = busy || !values[Number(button.dataset.voteUp)]; });
   }
   function updateCountdown() {
-    const session = latestOpen();
+    const session = activeSession();
     const phase = sessions.map(item => `${item.id}:${votingState(item).state}`).join('|');
     if (lastPhase && phase !== lastPhase) { lastPhase = phase; renderVoting(); refreshHistory(); return; }
     lastPhase = phase;
@@ -145,7 +159,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
         session = await resultLoads.get(`session:${id}`);
       }
       if (!box.isConnected || !session) continue;
-      if (votingState(session).state !== 'closed') { box.innerHTML = `<span class="status-pill">${esc(t('votingOpen'))}</span>`; continue; }
+      if (votingState(session).state !== 'closed') { box.innerHTML = `<span class="status-pill">${esc(t('votingOpen'))}</span> ${button('open-voting','viewVoting',`data-session-id="${esc(id)}"`)}`; continue; }
       box.textContent = t('loadingMvp');
       try {
         if (!results.has(id)) {
@@ -163,6 +177,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const currentGeneration = ++generation;
     ownStops.forEach(stop => stop()); ownStops = []; adminStop?.(); adminStop = null;
     ballotStop?.(); ballotStop = null; ballotKey = ''; ownBallot = null; ballotDirty = false;
+    selectedSessionId = '';
     user = nextUser; admin = isAdmin; link = null; linkRequest = null; requests = []; accountReady = false; accountError = false;
     if (user && !admin) {
       let userReady = false, requestReady = false;
@@ -202,10 +217,17 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     document.querySelectorAll('[data-community-action], #accountContent button, #ballotForm button').forEach(button => { button.disabled = true; });
     try { await fn(); if (success) notify(t(success)); }
     catch(error) { notify(errorMessage(error),'error'); }
-    finally { busy = false; document.querySelectorAll('[data-community-action], #accountContent button, #ballotForm button').forEach(button => { button.disabled = false; }); }
+    finally { busy = false; document.querySelectorAll('[data-community-action], #accountContent button, #ballotForm button').forEach(button => { button.disabled = false; }); updateChoiceAvailability(); }
   }
 
   document.addEventListener('click', event => {
+    const reorder = event.target.closest('[data-vote-up]');
+    if (reorder && !busy) {
+      const selects = [...document.querySelectorAll('[data-vote-rank]')];
+      const choices = moveVoteChoiceUp(selects.map(select => select.value),Number(reorder.dataset.voteUp));
+      selects.forEach((select,index) => { select.value = choices[index]; });
+      ballotDirty = true; updateChoiceAvailability(); return;
+    }
     const player = event.target.closest('[data-community-player]');
     if (player) openProfile(player.dataset.communityPlayer);
     const trigger = event.target.closest('[data-community-action]');
@@ -213,6 +235,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const name = trigger.dataset.communityAction;
     if (name === 'signin-mode' || name === 'signup-mode') { authMode = name === 'signup-mode' ? 'signup' : 'signin'; renderAccount(); return; }
     if (name === 'open-account') { showAccount(); return; }
+    if (name === 'open-voting') { selectedSessionId = trigger.dataset.sessionId; ballotDirty = false; location.hash = 'dashboard'; renderVoting(); $('dashboardVoting')?.scrollIntoView({block:'start'}); return; }
     if (name === 'my-stats' && link) { openProfile(link.playerId); return; }
     if (name === 'retry-results') { refreshHistory(); return; }
     action(async () => {
@@ -233,7 +256,11 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     if (form) form.dataset.dirty = 'true';
   };
   document.addEventListener('input', markAccountDraft);
-  document.addEventListener('change',event => { markAccountDraft(event); if (event.target.matches('[data-vote-rank]')) { ballotDirty = true; updateChoiceAvailability(); } });
+  document.addEventListener('change',event => {
+    markAccountDraft(event);
+    if (event.target.id === 'votingSession') { selectedSessionId = event.target.value; ballotDirty = false; renderVoting(); }
+    if (event.target.matches('[data-vote-rank]')) { ballotDirty = true; updateChoiceAvailability(); }
+  });
   document.addEventListener('submit',event => {
     if (!['communityAuthForm','profileEditForm','linkPlayerForm','ballotForm'].includes(event.target.id)) return;
     event.preventDefault();
@@ -255,7 +282,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
         if (!user?.emailVerified || link) throw new Error('linkedRequired');
         await setDoc(doc(db,'accountRequests',user.uid),{requestedPlayerId:$('requestedPlayer').value,email:user.email,status:'pending',createdAt:linkRequest?.createdAt || serverTimestamp(),updatedAt:serverTimestamp()}); notify(t('requestSent'));
       } else if (form.id === 'ballotForm') {
-        const session = latestOpen(), choices = [...form.querySelectorAll('[data-vote-rank]')].map(select => select.value);
+        const session = sessions.find(item => item.id === form.dataset.session), choices = [...form.querySelectorAll('[data-vote-rank]')].map(select => select.value);
         const invalid = validateBallot({session,user:link,choices}); if (invalid) throw new Error(invalid);
         const uid = user.uid, pid = link.playerId;
         const ref = doc(db,'sessionVotes',session.id,'ballots',uid);
@@ -265,7 +292,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   });
 
   publicStops.push(onSnapshot(collection(db,'playerProfiles'),snap => { profiles = new Map(snap.docs.map(item => [item.id,item.data()])); onProfilesChanged(profiles); if (!$('accountContent')?.contains(document.activeElement)) renderAccount(); },error => notify(errorMessage(error),'error')));
-  publicStops.push(onSnapshot(query(collection(db,'sessionVotes'),orderBy('openedAt','desc'),limit(10)),snap => { sessions = snap.docs.map(item => ({...item.data(),id:item.id})); resultLoads.clear(); clearTimeout(expiryTimer); const active = latestOpen(); if (active) expiryTimer = setTimeout(() => { updateCountdown(); renderVoting(); refreshHistory(); }, Math.min(2147483647, votingState(active).remaining + 50)); renderVoting(); renderAdminVoting(); refreshHistory(); },error => notify(errorMessage(error),'error')));
+  publicStops.push(onSnapshot(query(collection(db,'sessionVotes'),orderBy('openedAt','desc'),limit(10)),snap => { sessions = snap.docs.map(item => ({...item.data(),id:item.id})); resultLoads.clear(); clearTimeout(expiryTimer); const active = activeSession(); if (active) expiryTimer = setTimeout(() => { updateCountdown(); renderVoting(); refreshHistory(); }, Math.min(2147483647, votingState(active).remaining + 50)); renderVoting(); renderAdminVoting(); refreshHistory(); },error => notify(errorMessage(error),'error')));
   timer = setInterval(updateCountdown,15000);
   document.addEventListener('visibilitychange',() => { if (!document.hidden) { updateCountdown(); refreshHistory(); } });
   return { onAuth, render, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); adminStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };

@@ -11,7 +11,12 @@ service cloud.firestore {
     function playerExists(pid) { return pid is string && exists(/databases/$(database)/documents/players/$(pid)); }
     function linked() { return verified() && exists(userPath(request.auth.uid)); }
     function ownsPlayer(pid) { return linked() && get(userPath(request.auth.uid)).data.playerId == pid; }
-    function cleanName(name) { return name is string && name.size() > 0 && name.size() <= 40 && name.matches('^[^<>\\x00-\\x1F\\x7F]+$') && !name.matches('^\\s.*|.*\\s$'); }
+    function cleanName(name) {
+      return name is string && name.size() > 0 && name.size() <= 40
+        // Explicit isolates also cover older Unicode tables in the rules engine.
+        && name.matches('^[^<>\\p{Cc}\\p{Cf}\\x{061C}\\x{2066}-\\x{2069}]+$')
+        && !name.matches('^[\\s\\p{Z}].*|.*[\\s\\p{Z}]$');
+    }
     function profileValid(data) {
       return data.keys().hasAll(['displayName', 'preferredNumber', 'updatedAt'])
         && data.keys().hasOnly(['displayName', 'preferredNumber', 'updatedAt'])
@@ -134,6 +139,7 @@ service cloud.firestore {
             && d.keys().hasAll(['voterPlayerId', 'firstPlayerId', 'secondPlayerId', 'thirdPlayerId', 'submittedAt', 'updatedAt'])
             && d.keys().hasOnly(['voterPlayerId', 'firstPlayerId', 'secondPlayerId', 'thirdPlayerId', 'submittedAt', 'updatedAt'])
             && d.voterPlayerId == get(userPath(uid)).data.playerId
+            && d.voterPlayerId in session().candidatePlayerIds
             && d.firstPlayerId is string && d.secondPlayerId is string && d.thirdPlayerId is string
             && choices.toSet().size() == 3 && !(d.voterPlayerId in choices)
             && session().candidatePlayerIds.hasAll(choices) && d.updatedAt == request.time;
