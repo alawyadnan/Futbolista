@@ -26,14 +26,14 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500401";
+} from "./data-engine.js?v=500402";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500401";
-import { computePlayerProgress, computePlayerRecords } from "./insights-engine.js?v=500401";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500401";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500401";
-import { resolvePublicPlayers } from "./community-engine.js?v=500401";
-import { createCommunity } from "./community.js?v=500401";
+import { countText, directionFor, translate } from "./i18n.js?v=500402";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500402";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500402";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500402";
+import { resolvePublicPlayers } from "./community-engine.js?v=500402";
+import { createCommunity } from "./community.js?v=500402";
 
 import {
   appRouteFor,
@@ -52,7 +52,7 @@ import {
   playerNameKey,
   publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500401";
+} from "./ux-utils.js?v=500402";
 
 
 /* =========================================================
@@ -170,6 +170,7 @@ let historyInitialized = false;
 const HISTORY_PAGE_SIZE = 10;
 
 let historyVisibleCount = HISTORY_PAGE_SIZE;
+let historyPlayerId = '';
 
 let sortedHistoryModel = null;
 
@@ -615,6 +616,12 @@ document.addEventListener("DOMContentLoaded", () => {
   $("cmpPlayerB")?.addEventListener("change", handleCompareSelection);
 
   $("btnShareProfile")?.addEventListener("click", sharePlayerProfile);
+  $("btnPlayerHistory")?.addEventListener("click", () => {
+    if (!currentProfileId) return;
+    historyPlayerId = String(currentProfileId);
+    resetHistoryControls();
+    showScreen('history'); setActiveNav('history');
+  });
   $("btnShareComparison")?.addEventListener("click", shareComparison);
 
   $("playerSearch")?.addEventListener("input", renderPlayerCardsNameOnly);
@@ -626,6 +633,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("historyPeriod")?.addEventListener("change", () => {
     historyVisibleCount = HISTORY_PAGE_SIZE;
     renderMatchHistory();
+  });
+  $("btnClearHistory")?.addEventListener("click", () => {
+    historyPlayerId = ''; resetHistoryControls(); renderMatchHistory(); updateLocationForScreen('history');
+    $("historySearch")?.focus({ preventScroll: true });
   });
   $("matchHistoryList")?.addEventListener("click", event => {
     if (event.target.closest("[data-history-more]")) {
@@ -713,7 +724,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator && !localEmulator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500401").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500402").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1231,6 +1242,10 @@ function syncScreenFromLocation() {
   currentProfileId = route.screen === "playerprofile" ? route.playerId : null;
   comparisonOpen = route.comparison === true;
   comparisonPlayerId = route.comparisonPlayerId || "";
+  if (route.screen === 'history') {
+    if (historyPlayerId !== (route.historyPlayerId || '')) resetHistoryControls();
+    historyPlayerId = route.historyPlayerId || '';
+  }
   showScreen(route.screen, { scroll: false, updateRoute: false });
   setActiveNav(route.screen === "playerprofile" ? "playerstats" : route.screen);
 
@@ -1239,7 +1254,7 @@ function syncScreenFromLocation() {
 
   const canonical = route.screen === "playerprofile" && comparisonOpen
     ? currentComparisonRoute()
-    : appRouteFor(route.screen, route.playerId);
+    : appRouteFor(route.screen, route.screen === 'history' ? historyPlayerId : route.playerId);
   if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
 
   if (previousScreen === "playerprofile" && route.screen === profileReturnScreen) {
@@ -1257,7 +1272,7 @@ function updateLocationForScreen(name, { replace = false } = {}) {
   if (!section || section.dataset.admin === "1") return;
   const nextHash = name === "playerprofile" && comparisonOpen
     ? currentComparisonRoute()
-    : appRouteFor(name, name === "playerprofile" ? currentProfileId : "");
+    : appRouteFor(name, name === "playerprofile" ? currentProfileId : name === 'history' ? historyPlayerId : "");
   if (window.location.hash === nextHash) return;
   window.history[replace ? "replaceState" : "pushState"](null, "", nextHash);
 }
@@ -3374,6 +3389,7 @@ function renderProfileInsights(pid) {
 function openHistoryMatch(matchKey) {
   const index = getSortedMatches().findIndex(match => String(match.matchKey) === String(matchKey));
   if (index < 0) return;
+  historyPlayerId = '';
   if ($("historySearch")) $("historySearch").value = "";
   if ($("historyPeriod")) $("historyPeriod").value = "all";
   historyVisibleCount = Math.max(HISTORY_PAGE_SIZE, index + 1);
@@ -3595,11 +3611,12 @@ function renderMatchHistory() {
   if (!box) return;
   const allMatches = getSortedMatches();
   renderHistoryOptions(allMatches);
+  const matches = getFilteredMatches(allMatches);
+  renderHistorySelection(matches);
   if (!allMatches.length) {
     box.innerHTML = emptyState("◷", t("noMatches"), t("noMatchesLead"));
     return;
   }
-  const matches = getFilteredMatches(allMatches);
   if (!historyInitialized) {
     expandedMatchKeys.add(String(allMatches[0].matchKey));
     historyInitialized = true;
@@ -3618,12 +3635,14 @@ function renderMatchHistory() {
     const outcomeB = match.scoreB > match.scoreA ? "winners" : match.scoreB < match.scoreA ? "losers" : "draw";
     const labelForOutcome = outcome => t(outcome === "draw" ? "tie" : outcome);
     const detailsId = `match-details-${index}`;
+    const participation = historyPlayerId ? match.parts.find(part => part.playerId === historyPlayerId) : null;
     return `
       <article class="matchCard ${expanded ? "expanded" : "collapsed"}">
         <button type="button" class="matchTop match-summary" data-match-toggle="${esc(key)}" aria-expanded="${expanded}" aria-controls="${detailsId}">
           <span class="matchDate"><span>${esc(t("matchday"))}</span><time datetime="${esc(match.date)}">${esc(formatMatchDate(match.date))}</time></span>
-          <span class="match-summary-end"><span class="matchScore">${match.scoreA} : ${match.scoreB}</span><span class="match-chevron" aria-hidden="true">⌄</span></span>
+          <span class="match-summary-end"><span class="matchScore labeled-score" dir="ltr" aria-label="${esc(t('matchScoreAria',{a:match.scoreA,b:match.scoreB}))}"><span class="${outcomeA}" aria-hidden="true"><small dir="auto">${esc(t('teamA'))}</small><b>${match.scoreA}</b></span><span class="score-divider" aria-hidden="true">:</span><span class="${outcomeB}" aria-hidden="true"><small dir="auto">${esc(t('teamB'))}</small><b>${match.scoreB}</b></span></span><span class="match-chevron" aria-hidden="true">⌄</span></span>
         </button>
+        ${participation ? `<div class="history-appearance"><span class="result-badge ${participation.result}">${esc(t(participation.result))}</span><span>${esc(teamLabel(participation.side))}</span><strong>${esc(countText(language,participation.normalGoals,'goal'))}</strong>${participation.ownGoals ? `<span class="own-goal-tag">${esc(t('ownGoals'))} · ${participation.ownGoals}</span>` : ''}</div>` : ''}
         <div id="${detailsId}" class="match-details" ${expanded ? "" : "hidden"}>
           <div class="matchGrid">
             <section class="teamBox ${outcomeA}" aria-label="${esc(t("teamA"))}">
@@ -3658,7 +3677,31 @@ function getSortedMatches() {
 
 
 function getFilteredMatches(sortedMatches = getSortedMatches()) {
-  return filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all");
+  return filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all", historyPlayerId);
+}
+
+function resetHistoryControls() {
+  if ($('historySearch')) $('historySearch').value = '';
+  if ($('historyPeriod')) $('historyPeriod').value = 'all';
+  historyVisibleCount = HISTORY_PAGE_SIZE;
+}
+
+function renderHistorySelection(matches) {
+  const active = !!(historyPlayerId || $('historySearch')?.value.trim() || $('historyPeriod')?.value !== 'all');
+  $('historySearch')?.closest('.field')?.classList.toggle('hidden', !!historyPlayerId);
+  document.querySelector('#screen-history .screen-intro .eyebrow')?.classList.toggle('hidden', !!historyPlayerId);
+  $('btnClearHistory')?.classList.toggle('hidden', !active);
+  if ($('historyCount')) $('historyCount').textContent = countText(language,matches.length,'match');
+  const box = $('historyPlayerSummary');
+  if (!box) return;
+  box.classList.toggle('hidden', !historyPlayerId);
+  if (!historyPlayerId) { box.replaceChildren(); return; }
+  const player = players.find(item => String(item.id) === historyPlayerId);
+  const name = player?.name || t('unknown');
+  const avatar = buildPlayerAvatar(name);
+  const stats = summarizePlayerHistory(matches,historyPlayerId);
+  box.innerHTML = `<div class="history-player-heading"><span class="pinned-avatar" data-avatar-tone="${avatar.tone}" aria-hidden="true">${esc(avatar.initials)}</span><div><div class="eyebrow">${esc(t('playerMatchHistory'))}</div><h2><bdi dir="auto">${esc(name)}</bdi></h2></div>${player ? `<button type="button" class="btn btn-quiet" data-open-player="${esc(historyPlayerId)}">${esc(t('profile'))}</button>` : ''}</div>
+    <dl class="history-player-totals">${[['win','wins'],['draw','draws'],['loss','losses'],['goals','goals']].map(([label,key]) => `<div class="${label}"><dt>${esc(t(label))}</dt><dd>${stats[key]}</dd></div>`).join('')}</dl>${stats.ownGoals ? `<p class="note">${esc(t('ownGoals'))} · ${stats.ownGoals}</p>` : ''}`;
 }
 
 

@@ -62,7 +62,7 @@ export function buildHistoryPeriods(matches = []) {
   return { months, years };
 }
 
-export function filterMatches(matches = [], playerNameForId = () => "", query = "", period = "all") {
+export function filterMatches(matches = [], playerNameForId = () => "", query = "", period = "all", playerId = "") {
   const needle = normalizeSearch(query);
   return matches.filter(match => {
     const date = String(match?.date || "");
@@ -70,6 +70,7 @@ export function filterMatches(matches = [], playerNameForId = () => "", query = 
       || (period.startsWith("month:") && date.startsWith(period.slice(6)))
       || (period.startsWith("year:") && date.startsWith(period.slice(5)));
     if (!periodMatches) return false;
+    if (playerId && !(match?.parts || []).some(part => String(part.playerId) === String(playerId))) return false;
     if (!needle) return true;
     return (match?.parts || []).some(part => normalizeSearch(playerNameForId(part.playerId)).includes(needle));
   });
@@ -114,6 +115,9 @@ export function parseAppRoute(hash = "") {
   const raw = String(hash || "").replace(/^#\/?/, "");
   const [route = "", first = "", third = "", fourth = ""] = raw.split("/");
   try {
+    if (route === "history" && first === "player" && third) {
+      return { screen: "history", playerId: "", historyPlayerId: decodeURIComponent(third).trim() };
+    }
     if (route === "player" && first) {
       const playerId = decodeURIComponent(first).trim();
       if (!playerId) return { screen: "dashboard", playerId: "" };
@@ -136,6 +140,9 @@ export function parseAppRoute(hash = "") {
 }
 
 export function appRouteFor(screen, playerId = "") {
+  if (screen === "history" && String(playerId || "").trim()) {
+    return `#history/player/${encodeURIComponent(String(playerId).trim())}`;
+  }
   if (screen === "playerprofile" && String(playerId || "").trim()) {
     return `#player/${encodeURIComponent(String(playerId).trim())}`;
   }

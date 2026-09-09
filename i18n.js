@@ -2,6 +2,14 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    playerMatchHistory: "Player match history", allPlayerMatches: "All appearances", clearHistoryFilters: "Clear filters", allMatches: "All matches", historySelection: "Selected period", ownGoals: "Own goals",
+    accountSetup: "Account setup", verifyStep: "Verify email", choosePlayerStep: "Choose player", approvalStep: "Admin approval", accountLinked: "Account linked",
+    checkSpam: "No email? Check Spam or Junk and mark the message as not spam.",
+    verificationNotYet: "Your email is not verified yet. Open the link in the message, then try again.",
+    rejectedRequestLead: "Your account is still active. Check the player you chose, or contact the admin before trying again.",
+    accountSignInFailed: "Email or password is incorrect. Try again or reset your password.", accountInvalidEmail: "Enter a valid email address.",
+    accountEmailInUse: "This email already has an account. Sign in or reset your password.", accountNetworkError: "Could not connect. Check your connection and try again.",
+    accountUnavailable: "This account is unavailable. Contact the admin.", accountSignInAgain: "Sign in again to continue.",
     onePoint: "1 point", lastAppearance: "Latest appearance", lastTwoAppearances: "Last 2 appearances", localTest: "Local test environment · demo-futbolista · no production data",
     account: "Account",
     myProfile: "My profile",
@@ -116,6 +124,14 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    playerMatchHistory: "سجل اللاعب", allPlayerMatches: "كل المشاركات", clearHistoryFilters: "مسح الفلاتر", allMatches: "كل المباريات", historySelection: "الفترة المختارة", ownGoals: "أهداف عكسية",
+    accountSetup: "خطوات ربط الحساب", verifyStep: "تأكيد البريد", choosePlayerStep: "اختيار اللاعب", approvalStep: "موافقة المدير", accountLinked: "الحساب مرتبط",
+    checkSpam: "ما وصلتك الرسالة؟ افحص البريد المزعج (Spam)، وانقلها إلى الوارد إذا وجدتها هناك.",
+    verificationNotYet: "بريدك لم يُؤكَّد بعد. افتح الرابط في الرسالة، ثم حاول مجددًا.",
+    rejectedRequestLead: "حسابك ما زال موجودًا. تأكد من اختيار اللاعب الصحيح، أو تواصل مع المدير قبل إعادة الطلب.",
+    accountSignInFailed: "البريد أو كلمة المرور غير صحيحة. حاول مجددًا أو استعد كلمة المرور.", accountInvalidEmail: "أدخل بريدًا إلكترونيًا صحيحًا.",
+    accountEmailInUse: "هذا البريد مسجّل بالفعل. سجّل الدخول أو استعد كلمة المرور.", accountNetworkError: "تعذر الاتصال. تحقق من الإنترنت ثم حاول مجددًا.",
+    accountUnavailable: "هذا الحساب غير متاح. تواصل مع المدير.", accountSignInAgain: "سجّل الدخول مجددًا للمتابعة.",
     onePoint: "نقطة واحدة", lastAppearance: "المشاركة الأخيرة", lastTwoAppearances: "آخر مشاركتين", localTest: "بيئة اختبار محلية · demo-futbolista · ليست بيانات الإنتاج",
     account: "حسابي",
     myProfile: "ملفي",

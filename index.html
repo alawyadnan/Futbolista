@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500401" />
-  <link rel="manifest" href="./manifest.json?v=500401" />
-  <link rel="stylesheet" href="./styles.css?v=500401" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500402" />
+  <link rel="manifest" href="./manifest.json?v=500402" />
+  <link rel="stylesheet" href="./styles.css?v=500402" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -82,6 +82,7 @@
   <section id="screen-playerprofile" class="screen hidden" aria-labelledby="profileName">
     <article class="card profile-hero"><div class="profile-actions"><button id="btnProfileBack" class="btn btn-quiet backbtn" type="button"><span aria-hidden="true" class="back-arrow">←</span> <span data-i18n="back">Back</span></button><div class="profile-action-group"><button id="btnCompareProfile" class="btn btn-quiet" type="button"><span aria-hidden="true">⇄</span><span data-i18n="comparePlayer">Compare player</span></button><button id="btnShareProfile" class="btn btn-quiet icon-action" type="button" aria-label="Share player profile" data-i18n-aria="shareProfile"><span aria-hidden="true">↗</span><span class="sr-only" data-i18n="shareProfile">Share player profile</span></button></div></div><div class="profileIdentity"><div id="profileInitial" class="profileAvatar" aria-hidden="true">P</div><div><div class="eyebrow" data-i18n="profile">Player profile</div><h1 id="profileName" class="profileName">Player</h1><div id="profileSub" class="subnote"></div></div></div><div id="profileStatsGrid" class="statGrid"></div><div id="profileRecord" class="record-overview"></div></article>
     <button id="btnPinPlayer" class="btn btn-quiet pin-button" type="button" aria-pressed="false"><span aria-hidden="true">☆</span><span data-i18n="pinPlayer">Pin to home</span></button>
+    <button id="btnPlayerHistory" class="btn btn-quiet player-history-button" type="button" data-i18n="allPlayerMatches">All appearances</button>
     <section id="profileComparison" class="profile-comparison hidden" aria-labelledby="comparisonHeading">
       <article class="card"><div class="card-heading"><h2 id="comparisonHeading" data-i18n="comparePlayer">Compare player</h2><button id="btnCloseComparison" type="button" class="btn btn-quiet" data-i18n="closeComparison">Close comparison</button></div><label class="field" for="cmpPlayerB"><span data-i18n="compareWith">Compare with</span><select id="cmpPlayerB" class="select"></select></label><div class="compare-actions"><button id="btnShareComparison" class="btn btn-quiet hidden" type="button" data-i18n="shareComparison">Share comparison</button></div></article>
       <div id="compareResult" class="compareWrap" aria-live="polite"></div>
@@ -92,7 +93,9 @@
 
   <section id="screen-history" class="screen hidden" aria-labelledby="historyTitle">
     <header class="screen-intro"><div><div class="eyebrow" data-i18n="archive">Match archive</div><h1 id="historyTitle" data-i18n="history">Match History</h1></div></header>
+    <article id="historyPlayerSummary" class="card history-player-summary hidden"></article>
     <article class="card history-tools"><div class="history-toolbar"><label class="field grow" for="historySearch"><span data-i18n="searchHistory">Search player</span><input id="historySearch" class="input search-input" type="search" autocomplete="off" placeholder="Find a player in matches…" data-i18n-placeholder="historyPlaceholder" /></label><label class="field history-period-field" for="historyPeriod"><span data-i18n="date">Date</span><select id="historyPeriod" class="select"><option value="all" data-i18n="allDates">All dates</option></select></label><div class="history-actions"><button id="btnExpandAll" type="button" class="btn btn-quiet" data-i18n="expandAll">Expand all</button><button id="btnCollapseAll" type="button" class="btn btn-quiet" data-i18n="collapseAll">Collapse all</button></div></div></article>
+    <div class="history-result-toolbar"><p id="historyCount" role="status"></p><button id="btnClearHistory" type="button" class="btn btn-quiet hidden" data-i18n="clearHistoryFilters">Clear filters</button></div>
     <div id="matchHistoryList" class="match-list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMatches">Loading matches…</div>
   </section>
 
@@ -147,6 +150,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500401"></script>
+<script type="module" src="./app.js?v=500402"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { translate } from '../i18n.js';
 const read = file => readFileSync(new URL('../'+file,import.meta.url),'utf8');
 test('new UI strings exist in Arabic and English with identical interpolation names',()=>{
-  const texts=['app.js','community.js','index.html'].map(read).join('\n');
+  const texts=['app.js','community.js','account-ux.js','index.html'].map(read).join('\n');
   const keys=new Set([...texts.matchAll(/\bt\(["']([A-Za-z]\w*)["']/g)].map(match=>match[1]));
   for(const match of texts.matchAll(/data-i18n(?:-aria|-placeholder)?=["'](\w+)["']/g))keys.add(match[1]);
   for(const key of keys) {
@@ -78,4 +78,19 @@ test('content visibility is independent of entrance animation progress',()=>{
   assert.doesNotMatch(css,/@keyframes (?:screen-in|details-in)/);
   assert.match(css,/prefers-reduced-motion:reduce/);
   assert.match(css,/animation:none!important;transition:none!important/);
+});
+test('account polish retains verification, admin approval and data boundaries',()=>{
+  const source=read('community.js');
+  assert.match(source,/if \(!user\.emailVerified\)/);
+  assert.match(source,/aria-current="step"/);
+  assert.match(source,/checkSpam/);
+  assert.match(source,/aria-controls="accountPassword"/);
+  assert.match(source,/accountAction && actionGeneration === generation/);
+  assert.doesNotMatch(source,/deleteUser|linkWithPhoneNumber|signInWithPhoneNumber/);
+});
+test('history scoreboard has explicit team labels and a stable numeric direction',()=>{
+  const source=read('app.js');
+  assert.match(source,/class="matchScore labeled-score" dir="ltr" aria-label=/);
+  assert.match(source,/summarizePlayerHistory\(matches,historyPlayerId\)/);
+  assert.match(read('index.html'),/id="historyCount" role="status"/);
 });

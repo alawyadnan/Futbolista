@@ -17,6 +17,20 @@ function summarizeWindow(participations) {
   return summary;
 }
 
+// Input is canonical match summaries, never raw normal/own-goal log rows.
+// Count the full filtered selection, independently of UI pagination.
+export function summarizePlayerHistory(matches = [], playerId = '') {
+  const seen = new Set();
+  const participations = [];
+  for (const match of matches) {
+    if (seen.has(match.matchKey)) continue;
+    seen.add(match.matchKey);
+    const part = match.parts?.find(item => String(item.playerId) === String(playerId));
+    if (part) participations.push(part);
+  }
+  return { ...summarizeWindow(participations), ownGoals: participations.reduce((sum, part) => sum + part.ownGoals, 0) };
+}
+
 // The data model supplies deduplicated participations in chronological order.
 export function computePlayerProgress(model, playerId, windowSize = 5) {
   const requestedSize = Math.floor(Number(windowSize));

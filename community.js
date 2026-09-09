@@ -1,7 +1,8 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500401';
-import { renderWithFormDraft } from './ux-utils.js?v=500401';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500402';
+import { renderWithFormDraft } from './ux-utils.js?v=500402';
+import { accountJourney, authFeedbackKey } from './account-ux.js?v=500402';
 
 export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount }) {
   const $ = id => document.getElementById(id);
@@ -10,11 +11,12 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   let ownStops = [], adminStop = null, ballotStop = null, busy = false, authMode = 'signin';
   let generation = 0, lastPhase = '', timer = null, expiryTimer = null, ballotDirty = false;
   let accountView = '';
+  let editingRequest = false, passwordVisible = false, accountFeedback = null;
   let selectedSessionId = '';
   const results = new Map(), resultLoads = new Map();
   const publicStops = [];
   const playerName = id => getPlayers().find(player => String(player.id) === id)?.name || t('unknown');
-  const errorMessage = error => t(error?.code === 'auth/too-many-requests' ? 'tooManyAttempts' : error?.code === 'auth/weak-password' ? 'strongPassword' : error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','participantRequired','sessionTooLarge','sessionTooSmall'].includes(error.message) ? error.message : 'communityFailed');
+  const errorMessage = error => t(authFeedbackKey(error) || (error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','participantRequired','sessionTooLarge','sessionTooSmall'].includes(error.message) ? error.message : 'communityFailed'));
   const button = (action, label, extra = '') => `<button type="button" class="btn btn-quiet" data-community-action="${action}" ${extra}>${esc(t(label))}</button>`;
   const field = (id, label, type = 'text', value = '', extra = '') => `<label class="field" for="${id}"><span>${esc(t(label))}</span><input id="${id}" name="${id}" class="input" type="${type}" value="${esc(value)}" ${extra}></label>`;
   const option = (id, label, selected = '') => `<option value="${esc(id)}" ${id === selected ? 'selected' : ''}>${esc(label)}</option>`;
@@ -26,9 +28,23 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   };
   function render() { renderAccount(); renderRequests(); renderAdminVoting(); renderVoting(); }
   function renderAccount() {
-    const view = `${generation}:${authMode}:${accountReady}:${accountError}:${link?.playerId || ''}:${linkRequest?.status || ''}`;
+    const view = `${generation}:${authMode}:${editingRequest}:${accountReady}:${accountError}:${link?.playerId || ''}:${linkRequest?.status || ''}`;
     renderWithFormDraft($('accountContent'), renderAccountContent, accountView === view);
     accountView = view;
+    const card = $('accountContent')?.querySelector('.account-card');
+    if (card) card.insertAdjacentHTML('beforeend', `<p id="accountFeedback" class="account-feedback ${accountFeedback?.tone || ''}" role="${accountFeedback?.tone === 'error' ? 'alert' : 'status'}" ${accountFeedback ? '' : 'hidden'}>${esc(accountFeedback?.message || '')}</p>`);
+    if (busy) $('accountContent')?.querySelectorAll('button').forEach(button => { button.disabled = true; });
+  }
+  function feedback(message, tone = 'success') {
+    accountFeedback = { message, tone };
+    const box = $('accountFeedback');
+    if (!box) return;
+    box.className = `account-feedback ${tone}`;
+    box.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+    box.textContent = message; box.hidden = false;
+  }
+  function journey() {
+    return `<ol class="account-journey" aria-label="${esc(t('accountSetup'))}">${accountJourney({emailVerified:user?.emailVerified,linked:!!link,requestStatus:linkRequest?.status}).map((step,index) => `<li class="${step.complete ? 'complete' : step.current ? 'current' : ''}" ${step.current ? 'aria-current="step"' : ''}><span aria-hidden="true">${step.complete ? '✓' : index + 1}</span><strong>${esc(t(step.label))}</strong></li>`).join('')}</ol>`;
   }
   function renderAccountContent() {
     const box = $('accountContent');
@@ -37,7 +53,8 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     if (!user) {
       box.innerHTML = `<article class="card account-card"><div class="account-mark" aria-hidden="true">◉</div><h2>${esc(t(authMode === 'signup' ? 'createAccount' : 'signIn'))}</h2>
         <div class="account-modes">${button('signin-mode','signIn',`aria-pressed="${authMode === 'signin'}"`)}${button('signup-mode','createAccount',`aria-pressed="${authMode === 'signup'}"`)}</div>
-        <form id="communityAuthForm">${field('accountEmail','email','email','','autocomplete="username" required maxlength="254"')}${field('accountPassword','password','password','',`autocomplete="${authMode === 'signup' ? 'new-password' : 'current-password'}" required ${authMode === 'signup' ? 'minlength="8"' : ''} maxlength="128"`)}
+        <form id="communityAuthForm">${field('accountEmail','email','email','','autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required maxlength="254"')}
+          <div class="field"><label for="accountPassword">${esc(t('password'))}</label><div class="password-wrap"><input id="accountPassword" name="accountPassword" class="input" type="${passwordVisible ? 'text' : 'password'}" autocomplete="${authMode === 'signup' ? 'new-password' : 'current-password'}" required ${authMode === 'signup' ? 'minlength="8"' : ''} maxlength="128"><button type="button" class="password-toggle" data-community-action="toggle-password" aria-controls="accountPassword" aria-pressed="${passwordVisible}">${esc(t(passwordVisible ? 'hidePassword' : 'showPassword'))}</button></div></div>
           ${authMode === 'signup' ? `<p class="note">${esc(t('accountLinkLead'))}</p>` : ''}<button class="btn btn-primary full" type="submit">${esc(t(authMode === 'signup' ? 'createAccount' : 'signIn'))}</button></form>
         ${button('reset-password','forgotPassword')}</article>`;
       return;
@@ -45,22 +62,22 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const identity = `<div class="account-identity"><bdi dir="auto">${esc(user.email || '')}</bdi>${button('signout','logout')}</div>`;
     if (admin) { box.innerHTML = `<article class="card account-card">${identity}<h2>${esc(t('adminWorkspace'))}</h2><p class="note">${esc(t('adminAccountLead'))}</p></article>`; return; }
     if (!user.emailVerified) {
-      box.innerHTML = `<article class="card account-card">${identity}<h2>${esc(t('verifyEmail'))}</h2><p class="note">${esc(t('verifyEmailLead'))}</p><div class="account-actions">${button('verify-email','sendVerification')}${button('refresh-account','verifiedContinue')}</div></article>`;
+      box.innerHTML = `<article class="card account-card">${identity}${journey()}<h2>${esc(t('verifyEmail'))}</h2><p class="note">${esc(t('verifyEmailLead'))}</p><p class="verification-tip">${esc(t('checkSpam'))}</p><div class="account-actions verification-actions">${button('refresh-account','verifiedContinue')}${button('verify-email','sendVerification')}</div></article>`;
       return;
     }
     if (accountError) { box.innerHTML = `<article class="card account-card">${identity}<h2>${esc(t('noData'))}</h2>${button('refresh-account','retryData')}</article>`; return; }
     if (!accountReady) { box.innerHTML = `<article class="card account-card" aria-busy="true">${identity}<p>${esc(t('loadingAccount'))}</p></article>`; return; }
     if (link) {
       const profile = profiles.get(link.playerId);
-      box.innerHTML = `<article class="card account-card">${identity}<div class="account-linked"><span class="account-shirt" aria-hidden="true">${profile?.preferredNumber ?? '—'}</span><div><div class="eyebrow">${esc(t('myProfile'))}</div><h2><bdi dir="auto">${esc(playerName(link.playerId))}</bdi></h2></div></div>
+      box.innerHTML = `<article class="card account-card">${identity}<span class="account-status linked">${esc(t('accountLinked'))}</span><div class="account-linked"><span class="account-shirt" aria-hidden="true">${profile?.preferredNumber ?? '—'}</span><div><div class="eyebrow">${esc(t('myProfile'))}</div><h2><bdi dir="auto">${esc(playerName(link.playerId))}</bdi></h2></div></div>
         ${button('my-stats','viewMyStats')}<form id="profileEditForm">${field('displayName','displayName','text',profile?.displayName || playerName(link.playerId),'required maxlength="40" autocomplete="nickname"')}${field('preferredNumber','preferredNumber','number',profile?.preferredNumber ?? '','min="0" max="99" step="1" inputmode="numeric"')}
         <button class="btn btn-primary full" type="submit">${esc(t('saveProfile'))}</button></form></article>`;
       return;
     }
     const pending = linkRequest?.status === 'pending';
-    box.innerHTML = `<article class="card account-card">${identity}<h2>${esc(t(pending ? 'pendingApproval' : linkRequest?.status === 'rejected' ? 'requestRejected' : 'linkPlayer'))}</h2><p class="note">${esc(t(pending ? 'pendingApprovalLead' : 'accountLinkLead'))}</p>
+    box.innerHTML = `<article class="card account-card">${identity}${journey()}<h2>${esc(t(pending ? 'pendingApproval' : linkRequest?.status === 'rejected' ? 'requestRejected' : 'linkPlayer'))}</h2><p class="note">${esc(t(pending ? 'pendingApprovalLead' : linkRequest?.status === 'rejected' ? 'rejectedRequestLead' : 'accountLinkLead'))}</p>
       ${pending ? `<div class="account-requested"><bdi>${esc(playerName(linkRequest.requestedPlayerId))}</bdi></div>` : ''}
-      <form id="linkPlayerForm"><label class="field" for="requestedPlayer"><span>${esc(t('player'))}</span><select class="select" id="requestedPlayer" name="requestedPlayer" required>${option('',t('selectPlayer'))}${getPlayers().map(player => option(String(player.id), player.name, linkRequest?.requestedPlayerId)).join('')}</select></label><button class="btn btn-primary full" type="submit">${esc(t(pending ? 'updateRequest' : 'requestLink'))}</button></form></article>`;
+      ${pending && !editingRequest ? `<div class="account-actions">${button('edit-request','updateRequest')}</div>` : `<form id="linkPlayerForm"><label class="field" for="requestedPlayer"><span>${esc(t('player'))}</span><select class="select" id="requestedPlayer" name="requestedPlayer" required>${option('',t('selectPlayer'))}${getPlayers().map(player => option(String(player.id), player.name, linkRequest?.requestedPlayerId)).join('')}</select></label><button class="btn btn-primary full" type="submit">${esc(t(pending ? 'updateRequest' : 'requestLink'))}</button>${pending ? button('cancel-request-edit','cancel') : ''}</form>`}</article>`;
   }
 
   function renderRequests() {
@@ -179,6 +196,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     ballotStop?.(); ballotStop = null; ballotKey = ''; ownBallot = null; ballotDirty = false;
     selectedSessionId = '';
     user = nextUser; admin = isAdmin; link = null; linkRequest = null; requests = []; accountReady = false; accountError = false;
+    editingRequest = false; passwordVisible = false; accountFeedback = null;
     if (user && !admin) {
       let userReady = false, requestReady = false;
       const loaded = () => { accountReady = userReady && requestReady; render(); };
@@ -214,9 +232,12 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   async function action(fn, success = '') {
     if (busy) return;
     busy = true;
+    const accountAction = !$('screen-account')?.classList.contains('hidden');
+    const actionGeneration = generation;
+    if (accountAction) { accountFeedback = null; if ($('accountFeedback')) $('accountFeedback').hidden = true; }
     document.querySelectorAll('[data-community-action], #accountContent button, #ballotForm button').forEach(button => { button.disabled = true; });
     try { await fn(); if (success) notify(t(success)); }
-    catch(error) { notify(errorMessage(error),'error'); }
+    catch(error) { const message = errorMessage(error); notify(message,'error'); if (accountAction && actionGeneration === generation) feedback(message,'error'); }
     finally { busy = false; document.querySelectorAll('[data-community-action], #accountContent button, #ballotForm button').forEach(button => { button.disabled = false; }); updateChoiceAvailability(); }
   }
 
@@ -233,19 +254,27 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const trigger = event.target.closest('[data-community-action]');
     if (!trigger) return;
     const name = trigger.dataset.communityAction;
-    if (name === 'signin-mode' || name === 'signup-mode') { authMode = name === 'signup-mode' ? 'signup' : 'signin'; renderAccount(); return; }
+    if (busy) return;
+    if (name === 'toggle-password') {
+      passwordVisible = !passwordVisible;
+      $('accountPassword').type = passwordVisible ? 'text' : 'password';
+      trigger.textContent = t(passwordVisible ? 'hidePassword' : 'showPassword');
+      trigger.setAttribute('aria-pressed', String(passwordVisible)); return;
+    }
+    if (name === 'edit-request' || name === 'cancel-request-edit') { editingRequest = name === 'edit-request'; renderAccount(); if (editingRequest) $('requestedPlayer')?.focus(); return; }
+    if (name === 'signin-mode' || name === 'signup-mode') { authMode = name === 'signup-mode' ? 'signup' : 'signin'; passwordVisible = false; accountFeedback = null; renderAccount(); return; }
     if (name === 'open-account') { showAccount(); return; }
     if (name === 'open-voting') { selectedSessionId = trigger.dataset.sessionId; ballotDirty = false; location.hash = 'dashboard'; renderVoting(); $('dashboardVoting')?.scrollIntoView({block:'start'}); return; }
     if (name === 'my-stats' && link) { openProfile(link.playerId); return; }
     if (name === 'retry-results') { refreshHistory(); return; }
     action(async () => {
       if (name === 'signout') await signOut(auth);
-      else if (name === 'verify-email' && user) { await sendEmailVerification(user); notify(t('verificationSent')); }
-      else if (name === 'refresh-account' && user) { await reload(user); await user.getIdToken(true); onAuth(auth.currentUser,admin); }
+      else if (name === 'verify-email' && user) { await sendEmailVerification(user); notify(t('verificationSent')); feedback(t('verificationSent')); }
+      else if (name === 'refresh-account' && user) { await reload(user); await user.getIdToken(true); onAuth(auth.currentUser,admin); if (!auth.currentUser?.emailVerified) feedback(t('verificationNotYet'),'warning'); }
       else if (name === 'reset-password') {
         const email = $('accountEmail'); if (!email?.checkValidity()) { email?.reportValidity(); return; }
         try { await sendPasswordResetEmail(auth,email.value.trim()); } catch(error) { if (error.code !== 'auth/user-not-found') throw error; }
-        notify(t('resetEmailSent'));
+        notify(t('resetEmailSent')); feedback(t('resetEmailSent'));
       }
       else if (name === 'approve') await approve(trigger.dataset.uid);
       else if (name === 'reject' && admin) await updateDoc(doc(db,'accountRequests',trigger.dataset.uid),{status:'rejected',updatedAt:serverTimestamp()});
@@ -280,7 +309,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
         await updateDoc(doc(db,'playerProfiles',link.playerId),{...profile.value,updatedAt:serverTimestamp()}); notify(t('profileSaved'));
       } else if (form.id === 'linkPlayerForm') {
         if (!user?.emailVerified || link) throw new Error('linkedRequired');
-        await setDoc(doc(db,'accountRequests',user.uid),{requestedPlayerId:$('requestedPlayer').value,email:user.email,status:'pending',createdAt:linkRequest?.createdAt || serverTimestamp(),updatedAt:serverTimestamp()}); notify(t('requestSent'));
+        await setDoc(doc(db,'accountRequests',user.uid),{requestedPlayerId:$('requestedPlayer').value,email:user.email,status:'pending',createdAt:linkRequest?.createdAt || serverTimestamp(),updatedAt:serverTimestamp()}); editingRequest = false; renderAccount(); notify(t('requestSent'));
       } else if (form.id === 'ballotForm') {
         const session = sessions.find(item => item.id === form.dataset.session), choices = [...form.querySelectorAll('[data-vote-rank]')].map(select => select.value);
         const invalid = validateBallot({session,user:link,choices}); if (invalid) throw new Error(invalid);
