@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500402" />
-  <link rel="manifest" href="./manifest.json?v=500402" />
-  <link rel="stylesheet" href="./styles.css?v=500402" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500404" />
+  <link rel="manifest" href="./manifest.json?v=500404" />
+  <link rel="stylesheet" href="./styles.css?v=500404" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -50,6 +50,9 @@
       <div><h1 id="dashboardTitle" data-i18n="dashboardTitle">Pickup Stats</h1></div>
       <div class="season-strip" aria-label="Season summary" data-i18n-aria="seasonSummary"><div><strong id="seasonMatches">—</strong><span data-i18n="matches">Matches</span></div><div><strong id="seasonPlayers">—</strong><span data-i18n="players">Players</span></div></div>
     </header>
+    <article id="dashboardMotm" class="card motm-spotlight hidden"></article>
+    <article id="dashboardAwardRanking" class="card award-ranking hidden"></article>
+    <section id="dashboardTrends" class="headline-trends hidden"></section>
     <article id="dashboardVoting" class="card mvp-voting hidden"></article>
     <div id="pinnedPlayer" class="pinned-player hidden"></div>
     <div class="dashboard-grid dashboard-feature-grid">
@@ -65,12 +68,12 @@
 
   <section id="screen-leaderboard" class="screen hidden" aria-labelledby="leaderboardTitle">
     <header class="screen-intro"><div><div class="eyebrow" data-i18n="competitive">Competitive ranking</div><h1 id="leaderboardTitle" data-i18n="leaderboard">Leaderboard</h1></div></header>
-    <article class="card"><div class="card-toolbar"><div><h2 data-i18n="standings">Standings</h2><p class="subnote" data-i18n="formDefault">Form is the default ranking.</p></div><label class="field-inline" for="lbSort"><span data-i18n="sortBy">Sort by</span><select id="lbSort" class="select"><option value="form" selected data-i18n="form">Form</option><option value="winPct" data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option></select></label></div><div id="leaderboardList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingLeaderboard">Loading leaderboard…</div></article>
+    <article class="card"><div class="card-toolbar"><div><h2 data-i18n="standings">Standings</h2><p class="subnote" data-i18n="formDefault">Form is the default ranking.</p></div><label class="field-inline" for="lbSort"><span data-i18n="sortBy">Sort by</span><select id="lbSort" class="select"><option value="form" selected data-i18n="form">Form</option><option value="winPct" data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="votingPoints" data-i18n="votingPoints">Voting points</option><option value="motmAwards" data-i18n="motmAwards">MOTM awards</option><option value="monthAwards" data-i18n="monthAwards">Monthly awards</option></select></label></div><div id="leaderboardList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingLeaderboard">Loading leaderboard…</div></article>
   </section>
 
   <section id="screen-table" class="screen hidden" aria-labelledby="tableTitle">
     <header class="screen-intro"><div><div class="eyebrow" data-i18n="breakdown">Full breakdown</div><h1 id="tableTitle" data-i18n="statsTable">Stats table</h1></div></header>
-    <article class="card table-card"><div class="card-toolbar"><div><h2 data-i18n="allEligible">All eligible players</h2><p class="subnote" data-i18n="swipeTable">Swipe the table horizontally on mobile.</p></div><label class="field-inline" for="tableSort"><span data-i18n="sortBy">Sort by</span><select id="tableSort" class="select"><option value="winPct" selected data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="name" data-i18n="name">Name</option></select></label></div><div class="tablewrap" tabindex="0" role="region" aria-label="Player statistics table" data-i18n-aria="tableAria"><table class="table"><thead><tr><th scope="col">#</th><th scope="col" data-sort-key="name" data-i18n="name">Name</th><th scope="col" data-sort-key="matches" data-i18n="matches">Matches</th><th scope="col" data-sort-key="wins" data-i18n="wins">Wins</th><th scope="col" data-sort-key="goals" data-i18n="goals">Goals</th><th scope="col" data-sort-key="winPct" data-i18n="winPct">Win %</th><th scope="col" data-sort-key="gpm" data-i18n="gpm">Goals/Match</th><th scope="col" data-sort-key="curStreak" data-i18n="currentStreak">Current Streak</th><th scope="col" data-sort-key="bestStreak" data-i18n="bestWinStreak">Best Streak</th></tr></thead><tbody id="tableBody"><tr><td colspan="9" class="noteCell" data-i18n="loadingStats">Loading statistics…</td></tr></tbody></table></div></article>
+    <article class="card table-card"><div class="card-toolbar"><div><h2 id="tableScope" data-i18n="allEligible">All eligible players</h2><p class="subnote" data-i18n="swipeTable">Swipe the table horizontally on mobile.</p></div><label class="field-inline" for="tableSort"><span data-i18n="sortBy">Sort by</span><select id="tableSort" class="select"><option value="winPct" selected data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="name" data-i18n="name">Name</option><option value="votingPoints" data-i18n="votingPoints">Voting points</option><option value="motmAwards" data-i18n="motmAwards">MOTM awards</option><option value="monthAwards" data-i18n="monthAwards">Monthly awards</option></select></label></div><div class="tablewrap" tabindex="0" role="region" aria-label="Player statistics table" data-i18n-aria="tableAria"><table class="table"><thead><tr><th scope="col">#</th><th scope="col" data-sort-key="name" data-i18n="name">Name</th><th scope="col" data-sort-key="votingPoints" data-award-stat data-i18n="votingPoints">Voting points</th><th scope="col" data-sort-key="motmAwards" data-award-stat data-i18n="motmAwards">MOTM awards</th><th scope="col" data-sort-key="monthAwards" data-award-stat data-i18n="monthAwards">Monthly awards</th><th scope="col" data-sort-key="matches" data-i18n="matches">Matches</th><th scope="col" data-sort-key="wins" data-i18n="wins">Wins</th><th scope="col" data-sort-key="goals" data-i18n="goals">Goals</th><th scope="col" data-sort-key="winPct" data-i18n="winPct">Win %</th><th scope="col" data-sort-key="gpm" data-i18n="gpm">Goals/Match</th><th scope="col" data-sort-key="curStreak" data-i18n="currentStreak">Current Streak</th><th scope="col" data-sort-key="bestStreak" data-i18n="bestWinStreak">Best Streak</th></tr></thead><tbody id="tableBody"><tr><td colspan="12" class="noteCell" data-i18n="loadingStats">Loading statistics…</td></tr></tbody></table></div></article>
   </section>
 
   <section id="screen-playerstats" class="screen hidden" aria-labelledby="playersTitle">
@@ -87,6 +90,7 @@
       <article class="card"><div class="card-heading"><h2 id="comparisonHeading" data-i18n="comparePlayer">Compare player</h2><button id="btnCloseComparison" type="button" class="btn btn-quiet" data-i18n="closeComparison">Close comparison</button></div><label class="field" for="cmpPlayerB"><span data-i18n="compareWith">Compare with</span><select id="cmpPlayerB" class="select"></select></label><div class="compare-actions"><button id="btnShareComparison" class="btn btn-quiet hidden" type="button" data-i18n="shareComparison">Share comparison</button></div></article>
       <div id="compareResult" class="compareWrap" aria-live="polite"></div>
     </section>
+    <div id="profileHighlights" class="profile-highlights"></div>
     <div id="profileInsights" class="profile-insights"></div>
     <div class="profile-details-grid"><article class="card"><div class="card-heading"><h2 data-i18n="form">Form</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileForm" class="formRow">—</div></article><article class="card"><div class="card-heading"><h2 data-i18n="mostTeammates">Most Teammates</h2><span class="metric-symbol" aria-hidden="true">◉</span></div><div id="profileMates" class="matesList skeleton-list" aria-live="polite" data-i18n="loadingConnections">Loading connections…</div></article><article class="card full-span"><div class="card-heading"><h2 data-i18n="recentMatches">Recent matches</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileMatches" class="profile-match-list"></div></article><article class="card full-span"><h2 data-i18n="neverPlayed">Never played with</h2><div id="profileNever" class="neverList note">—</div></article></div>
   </section>
@@ -115,6 +119,7 @@
   </section>
 
   <section id="screen-settings" class="screen hidden" data-admin="1" aria-labelledby="settingsTitle">
+    <article id="trendSettings" class="card hidden" data-admin="1"></article>
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="settingsTitle" data-i18n="settings">Settings</h1><p data-i18n="settingsLead">Backups and protected data actions.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
     <article class="card settings-card"><div><div class="settings-icon" aria-hidden="true">↓</div><div><h2 data-i18n="backup">Backup</h2><p class="subnote" data-i18n="backupLead">Download players and raw Firestore logs as JSON.</p></div></div><button id="btnExport" type="button" class="btn btn-primary" data-i18n="exportJson">Export JSON</button></article>
     <article class="card settings-card danger"><div><div class="settings-icon danger-icon" aria-hidden="true">!</div><div><h2 data-i18n="dangerZone">Danger Zone</h2><p class="subnote" data-i18n="dangerLead">Permanently deletes all players and logs after confirmation.</p></div></div><button id="btnReset" type="button" class="btn dangerBtn" data-i18n="resetAll">Reset all data</button></article>
@@ -150,6 +155,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500402"></script>
+<script type="module" src="./app.js?v=500404"></script>
 </body>
 </html>

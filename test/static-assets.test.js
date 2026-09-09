@@ -8,7 +8,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = file => readFileSync(resolve(root, file), "utf8");
 
 test("all public entry points use the same release version", () => {
-  const version = "500402";
+  const version = "500404";
   const index = read("index.html");
   const app = read("app.js");
   const manifest = read("manifest.json");

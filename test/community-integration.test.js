@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { translate } from '../i18n.js';
 const read = file => readFileSync(new URL('../'+file,import.meta.url),'utf8');
 test('new UI strings exist in Arabic and English with identical interpolation names',()=>{
-  const texts=['app.js','community.js','account-ux.js','index.html'].map(read).join('\n');
+  const texts=['app.js','community.js','account-ux.js','highlights.js','index.html'].map(read).join('\n');
   const keys=new Set([...texts.matchAll(/\bt\(["']([A-Za-z]\w*)["']/g)].map(match=>match[1]));
   for(const match of texts.matchAll(/data-i18n(?:-aria|-placeholder)?=["'](\w+)["']/g))keys.add(match[1]);
   for(const key of keys) {

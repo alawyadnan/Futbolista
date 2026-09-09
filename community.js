@@ -1,10 +1,11 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500402';
-import { renderWithFormDraft } from './ux-utils.js?v=500402';
-import { accountJourney, authFeedbackKey } from './account-ux.js?v=500402';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500404';
+import { renderWithFormDraft } from './ux-utils.js?v=500404';
+import { accountJourney, authFeedbackKey } from './account-ux.js?v=500404';
+import { awardPodium, motmWinners } from './highlights-engine.js?v=500404';
 
-export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount }) {
+export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onResultsChanged = () => {} }) {
   const $ = id => document.getElementById(id);
   let user = null, admin = false, link = null, linkRequest = null, accountReady = false;
   let profiles = new Map(), sessions = [], requests = [], ownBallot = null, ballotKey = '', accountError = false;
@@ -15,6 +16,10 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   let selectedSessionId = '';
   const results = new Map(), resultLoads = new Map();
   const publicStops = [];
+  let sessionsReady = false, sessionsError = false, loadingArchive = false, disposed = false;
+  let stopSessions = null;
+  let receiptStops = [], receiptKey = '';
+  const resultErrors = new Set(), receiptCounts = new Map();
   const playerName = id => getPlayers().find(player => String(player.id) === id)?.name || t('unknown');
   const errorMessage = error => t(authFeedbackKey(error) || (error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','participantRequired','sessionTooLarge','sessionTooSmall'].includes(error.message) ? error.message : 'communityFailed'));
   const button = (action, label, extra = '') => `<button type="button" class="btn btn-quiet" data-community-action="${action}" ${extra}>${esc(t(label))}</button>`;
@@ -93,7 +98,48 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     if (!box) return;
     box.classList.toggle('hidden', !admin);
     if (!admin) { box.replaceChildren(); return; }
-    box.innerHTML = `<h2>${esc(t('automaticVoting'))}</h2><p class="note">${esc(t('automaticVotingLead'))}</p>`;
+    box.innerHTML = `<h2>${esc(t('automaticVoting'))}</h2><p class="note">${esc(t('automaticVotingLead'))}</p>${sessions.filter(session => votingState(session).state === 'open').map(session => `<div class="vote-participation"><strong>${esc(sessionDate(session))}</strong><span>${esc(receiptCounts.has(session.id) ? t('confirmedVoters',{count:receiptCounts.get(session.id)}) : t('voterCountUnavailable'))}</span></div>`).join('')}<p class="note">${esc(t('receiptCountLead'))}</p>`;
+  }
+
+  function bindReceiptCounts() {
+    const open = sessions.filter(session => votingState(session).state === 'open');
+    const key = admin ? `${user?.uid}:${open.map(session => session.id).join('|')}` : '';
+    if (key === receiptKey) return;
+    receiptKey = key; receiptStops.forEach(stop => stop()); receiptStops = []; receiptCounts.clear();
+    if (!admin) return;
+    for (const session of open) receiptStops.push(onSnapshot(collection(db,'sessionVotes',session.id,'receipts'),snap => {
+      if (receiptKey !== key) return;
+      receiptCounts.set(session.id,snap.docs.length); renderAdminVoting();
+    },() => { if (receiptKey === key) { receiptCounts.delete(session.id); renderAdminVoting(); } }));
+  }
+
+  function publishResults() {
+    if (!disposed) onResultsChanged({ sessions, results: new Map(results), ready: sessionsReady, error: sessionsError || resultErrors.size > 0 });
+  }
+  async function loadResult(session) {
+    if (votingState(session).state !== 'closed') return null;
+    if (results.has(session.id)) return results.get(session.id);
+    if (!resultLoads.has(session.id)) resultLoads.set(session.id, getDocs(collection(db,'sessionVotes',session.id,'ballots')).then(snap => {
+      const result = tallyBallots(session,snap.docs.map(ballot => ({...ballot.data(),uid:ballot.id})));
+      // A clock correction can reopen the UI while a request is in flight.
+      if (result) { results.set(session.id,result); resultErrors.delete(session.id); }
+      return result;
+    }).catch(error => { resultErrors.add(session.id); throw error; }).finally(() => resultLoads.delete(session.id)));
+    return resultLoads.get(session.id);
+  }
+  async function refreshArchive() {
+    if (loadingArchive || disposed) return;
+    loadingArchive = true;
+    try {
+      // All-time awards cannot use the former last-ten-session window. Only
+      // closed ballots are fetched, once per page lifetime, in bounded batches.
+      while (!disposed) {
+        const batch = sessions.filter(session => votingState(session).state === 'closed' && !results.has(session.id) && !resultErrors.has(session.id)).slice(0,4);
+        if (!batch.length) break;
+        await Promise.allSettled(batch.map(loadResult));
+        publishResults();
+      }
+    } finally { loadingArchive = false; publishResults(); }
   }
 
   async function saveMatchEntry(entry) {
@@ -155,7 +201,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   function updateCountdown() {
     const session = activeSession();
     const phase = sessions.map(item => `${item.id}:${votingState(item).state}`).join('|');
-    if (lastPhase && phase !== lastPhase) { lastPhase = phase; renderVoting(); refreshHistory(); return; }
+    if (lastPhase && phase !== lastPhase) { lastPhase = phase; bindReceiptCounts(); renderVoting(); refreshHistory(); refreshArchive(); publishResults(); return; }
     lastPhase = phase;
     if (!session) return;
     const minutes = Math.ceil(votingState(session).remaining / 60000);
@@ -179,13 +225,10 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
       if (votingState(session).state !== 'closed') { box.innerHTML = `<span class="status-pill">${esc(t('votingOpen'))}</span> ${button('open-voting','viewVoting',`data-session-id="${esc(id)}"`)}`; continue; }
       box.textContent = t('loadingMvp');
       try {
-        if (!results.has(id)) {
-          if (!resultLoads.has(id)) resultLoads.set(id, getDocs(collection(db,'sessionVotes',id,'ballots')).then(snap => tallyBallots(session,snap.docs.map(ballot => ({...ballot.data(),uid:ballot.id})))).catch(error => { resultLoads.delete(id); throw error; }));
-          results.set(id, await resultLoads.get(id));
-        }
+        await loadResult(session);
         if (!box.isConnected) continue;
         const result = results.get(id);
-        box.innerHTML = `<h3>${esc(t('finalMvp'))}</h3>${!result?.totalBallots ? `<p class="note">${esc(t('noBallots'))}</p>` : `<ol class="mvp-podium">${result.ranking.filter(row => row.points > 0).slice(0,3).map((row,index) => `<li><span aria-hidden="true">${['🥇','🥈','🥉'][index]}</span><button type="button" class="inline-player-link" data-community-player="${esc(row.playerId)}"><bdi>${esc(playerName(row.playerId))}</bdi></button><strong>${row.points}<small>${esc(t('votePoints'))}</small></strong></li>`).join('')}</ol><p class="note">${esc(t('ballotCount',{count:result.totalBallots}))}</p>`}`;
+        box.innerHTML = `<h3>${esc(t('finalMvp'))}</h3>${!result?.totalBallots ? `<p class="note">${esc(t('noBallots'))}</p>` : `${motmWinners(result).length > 1 ? `<p class="note">${esc(t('jointMotm'))}</p>` : ''}<ol class="mvp-podium">${awardPodium(result).map(row => `<li value="${row.rank}"><span aria-hidden="true">${['🥇','🥈','🥉'][row.rank-1]}</span><button type="button" class="inline-player-link" data-community-player="${esc(row.playerId)}"><bdi>${esc(playerName(row.playerId))}</bdi></button><strong>${row.points}<small>${esc(t('votePoints'))}</small></strong></li>`).join('')}</ol><p class="note">${esc(t('ballotCount',{count:result.totalBallots}))}</p>`}`;
       } catch { if (box.isConnected) box.innerHTML = `<p class="note">${esc(t('mvpResultsPending'))}</p>${button('retry-results','retryData')}`; }
     }
   }
@@ -196,6 +239,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     ballotStop?.(); ballotStop = null; ballotKey = ''; ownBallot = null; ballotDirty = false;
     selectedSessionId = '';
     user = nextUser; admin = isAdmin; link = null; linkRequest = null; requests = []; accountReady = false; accountError = false;
+    bindReceiptCounts();
     editingRequest = false; passwordVisible = false; accountFeedback = null;
     if (user && !admin) {
       let userReady = false, requestReady = false;
@@ -266,7 +310,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     if (name === 'open-account') { showAccount(); return; }
     if (name === 'open-voting') { selectedSessionId = trigger.dataset.sessionId; ballotDirty = false; location.hash = 'dashboard'; renderVoting(); $('dashboardVoting')?.scrollIntoView({block:'start'}); return; }
     if (name === 'my-stats' && link) { openProfile(link.playerId); return; }
-    if (name === 'retry-results') { refreshHistory(); return; }
+    if (name === 'retry-results') { resultErrors.clear(); if (sessionsError) subscribeSessions(); refreshArchive(); refreshHistory(); return; }
     action(async () => {
       if (name === 'signout') await signOut(auth);
       else if (name === 'verify-email' && user) { await sendEmailVerification(user); notify(t('verificationSent')); feedback(t('verificationSent')); }
@@ -315,14 +359,22 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
         const invalid = validateBallot({session,user:link,choices}); if (invalid) throw new Error(invalid);
         const uid = user.uid, pid = link.playerId;
         const ref = doc(db,'sessionVotes',session.id,'ballots',uid);
-        await runTransaction(db,async transaction => { const old = await transaction.get(ref); transaction.set(ref,{voterPlayerId:pid,firstPlayerId:choices[0],secondPlayerId:choices[1],thirdPlayerId:choices[2],submittedAt:old.exists() ? old.data().submittedAt : serverTimestamp(),updatedAt:serverTimestamp()}); }); ballotDirty = false; notify(t('voteSaved'));
+        await runTransaction(db,async transaction => { const old = await transaction.get(ref); transaction.set(ref,{voterPlayerId:pid,firstPlayerId:choices[0],secondPlayerId:choices[1],thirdPlayerId:choices[2],submittedAt:old.exists() ? old.data().submittedAt : serverTimestamp(),updatedAt:serverTimestamp()});
+          // Choice-free receipt: admins can count acknowledgements without
+          // gaining access to private ballots. Existing ballots stay unchanged.
+          transaction.set(doc(db,'sessionVotes',session.id,'receipts',uid),{updatedAt:serverTimestamp()});
+        }); ballotDirty = false; notify(t('voteSaved'));
       }
     });
   });
 
   publicStops.push(onSnapshot(collection(db,'playerProfiles'),snap => { profiles = new Map(snap.docs.map(item => [item.id,item.data()])); onProfilesChanged(profiles); if (!$('accountContent')?.contains(document.activeElement)) renderAccount(); },error => notify(errorMessage(error),'error')));
-  publicStops.push(onSnapshot(query(collection(db,'sessionVotes'),orderBy('openedAt','desc'),limit(10)),snap => { sessions = snap.docs.map(item => ({...item.data(),id:item.id})); resultLoads.clear(); clearTimeout(expiryTimer); const active = activeSession(); if (active) expiryTimer = setTimeout(() => { updateCountdown(); renderVoting(); refreshHistory(); }, Math.min(2147483647, votingState(active).remaining + 50)); renderVoting(); renderAdminVoting(); refreshHistory(); },error => notify(errorMessage(error),'error')));
+  function subscribeSessions() {
+    stopSessions?.();
+    stopSessions = onSnapshot(query(collection(db,'sessionVotes'),orderBy('openedAt','desc')),snap => { sessions = snap.docs.map(item => ({...item.data(),id:item.id})); sessionsReady = true; sessionsError = false; clearTimeout(expiryTimer); const active = activeSession(); if (active) expiryTimer = setTimeout(() => { updateCountdown(); renderVoting(); refreshHistory(); refreshArchive(); }, Math.min(2147483647, votingState(active).remaining + 50)); bindReceiptCounts(); renderVoting(); renderAdminVoting(); refreshHistory(); publishResults(); refreshArchive(); },error => { sessionsError = true; publishResults(); notify(errorMessage(error),'error'); });
+  }
+  subscribeSessions();
   timer = setInterval(updateCountdown,15000);
   document.addEventListener('visibilitychange',() => { if (!document.hidden) { updateCountdown(); refreshHistory(); } });
-  return { onAuth, render, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); adminStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
+  return { onAuth, render, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
 }

@@ -39,6 +39,64 @@ before(async()=>{env=await initializeTestEnvironment({projectId:'demo-futbolista
 beforeEach(async()=>{await env.clearFirestore(); await seed(async db=>{for(const id of ['a','b','c','d','e']) await setDoc(doc(db,'players',id),{name:`Player ${id}`});});});
 after(async()=>{await env?.cleanup();});
 
+test('trend moderation is public-read but strictly admin-write and presentation-only',async()=>{
+  const data={playerId:'a',type:'wins',startMatchKey:'2026-08-01',hidden:true,updatedAt:serverTimestamp()};
+  await assertSucceeds(setDoc(doc(adminDb(),'trendVisibility','trend'),data));
+  await assertSucceeds(getDocs(collection(guestDb(),'trendVisibility')));
+  await assertFails(setDoc(doc(dbFor('alice'),'trendVisibility','fake'),data));
+  await assertFails(setDoc(doc(guestDb(),'trendVisibility','fake'),data));
+  await assertSucceeds(updateDoc(doc(adminDb(),'trendVisibility','trend'),{hidden:false,updatedAt:serverTimestamp()}));
+  assert.equal((await getDoc(doc(guestDb(),'players','a'))).data().name,'Player a');
+});
+test('trend rules reject invented players, arbitrary fields, types and deletion',async()=>{
+  const ref=doc(adminDb(),'trendVisibility','trend');
+  const data={playerId:'a',type:'wins',startMatchKey:'2026-08-01',hidden:true,updatedAt:serverTimestamp()};
+  for(const change of [{playerId:'missing'},{type:'admin'},{points:100},{hidden:'yes'},{startMatchKey:''}]) await assertFails(setDoc(ref,{...data,...change}));
+  await assertSucceeds(setDoc(ref,data)); await assertFails(deleteDoc(ref));
+});
+test('a valid atomic vote creates one private, choice-free receipt',async()=>{
+  await seedSession(); await seedLink(); const db=dbFor('alice');
+  const batch=writeBatch(db);
+  batch.set(doc(db,'sessionVotes','open','ballots','alice'),ballotData());
+  batch.set(doc(db,'sessionVotes','open','receipts','alice'),{updatedAt:serverTimestamp()});
+  await assertSucceeds(batch.commit());
+  assert.equal((await assertSucceeds(getDocs(collection(adminDb(),'sessionVotes','open','receipts')))).size,1);
+  await assertFails(getDocs(collection(adminDb(),'sessionVotes','open','ballots')));
+  await assertFails(getDocs(collection(guestDb(),'sessionVotes','open','receipts')));
+  await assertFails(getDocs(collection(db,'sessionVotes','open','receipts')));
+});
+test('receipt alone, foreign UID, extra choices and closed-session writes are denied',async()=>{
+  await seedSession(); await seedLink(); const db=dbFor('alice');
+  await assertFails(setDoc(doc(db,'sessionVotes','open','receipts','alice'),{updatedAt:serverTimestamp()}));
+  const batch=writeBatch(db); batch.set(doc(db,'sessionVotes','open','ballots','alice'),ballotData());
+  batch.set(doc(db,'sessionVotes','open','receipts','bob'),{updatedAt:serverTimestamp()});
+  await assertFails(batch.commit());
+  const extra=writeBatch(db); extra.set(doc(db,'sessionVotes','open','ballots','alice'),ballotData());
+  extra.set(doc(db,'sessionVotes','open','receipts','alice'),{updatedAt:serverTimestamp(),firstPlayerId:'b'});
+  await assertFails(extra.commit());
+  await seedSession('closed',25*3600000);
+  await assertFails(setDoc(doc(db,'sessionVotes','closed','receipts','alice'),{updatedAt:serverTimestamp()}));
+});
+test('legacy votes without receipts remain valid and all ballot privacy rules remain enforced',async()=>{
+  await seedSession(); await seedLink();
+  await assertSucceeds(setDoc(doc(dbFor('alice'),'sessionVotes','open','ballots','alice'),ballotData()));
+  await assertFails(getDoc(doc(adminDb(),'sessionVotes','open','ballots','alice')));
+  assert.equal((await getDocs(collection(adminDb(),'sessionVotes','open','receipts'))).size,0);
+});
+test('updating a vote also updates its receipt without increasing the voter count',async()=>{
+  await seedSession();await seedLink();const db=dbFor('alice');
+  for(let attempt=0;attempt<2;attempt++){
+    const old=await getDoc(doc(db,'sessionVotes','open','ballots','alice'));
+    const batch=writeBatch(db);const value=ballotData();
+    if(old.exists())value.submittedAt=old.data().submittedAt;
+    if(attempt){value.firstPlayerId='c';value.secondPlayerId='b';}
+    batch.set(doc(db,'sessionVotes','open','ballots','alice'),value);
+    batch.set(doc(db,'sessionVotes','open','receipts','alice'),{updatedAt:serverTimestamp()});
+    await assertSucceeds(batch.commit());
+  }
+  assert.equal((await getDocs(collection(adminDb(),'sessionVotes','open','receipts'))).size,1);
+});
+
 test('public football reads stay available, guests cannot write or delete',async()=>{const db=guestDb();await assertSucceeds(getDocs(collection(db,'players')));await assertSucceeds(getDocs(collection(db,'logs')));await assertFails(setDoc(doc(db,'logs','bad'),{}));await assertFails(deleteDoc(doc(db,'players','a')));});
 test('normal authenticated users cannot write any football/statistics path',async()=>{const db=dbFor('alice');for(const name of ['players','logs','matches','statistics','settings'])await assertFails(setDoc(doc(db,name,'a'),{goals:100}));});
 test('legacy email administrator retains football CRUD even if unverified',async()=>{const db=adminDb();await assertSucceeds(setDoc(doc(db,'logs','entry'),{goals:2}));await assertSucceeds(updateDoc(doc(db,'players','a'),{name:'Updated'}));await assertSucceeds(deleteDoc(doc(db,'logs','entry')));});

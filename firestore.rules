@@ -90,6 +90,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Display-only moderation. Never changes a player's statistics or awards.
+    match /trendVisibility/{trendId} {
+      allow read: if true;
+      allow create, update: if admin()
+        && request.resource.data.keys().hasAll(['playerId','type','startMatchKey','hidden','updatedAt'])
+        && request.resource.data.keys().hasOnly(['playerId','type','startMatchKey','hidden','updatedAt'])
+        && playerExists(request.resource.data.playerId)
+        && request.resource.data.type in ['wins','unbeaten','losses','winless','scoring','attendance','motm']
+        && request.resource.data.startMatchKey is string
+        && request.resource.data.startMatchKey.size() > 0 && request.resource.data.startMatchKey.size() <= 200
+        && request.resource.data.hidden is bool && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
     match /sessionVotes/{sessionId} {
       allow read: if true;
       function candidatesValid(ids) {
@@ -124,6 +138,18 @@ service cloud.firestore {
         && candidatesValid(request.resource.data.candidatePlayerIds)
         && request.resource.data.candidatePlayerIds.hasAll(resource.data.candidatePlayerIds);
       allow delete: if false;
+      match /receipts/{uid} {
+        allow read: if admin();
+        // Receipt must accompany a valid ballot in the same atomic write.
+        // No choice fields or user profile information can be stored here.
+        allow create, update: if linked() && request.auth.uid == uid
+          && request.resource.data.keys().hasAll(['updatedAt'])
+          && request.resource.data.keys().hasOnly(['updatedAt'])
+          && request.resource.data.updatedAt == request.time
+          && request.time < get(/databases/$(database)/documents/sessionVotes/$(sessionId)).data.openedAt + duration.value(24,'h')
+          && getAfter(/databases/$(database)/documents/sessionVotes/$(sessionId)/ballots/$(uid)).data.updatedAt == request.time;
+        allow delete: if false;
+      }
       match /ballots/{uid} {
         function session() { return get(/databases/$(database)/documents/sessionVotes/$(sessionId)).data; }
         function open() { return request.time >= session().openedAt && request.time < session().openedAt + duration.value(24, 'h'); }

@@ -119,3 +119,20 @@
 - فُحص إخفاء عناصر الإدارة للعامة ونافذة الدخول وإغلاقها وإعادة التركيز، دون إرسال بيانات دخول.
 - فُحصت وحدة التحكم في تبويب نظيف دون أخطاء JavaScript.
 - لم يُختبر نجاح تسجيل الدخول الحقيقي لعدم توفر كلمة المرور، ولم يُضغط Add player أو Save entry أو زر التأكيد النهائي لإعادة الضبط، ولم يُجرَّب وضع انقطاع الشبكة فعليًا داخل المتصفح.
+# Release 500403 — local MOTM and streak validation
+
+Implemented locally; not published. See `RELEASE-500403.md` for the detailed
+feature definitions, security boundaries, test results, and rules-first rollout.
+173 unit/integration tests and 36 explicitly authorized local emulator security
+tests passed. Responsive QA: 70 cases across Arabic/English and widths 320, 360,
+390, 430, 1440. All production Firestore writes and deployments were avoided.
+# 500404 — Voting standings and monthly history (2026-09-09)
+
+Local/unpublished. All 225 tests passed (189 unit/integration + 36 emulator
+security); 34 JS/MJS syntax checks and `git diff --check` passed. Ninety saved
+AR/EN layout cases cover 320, 360, 390, 430 and 1440 px. Dashboard voting/MOTM
+toggle, three award table sorts, profile totals/month history, direct profile
+loading, admin login/logout, Compare and History checked. No final console
+errors, page overflow, clipped new cards or public admin controls. No production
+writes or deployment. See `RELEASE-500404.md` for calculation definitions,
+limitations and the inherited rules-first rollout requirement.

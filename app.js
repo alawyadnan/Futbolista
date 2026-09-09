@@ -26,14 +26,16 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500402";
+} from "./data-engine.js?v=500404";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500402";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500402";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500402";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500402";
-import { resolvePublicPlayers } from "./community-engine.js?v=500402";
-import { createCommunity } from "./community.js?v=500402";
+import { countText, directionFor, translate } from "./i18n.js?v=500404";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500404";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500404";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500404";
+import { resolvePublicPlayers } from "./community-engine.js?v=500404";
+import { createCommunity } from "./community.js?v=500404";
+import { createHighlights } from "./highlights.js?v=500404";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500404";
 
 import {
   appRouteFor,
@@ -52,7 +54,7 @@ import {
   playerNameKey,
   publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500402";
+} from "./ux-utils.js?v=500404";
 
 
 /* =========================================================
@@ -109,6 +111,7 @@ let players = [];
 let rawPlayers = [];
 let publicProfiles = new Map();
 let community = null;
+let highlights = null;
 
 let rawLogs = [];
 
@@ -543,7 +546,14 @@ document.addEventListener("DOMContentLoaded", () => {
   if (communityEnabled) {
     if (localEmulator) $("emulatorNotice")?.classList.remove("hidden");
     $("btnAccount")?.classList.remove("hidden");
+    highlights = createHighlights({ db, getModel: () => model, getProfileId: () => currentProfileId, isAdmin: () => isAdmin, t, esc, notify });
     community = createCommunity({ db, auth, getModel: () => model, getPlayers: () => players, isDataReady, t, esc, notify, openProfile,
+      onResultsChanged: state => {
+        highlights.setResults(state);
+        // Refresh only the active rankings when a closed result arrives.
+        if (!$("screen-table")?.classList.contains('hidden') && hasDataModel) renderTable();
+        if (!$("screen-leaderboard")?.classList.contains('hidden') && hasDataModel) renderLeaderboard();
+      },
       showAccount: () => { showScreen('account'); setActiveNav('playerstats'); },
       onProfilesChanged: profiles => { publicProfiles = profiles; players = resolvePublicPlayers(rawPlayers, profiles); scheduleRender(); }
     });
@@ -682,7 +692,18 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnAddPlayer")?.addEventListener("click", addPlayerSafely);
   $("btnAddLog")?.addEventListener("click", addLogSafely);
   $("lbSort")?.addEventListener("change", renderLeaderboard);
-  $("tableSort")?.addEventListener("change", renderTable);
+  $("tableSort")?.addEventListener("change", () => {
+    renderTable();
+    const wrap = $('tableBody')?.closest('.tablewrap');
+    if (wrap) wrap.scrollLeft = 0;
+  });
+  document.addEventListener('click', event => {
+    const trigger = event.target.closest?.('[data-award-table]');
+    if (!trigger || !AWARD_SORT_KEYS.includes(trigger.dataset.awardTable)) return;
+    $("tableSort").value = trigger.dataset.awardTable;
+    showScreen('table'); setActiveNav('table');
+    $("tableSort").focus({preventScroll:true});
+  });
   $("btnExport")?.addEventListener("click", () => isAdmin && exportJSON());
   $("btnReset")?.addEventListener("click", () => {
     if (!isAdmin) return notify(t("adminRequired"), "warning");
@@ -706,6 +727,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateDataActionState();
 
     community?.onAuth(user, isAdmin);
+    highlights?.render();
     if (user && !isAdmin && !communityEnabled) {
       notify(t("invalidAdmin"), "error");
       await signOut(auth).catch(console.error);
@@ -724,7 +746,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator && !localEmulator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500402").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500404").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1683,6 +1705,7 @@ function renderScreenContents(screen) {
     element.classList.remove("skeleton-list");
     element.removeAttribute("aria-busy");
   });
+  highlights?.render();
 
 }
 
@@ -1696,7 +1719,7 @@ function renderLoadFailure(screen) {
     element.innerHTML = emptyState("!", t("noData"), t("noDataLead"), true);
   });
   if (screen === "table" && $("tableBody")) {
-    $("tableBody").innerHTML = `<tr><td colspan="9" class="noteCell">${esc(t("noData"))}</td></tr>`;
+    $("tableBody").innerHTML = `<tr><td colspan="12" class="noteCell">${esc(t("noData"))}</td></tr>`;
   }
 }
 
@@ -2733,6 +2756,28 @@ function renderDashboard() {
    LEADERBOARD
 ========================================================= */
 
+function rankingRows(sortBy) {
+  const awardSort = communityEnabled && AWARD_SORT_KEYS.includes(sortBy);
+  const snapshot = highlights?.getStatistics();
+  const rows = players.filter(p => awardSort || model.eligibleIds.has(String(p.id))).map(p => {
+    const id = String(p.id), s = model.stats[id] || emptyStats();
+    const form = model.forms[id] || {formPoints:0,formIcons:'',formResults:[]};
+    const awards = snapshot?.byPlayer.get(id);
+    return {id, name:p.name || '', matches:s.matches, wins:s.wins, goals:s.goals, winPct:s.winPct,
+      gpm:s.gpm, curStreak:s.current, bestStreak:s.best, formPoints:form.formPoints,
+      formIcons:form.formIcons, formResults:form.formResults || [],
+      votingPoints:awards?.votingPoints || 0, motmAwards:awards?.motmAwards || 0, monthAwards:awards?.monthAwards || 0};
+  });
+  const ready = sortBy === 'monthAwards' || snapshot?.complete;
+  // Never publish an apparently final ordering from a partially loaded archive.
+  return {rows: awardSort ? (ready ? rankAwardRows(rows,sortBy) : []) : rows.sort(sorter(sortBy)),
+    awardSort, complete:!!snapshot?.complete, pending:awardSort && !ready, error:!!snapshot?.error};
+}
+
+function rankingStatus(error) {
+  return `<p class="note" role="status">${esc(t(error ? 'awardLoadError' : 'loadingMvp'))}</p>${error ? `<button type="button" class="btn btn-quiet" data-community-action="retry-results">${esc(t('retryData'))}</button>` : ''}`;
+}
+
 function renderLeaderboard() {
 
   const sortBy =
@@ -2741,93 +2786,7 @@ function renderLeaderboard() {
     "form";
 
 
-  const rows =
-    players
-
-      .filter(
-        p =>
-          model
-            .eligibleIds
-            .has(
-              String(
-                p.id
-              )
-            )
-      )
-
-      .map(
-        p => {
-
-          const pid =
-            String(
-              p.id
-            );
-
-
-          const s =
-            model.stats[pid]
-            ||
-            emptyStats();
-
-
-          const form =
-            model.forms[pid]
-            ||
-            {
-              formPoints: 0,
-              formIcons: "",
-              formResults: []
-            };
-
-
-          return {
-
-            id:
-              pid,
-
-            name:
-              p.name || "",
-
-            matches:
-              s.matches,
-
-            wins:
-              s.wins,
-
-            goals:
-              s.goals,
-
-            winPct:
-              s.winPct,
-
-            gpm:
-              s.gpm,
-
-            curStreak:
-              s.current,
-
-            bestStreak:
-              s.best,
-
-            formPoints:
-              form.formPoints,
-
-            formIcons:
-              form.formIcons,
-
-            formResults:
-              form.formResults || []
-
-          };
-
-        }
-      )
-
-      .sort(
-        sorter(
-          sortBy
-        )
-      );
+  const { rows, awardSort, complete, pending, error } = rankingRows(sortBy);
 
 
   const box =
@@ -2841,7 +2800,7 @@ function renderLeaderboard() {
   }
 
 
-  box.innerHTML =
+  box.innerHTML = pending ? rankingStatus(error) :
     rows.length
       ?
       rows
@@ -2853,10 +2812,11 @@ function renderLeaderboard() {
 
             <button type="button" class="item leader-row player-link" data-open-player="${esc(r.id)}">
               <div class="leader-main">
-                <span class="rank-badge ${i < 3 ? "top" : ""}">${i + 1}</span>
+                <span class="rank-badge ${(r.rank || i + 1) <= 3 ? "top" : ""}">${r.rank || i + 1}</span>
                 <div class="leader-copy">
                   <div class="name"><bdi dir="auto">${esc(r.name)}</bdi></div>
                   <div class="leader-metrics">
+                    ${communityEnabled ? `<span class="metric-chip ${sortBy === 'votingPoints' ? 'is-sort-key' : ''}">${esc(t('votingPoints'))} <strong>${complete ? r.votingPoints : '—'}</strong></span><span class="metric-chip ${sortBy === 'motmAwards' ? 'is-sort-key' : ''}">MOTM <strong>${complete ? r.motmAwards : '—'}</strong></span><span class="metric-chip ${sortBy === 'monthAwards' ? 'is-sort-key' : ''}">${esc(t('monthAwards'))} <strong>${r.monthAwards}</strong></span>` : ''}
                     <span class="metric-chip ${sortBy === "form" ? "is-sort-key" : ""}">${esc(t("form"))} <strong>${formatFormPoints(r.formPoints)}</strong></span>
                     <span class="metric-chip">${renderFormDots(r.formResults)}</span>
                     <span class="metric-chip ${sortBy === "matches" ? "is-sort-key" : ""}">${esc(t("matches"))} <strong>${r.matches}</strong></span>
@@ -2893,72 +2853,7 @@ function renderTable() {
     "winPct";
 
 
-  const rows =
-    players
-
-      .filter(
-        p =>
-          model
-            .eligibleIds
-            .has(
-              String(
-                p.id
-              )
-            )
-      )
-
-      .map(
-        p => {
-
-          const s =
-            model.stats[
-              String(
-                p.id
-              )
-            ]
-            ||
-            emptyStats();
-
-
-          return {
-
-            id:
-              String(p.id),
-
-            name:
-              p.name || "",
-
-            matches:
-              s.matches,
-
-            wins:
-              s.wins,
-
-            goals:
-              s.goals,
-
-            winPct:
-              s.winPct,
-
-            gpm:
-              s.gpm,
-
-            curStreak:
-              s.current,
-
-            bestStreak:
-              s.best
-
-          };
-
-        }
-      )
-
-      .sort(
-        sorter(
-          sortBy
-        )
-      );
+  const { rows, awardSort, complete, pending, error } = rankingRows(sortBy);
 
 
   const body =
@@ -2972,7 +2867,10 @@ function renderTable() {
   }
 
 
-  body.innerHTML =
+  if ($('tableScope')) $('tableScope').textContent = t(awardSort ? 'allPlayersRanking' : 'allEligible');
+  // On narrow screens, bring the requested award metric beside the player name.
+  body.closest('table')?.classList.toggle('award-sorted', awardSort);
+  body.innerHTML = pending ? `<tr><td colspan="12">${rankingStatus(error)}</td></tr>` :
     rows.length
       ?
       rows
@@ -2984,9 +2882,15 @@ function renderTable() {
 
             <tr>
 
-              <td>${idx + 1}</td>
+              <td>${r.rank || idx + 1}</td>
 
               <td data-sort-key="name"><button type="button" class="inline-player-link table-player-link" data-open-player="${esc(r.id)}"><bdi dir="auto">${esc(r.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span></button></td>
+
+              <td data-sort-key="votingPoints" data-award-stat>${complete ? r.votingPoints : '—'}</td>
+
+              <td data-sort-key="motmAwards" data-award-stat>${complete ? r.motmAwards : '—'}</td>
+
+              <td data-sort-key="monthAwards" data-award-stat>${r.monthAwards}</td>
 
               <td data-sort-key="matches">${r.matches}</td>
 
@@ -3010,9 +2914,16 @@ function renderTable() {
 
       :
 
-      `<tr><td colspan="9" class="noteCell">${esc(t("noRanked"))}</td></tr>`;
+      `<tr><td colspan="12" class="noteCell">${esc(t("noRanked"))}</td></tr>`;
 
   const table = body.closest("table");
+  table?.querySelectorAll('tr').forEach(row => {
+    const keys = awardSort ? [sortBy, ...AWARD_SORT_KEYS.filter(key => key !== sortBy)] : AWARD_SORT_KEYS;
+    const cells = keys.map(key => row.querySelector(`[data-sort-key="${key}"]`)).filter(Boolean);
+    if (awardSort) cells.reverse().forEach(cell => row.insertBefore(cell,row.children[2]));
+    else cells.forEach(cell => row.appendChild(cell));
+    cells.forEach(cell => { cell.hidden = !communityEnabled; });
+  });
   table?.querySelectorAll("[data-sort-key]").forEach(cell => {
     cell.classList.toggle("is-sort-key", cell.dataset.sortKey === sortBy);
   });
@@ -3250,6 +3161,7 @@ function renderPlayerProfile(
 
   }
 
+  if (grid && communityEnabled) grid.insertAdjacentHTML('beforeend', '<div id="profileMotmStat" class="statTile motm-stat"></div><div id="profileVotePointsStat" class="statTile motm-stat"></div><div id="profileMonthAwardsStat" class="statTile motm-stat"></div>');
   const record = $("profileRecord");
   if (record) {
     const resultTotal = s.wins + s.draws + s.losses;
