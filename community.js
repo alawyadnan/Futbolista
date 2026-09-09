@@ -1,9 +1,9 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500404';
-import { renderWithFormDraft } from './ux-utils.js?v=500404';
-import { accountJourney, authFeedbackKey } from './account-ux.js?v=500404';
-import { awardPodium, motmWinners } from './highlights-engine.js?v=500404';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500405';
+import { renderWithFormDraft } from './ux-utils.js?v=500405';
+import { accountJourney, authFeedbackKey } from './account-ux.js?v=500405';
+import { awardPodium, motmWinners } from './highlights-engine.js?v=500405';
 
 export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onResultsChanged = () => {} }) {
   const $ = id => document.getElementById(id);

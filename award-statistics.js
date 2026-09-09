@@ -1,4 +1,4 @@
-import { calculateMonthScores } from './data-engine.js?v=500404';
+import { calculateMonthScores } from './data-engine.js?v=500405';
 
 export const AWARD_SORT_KEYS = Object.freeze(['votingPoints', 'motmAwards', 'monthAwards']);
 
@@ -40,6 +40,7 @@ export function buildAwardStatistics(model, awards, currentMonth, nameForPlayer 
 
 // Names/IDs stabilize display only. Equal totals have equal competition ranks,
 // including at the podium boundary: 1, 1, 3 (not an arbitrary winner).
+// Keep players without earned points/awards in the table, but off the podium.
 export function rankAwardRows(rows, key) {
   if (!AWARD_SORT_KEYS.includes(key)) throw new TypeError('Unknown award ranking');
   let previous, rank = 0;
@@ -47,6 +48,6 @@ export function rankAwardRows(rows, key) {
     .map((row,index) => {
       if (index === 0 || row[key] !== previous) rank = index + 1;
       previous = row[key];
-      return { ...row, rank };
+      return { ...row, rank: row[key] > 0 ? rank : null };
     });
 }

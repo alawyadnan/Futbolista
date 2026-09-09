@@ -26,16 +26,16 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500404";
+} from "./data-engine.js?v=500405";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500404";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500404";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500404";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500404";
-import { resolvePublicPlayers } from "./community-engine.js?v=500404";
-import { createCommunity } from "./community.js?v=500404";
-import { createHighlights } from "./highlights.js?v=500404";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500404";
+import { countText, directionFor, translate } from "./i18n.js?v=500405";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500405";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500405";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500405";
+import { resolvePublicPlayers } from "./community-engine.js?v=500405";
+import { createCommunity } from "./community.js?v=500405";
+import { createHighlights } from "./highlights.js?v=500405";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500405";
 
 import {
   appRouteFor,
@@ -54,7 +54,7 @@ import {
   playerNameKey,
   publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500404";
+} from "./ux-utils.js?v=500405";
 
 
 /* =========================================================
@@ -746,7 +746,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator && !localEmulator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500404").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500405").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -2812,7 +2812,7 @@ function renderLeaderboard() {
 
             <button type="button" class="item leader-row player-link" data-open-player="${esc(r.id)}">
               <div class="leader-main">
-                <span class="rank-badge ${(r.rank || i + 1) <= 3 ? "top" : ""}">${r.rank || i + 1}</span>
+                <span class="rank-badge ${(awardSort ? r.rank !== null && r.rank <= 3 : i < 3) ? "top" : ""}">${awardSort ? r.rank ?? '—' : i + 1}</span>
                 <div class="leader-copy">
                   <div class="name"><bdi dir="auto">${esc(r.name)}</bdi></div>
                   <div class="leader-metrics">
@@ -2882,7 +2882,7 @@ function renderTable() {
 
             <tr>
 
-              <td>${r.rank || idx + 1}</td>
+              <td>${awardSort ? r.rank ?? '—' : idx + 1}</td>
 
               <td data-sort-key="name"><button type="button" class="inline-player-link table-player-link" data-open-player="${esc(r.id)}"><bdi dir="auto">${esc(r.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span></button></td>
 

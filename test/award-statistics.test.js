@@ -82,6 +82,13 @@ test('podium boundary ties are not silently dropped and ranking never mutates in
   assert.equal(ranked.filter(row=>row.rank<=3).length,4);assert.deepEqual(rows,before);
   assert.throws(()=>rankAwardRows(rows,'wins'),TypeError);
 });
+test('zero totals stay listed without an earned rank in every award sort',()=>{
+  for (const key of AWARD_SORT_KEYS) {
+    const rows = [{id:'z',name:'Z',[key]:0},{id:'a',name:'A',[key]:0},{id:'b',name:'B',[key]:2}];
+    assert.deepEqual(rankAwardRows(rows,key).map(row=>[row.id,row.rank]),[['b',1],['a',null],['z',null]]);
+    assert.ok(rankAwardRows(rows.slice(0,2),key).every(row=>row.rank===null));
+  }
+});
 test('malformed duplicate tally rows and unknown players cannot create profile statistics',()=>{
   const a=archive(),r=a.results.get(a.sessions[0].id);r.ranking.push({...r.ranking[0]}, {...r.ranking[0],playerId:'missing'});
   const stats=buildAwardStatistics(model(),summarize(a),'2026-09');
@@ -106,4 +113,17 @@ test('actual app waits for all closed results and allows independent monthly/foo
   const rows=appRanking(false,true);
   assert.equal(rows('votingPoints').rows.length,0);assert.equal(rows('votingPoints').pending,true);assert.equal(rows('motmAwards').error,true);
   assert.equal(rows('monthAwards').rows.length,4);assert.equal(rows('wins').rows.length,1);
+});
+
+test('actual leaderboard and table show a dash, not a gold first place, for unearned awards',()=>{
+  const source=readFileSync(new URL('../app.js',import.meta.url),'utf8');
+  for (const awardSort of [true,false]) {
+    const nodes=new Map();
+    const node=id=>{if(!nodes.has(id))nodes.set(id,{value:awardSort?'motmAwards':'wins',innerHTML:'',closest:()=>null});return nodes.get(id);};
+    const context={$:node,rankingRows:()=>({rows:[{id:'a',name:'A',rank:null,motmAwards:0,votingPoints:0,monthAwards:0,formResults:[]}],awardSort,complete:true}),
+      communityEnabled:true,t:key=>key,esc:value=>String(value),formatFormPoints:()=>0,renderFormDots:()=>'',fmtPct:()=>0,fmt2:()=>0};
+    runInNewContext(source.slice(source.indexOf('function renderLeaderboard('),source.indexOf('function renderPlayerCardsNameOnly('))+'\nrenderLeaderboard();renderTable();',context);
+    assert.match(node('tableBody').innerHTML,awardSort?/<td>—<\/td>/:/<td>1<\/td>/);
+    assert.match(node('leaderboardList').innerHTML,awardSort?/class="rank-badge ">—/:/class="rank-badge top">1/);
+  }
 });

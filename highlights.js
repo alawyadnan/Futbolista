@@ -1,7 +1,7 @@
 import { collection, doc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { computeTrends, selectHeadlineTrends, selectProfileTrends, summarizeAwards } from './highlights-engine.js?v=500404';
-import { buildPlayerAvatar } from './ux-utils.js?v=500404';
-import { buildAwardStatistics, rankAwardRows } from './award-statistics.js?v=500404';
+import { computeTrends, selectHeadlineTrends, selectProfileTrends, summarizeAwards } from './highlights-engine.js?v=500405';
+import { buildPlayerAvatar } from './ux-utils.js?v=500405';
+import { buildAwardStatistics, rankAwardRows } from './award-statistics.js?v=500405';
 
 export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, notify }) {
   const $ = id => document.getElementById(id);
@@ -37,12 +37,16 @@ export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, 
   function renderRankings() {
     const box = $('dashboardAwardRanking');
     if (!box) return;
-    box.classList.remove('hidden');
+    // An empty podium is not useful on the home screen. Keep loading/error
+    // states visible so a failed archive read never looks like no awards.
+    const hasPoints = [...statistics.values()].some(row => row.votingPoints > 0);
+    box.classList.toggle('hidden', resultsComplete() && !hasPoints);
+    if (resultsComplete() && !hasPoints) { box.replaceChildren(); return; }
     const rows = rankAwardRows([...statistics.values()].filter(row => row[rankingKey] > 0), rankingKey).filter(row => row.rank <= 3);
+    const leaderTotal = rows[0]?.[rankingKey] || 1;
     box.innerHTML = `<div class="card-heading"><div><span class="eyebrow">${esc(t('allTime'))}</span><h2>${esc(t('voteLeaders'))}</h2></div><button type="button" class="text-action" data-award-table="${rankingKey}">${esc(t('fullRanking'))}</button></div>
       <div class="award-switch" role="group" aria-label="${esc(t('sortBy'))}">${['votingPoints','motmAwards'].map(key => `<button type="button" data-award-ranking="${key}" aria-pressed="${rankingKey === key}">${esc(t(key))}</button>`).join('')}</div>
-      ${!resultsComplete() ? pendingResults() : !rows.length ? `<p class="note">${esc(t('noVotePoints'))}</p>` : `<div class="award-leaders">${rows.map(row => `<div class="award-leader"><span class="rank-badge ${row.rank === 1 ? 'top' : ''}">${row.rank}</span>${playerLink(row.id)}<div class="award-leader-score"><strong>${row[rankingKey]}</strong><span>${esc(t(rankingKey === 'votingPoints' ? 'votePoints' : 'motmShort'))}</span></div></div>`).join('')}</div>`}
-      <p class="award-rule">${esc(t('votePointsRule'))}</p>`;
+      ${!resultsComplete() ? pendingResults() : !rows.length ? `<p class="note">${esc(t('noVotePoints'))}</p>` : `<div class="award-leaders">${rows.map(row => `<div class="award-leader ${row.rank === 1 ? 'is-first' : ''}"><span class="rank-badge ${row.rank === 1 ? 'top' : ''}">${row.rank}</span><div class="award-leader-player">${playerLink(row.id)}<span class="award-score-track" aria-hidden="true"><span style="width:${Math.min(100,Math.max(0,row[rankingKey] / leaderTotal * 100))}%"></span></span></div><div class="award-leader-score"><strong>${row[rankingKey]}</strong><span>${esc(t(rankingKey === 'votingPoints' ? 'votePoints' : 'motmShort'))}</span></div></div>`).join('')}</div>`}`;
   }
   function renderLatest() {
     const box = $('dashboardMotm');
@@ -63,6 +67,8 @@ export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, 
     const wins = awards.byPlayer.get(playerId) || [];
     const complete = resultsComplete();
     const stats = statistics.get(playerId);
+    const details = box.querySelector('.vote-details');
+    const detailsOpen = details?.open && details.dataset.playerId === playerId;
     if (count) count.innerHTML = `<div class="stLabel">${esc(t('motmAwards'))}</div><div class="stValue">${complete ? wins.length : '—'}</div>`;
     if ($('profileVotePointsStat')) $('profileVotePointsStat').innerHTML = `<div class="stLabel">${esc(t('votingPoints'))}</div><div class="stValue">${complete ? stats.votingPoints : '—'}</div>`;
     if ($('profileMonthAwardsStat')) $('profileMonthAwardsStat').innerHTML = `<div class="stLabel">${esc(t('monthAwards'))}</div><div class="stValue">${stats.monthAwards}</div>`;
@@ -71,7 +77,7 @@ export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, 
       ${!complete ? `<p class="note">${esc(t(state.error ? 'awardLoadError' : 'loadingMvp'))}</p>${state.error ? `<button class="btn btn-quiet" data-community-action="retry-results">${esc(t('retryData'))}</button>` : ''}` : !wins.length ? `<p class="note">${esc(t('noMotmAwards'))}</p>` : ''}
       ${wins.length ? `<div class="award-history">${wins.slice(-5).reverse().map(award => `<button class="award-date" type="button" data-open-match="${esc(award.session.matchKey)}"><span aria-hidden="true">★</span><time datetime="${esc(award.session.date)}">${esc(date(award.session.date))}</time>${award.winnerIds.length > 1 ? `<small>${esc(t('jointAward'))}</small>` : ''}</button>`).join('')}</div>` : ''}${wins.length > 5 ? `<p class="note">${esc(t('latestFiveAwards'))}</p>` : ''}</article>
       <div class="career-awards-grid"><article class="card voting-record"><div class="card-heading"><h2>${esc(t('votingPoints'))}</h2><span class="motm-total">${complete ? stats.votingPoints : '—'}<small>${esc(t('votePoints'))}</small></span></div>
-        ${!complete ? pendingResults() : `<dl class="vote-choice-breakdown">${[['firstChoices','firstPlace',5],['secondChoices','secondPlace',3],['thirdChoices','thirdPlace',1]].map(([key,label,weight]) => `<div><dt>${esc(t(label))}</dt><dd>${stats[key]} <span>× ${weight}</span></dd></div>`).join('')}</dl>`}<p class="award-rule">${esc(t('votePointsRule'))}</p></article>
+        ${!complete ? pendingResults() : !stats.votingPoints ? `<p class="note">${esc(t('noVotePoints'))}</p>` : `<details class="vote-details" data-player-id="${esc(playerId)}" ${detailsOpen ? 'open' : ''}><summary>${esc(t('voteBreakdown'))}</summary><dl class="vote-choice-breakdown">${[['firstChoices','firstPlace'],['secondChoices','secondPlace'],['thirdChoices','thirdPlace']].map(([key,label]) => `<div><dt>${esc(t(label))}</dt><dd>${stats[key]}</dd></div>`).join('')}</dl></details>`}</article>
         <article class="card monthly-record"><div class="card-heading"><h2>${esc(t('playerMonth'))}</h2><span class="motm-total">${stats.monthAwards}<small>${esc(t('monthAwards'))}</small></span></div>
         ${stats.months.length ? `<div class="monthly-award-history">${stats.months.slice().reverse().map(row => `<span class="month-award"><span aria-hidden="true">★</span><time datetime="${esc(row.month)}">${esc(new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar-SA-u-ca-gregory' : 'en-GB',{month:'long',year:'numeric'}).format(new Date(`${row.month}-01T12:00:00`)))}</time><strong>${row.score}/10</strong></span>`).join('')}</div>` : `<p class="note">${esc(t('noMonthAwards'))}</p>`}<p class="award-rule">${esc(t('completedMonthAwards'))}</p></article></div>
       ${rows.length ? `<section class="profile-trends" aria-label="${esc(t('playerStreaks'))}"><h2>${esc(t('playerStreaks'))}</h2><div class="trend-grid">${rows.map(row => trendCard(row)).join('')}</div></section>` : ''}`;

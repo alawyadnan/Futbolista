@@ -8,20 +8,20 @@ import { buildDataModel } from '../data-engine.js';
 import { buildPlayerAvatar } from '../ux-utils.js';
 import { translate } from '../i18n.js';
 
-function harness({loading=false}={}) {
-  let admin=false,listener,click,fail=false; const nodes=new Map(),writes=[];
-  const node=id=>{ if(!nodes.has(id))nodes.set(id,{innerHTML:'',classList:{toggle(){},remove(){}},querySelector(){return null;},replaceChildren(){this.innerHTML='';}});return nodes.get(id); };
+function harness({loading=false,language='en'}={}) {
+  let admin=false,listener,click,fail=false,profileId='a'; const nodes=new Map(),writes=[];
+  const node=id=>{ if(!nodes.has(id)){const classes=new Set();nodes.set(id,{innerHTML:'',classList:{toggle(key,on){on?classes.add(key):classes.delete(key);},remove(key){classes.delete(key);},contains:key=>classes.has(key)},querySelector(){return null;},replaceChildren(){this.innerHTML='';}});}return nodes.get(id); };
   const players=[{id:'a',name:'Ali <img>'},{id:'b',name:'B'}];
   const logs=Array.from({length:6},(_,i)=>({id:String(i),playerId:'a',date:`2026-08-0${i+1}`,result:'win',side:'A',goals:1}));
   const model=buildDataModel(players,logs);
   const create=runInNewContext(readFileSync(new URL('../highlights.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export function createHighlights','function createHighlights')+'\ncreateHighlights;',{
-    ...engine,...statistics,buildPlayerAvatar,document:{documentElement:{lang:'en'},getElementById:node,addEventListener:(_event,fn)=>{click=fn;},removeEventListener(){}},
+    ...engine,...statistics,buildPlayerAvatar,document:{documentElement:{lang:language},getElementById:node,addEventListener:(_event,fn)=>{click=fn;},removeEventListener(){}},
     collection:(_db,...parts)=>parts.join('/'),doc:(_db,...parts)=>parts.join('/'),serverTimestamp:()=>1,
     onSnapshot:(_path,fn)=>{listener=fn;return ()=>{};},setDoc:async(path,value)=>{if(fail)throw Error('denied');writes.push({path,value});}
   });
-  const app=create({db:{},getModel:()=>loading?{}:model,getProfileId:()=> 'a',isAdmin:()=>admin,t:(key,vars)=>translate('en',key,vars),esc:value=>String(value).replaceAll('<','&lt;').replaceAll('>','&gt;'),notify(){}});
+  const app=create({db:{},getModel:()=>loading?{}:model,getProfileId:()=>profileId,isAdmin:()=>admin,t:(key,vars)=>translate(language,key,vars),esc:value=>String(value).replaceAll('<','&lt;').replaceAll('>','&gt;'),notify(){}});
   listener({docs:[]});
-  return {app,node,writes,model,admin(value){admin=value;app.render();},fail(value){fail=value;},preferences(docs){listener({docs});},click:dataset=>click({target:{closest:()=>({dataset})}})};
+  return {app,node,writes,model,profile(value){profileId=value;app.render();},admin(value){admin=value;app.render();},fail(value){fail=value;},preferences(docs){listener({docs});},click:dataset=>click({target:{closest:()=>({dataset})}})};
 }
 function results() {
   const session={id:'2026-08-06',matchKey:'2026-08-06',date:'2026-08-06',openedAt:Date.now()-26*3600000};
@@ -58,6 +58,55 @@ test('dashboard switches between points and awards without a data write',async()
   assert.match(h.node('dashboardAwardRanking').innerHTML,/data-award-table="motmAwards"/);
   assert.match(h.node('dashboardAwardRanking').innerHTML,/data-award-ranking="motmAwards" aria-pressed="true"/);
   assert.equal(h.writes.length,0);
+});
+test('public pages omit the scoring formula in both languages; profile details start collapsed',()=>{
+  for(const language of ['ar','en']) {
+    const h=harness({language});h.app.setResults(results());
+    const profile=h.node('profileHighlights').innerHTML;
+    assert.doesNotMatch(profile+h.node('dashboardAwardRanking').innerHTML,/votePointsRule|التصويت المقفل|Closed votes|× [135]/);
+    assert.match(profile,/<details class="vote-details" data-player-id="a" >\s*<summary>/);
+    assert.equal(h.writes.length,0);
+  }
+});
+test('empty dashboard podium is hidden only after a successful complete archive read',()=>{
+  const h=harness(),box=h.node('dashboardAwardRanking');
+  assert.equal(box.classList.contains('hidden'),false);
+  h.app.setResults({sessions:[],results:new Map(),ready:true,error:false});
+  assert.equal(box.classList.contains('hidden'),true);assert.equal(box.innerHTML,'');
+  h.app.setResults({sessions:[],results:new Map(),ready:true,error:true});
+  assert.equal(box.classList.contains('hidden'),false);assert.match(box.innerHTML,/retry-results/);
+  h.app.setResults(results());assert.equal(box.classList.contains('hidden'),false);
+});
+test('leader bars match the selected total and treat tied leaders equally',async()=>{
+  const h=harness(),state=results();
+  state.results.values().next().value.ranking.push({playerId:'b',points:3,first:0,second:1,third:0});
+  h.app.setResults(state);
+  assert.match(h.node('dashboardAwardRanking').innerHTML,/width:100%/);
+  assert.match(h.node('dashboardAwardRanking').innerHTML,/width:60%/);
+  state.results.values().next().value.ranking[1]={...state.results.values().next().value.ranking[0],playerId:'b'};
+  h.app.setResults({...state});
+  assert.equal((h.node('dashboardAwardRanking').innerHTML.match(/award-leader is-first/g)||[]).length,2);
+  await h.click({awardRanking:'motmAwards'});
+  assert.equal((h.node('dashboardAwardRanking').innerHTML.match(/width:100%/g)||[]).length,2);
+});
+test('open details survive result refresh for the same player, not navigation to another',()=>{
+  const h=harness(),state=results();
+  state.results.values().next().value.ranking.push({playerId:'b',points:3,first:0,second:1,third:0});
+  h.app.setResults(state);
+  h.node('profileHighlights').querySelector=()=>({open:true,dataset:{playerId:'a'}});
+  h.app.render();assert.match(h.node('profileHighlights').innerHTML,/data-player-id="a" open>/);
+  h.profile('b');assert.match(h.node('profileHighlights').innerHTML,/data-player-id="b" >/);
+  assert.equal(h.writes.length,0);
+});
+test('zero-point profiles keep their total without an empty breakdown',()=>{
+  const h=harness();h.app.setResults(results());h.profile('b');
+  assert.match(h.node('profileVotePointsStat').innerHTML,/stValue">0/);
+  assert.doesNotMatch(h.node('profileHighlights').innerHTML,/vote-details/);
+});
+test('active voting appears before all-time rankings and streaks in keyboard and visual order',()=>{
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.ok(html.indexOf('id="dashboardVoting"')<html.indexOf('id="dashboardAwardRanking"'));
+  assert.ok(html.indexOf('id="dashboardVoting"')<html.indexOf('id="dashboardTrends"'));
 });
 test('only admin sees hide controls; hiding and restoring target a display preference, not football data',async()=>{
   const h=harness();h.app.setResults(results());

@@ -3,7 +3,7 @@ export const DEFAULT_LANGUAGE = "en";
 const messages = {
   en: {
     votingPoints: "Voting points", monthAwards: "Monthly awards", voteLeaders: "Voting leaders", allTime: "All time", fullRanking: "Full ranking", motmShort: "MOTM",
-    votePointsRule: "Closed votes · 1st: 5 · 2nd: 3 · 3rd: 1", noVotePoints: "No points from closed votes yet.", allPlayersRanking: "All players",
+    voteBreakdown: "Voting details", noVotePoints: "No points from closed votes yet.", allPlayersRanking: "All players",
     firstPlace: "1st choice", secondPlace: "2nd choice", thirdPlace: "3rd choice", noMonthAwards: "No Player of the Month awards yet.",
     completedMonthAwards: "Completed months · based on match statistics",
     latestMotm: "Latest award", motmFull: "Man of the Match", motmAwards: "MOTM awards", jointMotm: "Joint Men of the Match", jointAward: "Shared",
@@ -140,7 +140,7 @@ const messages = {
   },
   ar: {
     votingPoints: "نقاط التصويت", monthAwards: "جوائز الشهر", voteLeaders: "متصدرو التصويت", allTime: "الإجمالي", fullRanking: "الترتيب الكامل", motmShort: "MOTM",
-    votePointsRule: "التصويت المقفل · الأول ٥ · الثاني ٣ · الثالث ١", noVotePoints: "لا توجد نقاط من تصويت مقفل بعد.", allPlayersRanking: "جميع اللاعبين",
+    voteBreakdown: "تفاصيل التصويت", noVotePoints: "لا توجد نقاط من تصويت مقفل بعد.", allPlayersRanking: "جميع اللاعبين",
     firstPlace: "الاختيار الأول", secondPlace: "الاختيار الثاني", thirdPlace: "الاختيار الثالث", noMonthAwards: "لم يفز بلاعب الشهر بعد.",
     completedMonthAwards: "الأشهر المكتملة · حسب إحصائيات المباريات",
     latestMotm: "آخر جائزة", motmFull: "رجل المباراة", motmAwards: "جوائز MOTM", jointMotm: "جائزة رجل المباراة مشتركة", jointAward: "مشتركة",
