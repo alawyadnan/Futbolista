@@ -6,6 +6,7 @@ import { buildDataModel, calculateMonthScores } from '../data-engine.js';
 import { tallyBallots, VOTING_WINDOW_MS } from '../community-engine.js';
 import { summarizeAwards } from '../highlights-engine.js';
 import { AWARD_SORT_KEYS, buildAwardStatistics, rankAwardRows } from '../award-statistics.js';
+import { buildRankingMetric, buildPlayerAvatar } from '../ux-utils.js';
 
 const now = Date.UTC(2026,8,9);
 const players = ['a','b','c','d'].map(id => ({id,name:id}));
@@ -121,7 +122,7 @@ test('actual leaderboard and table show a dash, not a gold first place, for unea
     const nodes=new Map();
     const node=id=>{if(!nodes.has(id))nodes.set(id,{value:awardSort?'motmAwards':'wins',innerHTML:'',closest:()=>null});return nodes.get(id);};
     const context={$:node,rankingRows:()=>({rows:[{id:'a',name:'A',rank:null,motmAwards:0,votingPoints:0,monthAwards:0,formResults:[]}],awardSort,complete:true}),
-      communityEnabled:true,t:key=>key,esc:value=>String(value),formatFormPoints:()=>0,renderFormDots:()=>'',fmtPct:()=>0,fmt2:()=>0};
+      communityEnabled:true,buildRankingMetric,buildPlayerAvatar,t:key=>key,esc:value=>String(value),formatFormPoints:()=>0,renderFormDots:()=>'',fmtPct:()=>0,fmt2:()=>0};
     runInNewContext(source.slice(source.indexOf('function renderLeaderboard('),source.indexOf('function renderPlayerCardsNameOnly('))+'\nrenderLeaderboard();renderTable();',context);
     assert.match(node('tableBody').innerHTML,awardSort?/<td>—<\/td>/:/<td>1<\/td>/);
     assert.match(node('leaderboardList').innerHTML,awardSort?/class="rank-badge ">—/:/class="rank-badge top">1/);

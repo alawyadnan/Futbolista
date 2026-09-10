@@ -1,29 +1,29 @@
 const CACHE_PREFIX = "futbolista-cache-";
-const CACHE = `${CACHE_PREFIX}v500405`;
+const CACHE = `${CACHE_PREFIX}v500406`;
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=500405",
-  "./app.js?v=500405",
-  "./data-engine.js?v=500405",
-  "./i18n.js?v=500405",
-  "./ux-utils.js?v=500405",
-  "./insights-engine.js?v=500405",
-  "./personalization.js?v=500405",
-  "./community-config.js?v=500405",
-  "./community-engine.js?v=500405",
-  "./community.js?v=500405",
-  "./account-ux.js?v=500405",
-  "./highlights.js?v=500405",
-  "./award-statistics.js?v=500405",
-  "./highlights-engine.js?v=500405",
+  "./styles.css?v=500406",
+  "./app.js?v=500406",
+  "./data-engine.js?v=500406",
+  "./i18n.js?v=500406",
+  "./ux-utils.js?v=500406",
+  "./insights-engine.js?v=500406",
+  "./personalization.js?v=500406",
+  "./community-config.js?v=500406",
+  "./community-engine.js?v=500406",
+  "./community.js?v=500406",
+  "./account-ux.js?v=500406",
+  "./highlights.js?v=500406",
+  "./award-statistics.js?v=500406",
+  "./highlights-engine.js?v=500406",
   "./icon.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable-512.png",
-  "./apple-touch-icon.png?v=500405",
-  "./manifest.json?v=500405"
+  "./apple-touch-icon.png?v=500406",
+  "./manifest.json?v=500406"
 ];
 
 self.addEventListener("install", event => {

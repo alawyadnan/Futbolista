@@ -1,4 +1,4 @@
-import { votingState, timestampMillis } from './community-engine.js?v=500405';
+import { votingState, timestampMillis } from './community-engine.js?v=500406';
 
 // A technical ID orders equal rows for display, but must never decide an award.
 export function motmWinners(result) {

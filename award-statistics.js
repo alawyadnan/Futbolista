@@ -1,4 +1,4 @@
-import { calculateMonthScores } from './data-engine.js?v=500405';
+import { calculateMonthScores } from './data-engine.js?v=500406';
 
 export const AWARD_SORT_KEYS = Object.freeze(['votingPoints', 'motmAwards', 'monthAwards']);
 

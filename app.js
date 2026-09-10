@@ -26,21 +26,22 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500405";
+} from "./data-engine.js?v=500406";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500405";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500405";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500405";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500405";
-import { resolvePublicPlayers } from "./community-engine.js?v=500405";
-import { createCommunity } from "./community.js?v=500405";
-import { createHighlights } from "./highlights.js?v=500405";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500405";
+import { countText, directionFor, translate } from "./i18n.js?v=500406";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500406";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500406";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500406";
+import { resolvePublicPlayers } from "./community-engine.js?v=500406";
+import { createCommunity } from "./community.js?v=500406";
+import { createHighlights } from "./highlights.js?v=500406";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500406";
 
 import {
   appRouteFor,
   buildHistoryPeriods,
   buildPlayerAvatar,
+  buildRankingMetric,
   compareMetricValues,
   compareRouteFor,
   createRenderScheduler,
@@ -54,7 +55,7 @@ import {
   playerNameKey,
   publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500405";
+} from "./ux-utils.js?v=500406";
 
 
 /* =========================================================
@@ -692,6 +693,11 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnAddPlayer")?.addEventListener("click", addPlayerSafely);
   $("btnAddLog")?.addEventListener("click", addLogSafely);
   $("lbSort")?.addEventListener("change", renderLeaderboard);
+  $("btnLeaderboardDetails")?.addEventListener("click", () => {
+    const expanded = $("btnLeaderboardDetails").getAttribute('aria-pressed') !== 'true';
+    $("btnLeaderboardDetails").setAttribute('aria-pressed',String(expanded));
+    $("leaderboardList")?.classList.toggle('show-details',expanded);
+  });
   $("tableSort")?.addEventListener("change", () => {
     renderTable();
     const wrap = $('tableBody')?.closest('.tablewrap');
@@ -746,7 +752,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if ("serviceWorker" in navigator && !localEmulator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500405").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500406").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -2808,14 +2814,19 @@ function renderLeaderboard() {
           (
             r,
             i
-          ) => `
+          ) => {
+            const metric = buildRankingMetric(r,sortBy);
+            const avatar = buildPlayerAvatar(r.name);
+            return `
 
             <button type="button" class="item leader-row player-link" data-open-player="${esc(r.id)}">
-              <div class="leader-main">
+              <span class="leader-overview">
                 <span class="rank-badge ${(awardSort ? r.rank !== null && r.rank <= 3 : i < 3) ? "top" : ""}">${awardSort ? r.rank ?? '—' : i + 1}</span>
-                <div class="leader-copy">
-                  <div class="name"><bdi dir="auto">${esc(r.name)}</bdi></div>
-                  <div class="leader-metrics">
+                <span class="leader-avatar" data-avatar-tone="${avatar.tone}" aria-hidden="true">${esc(avatar.initials)}</span>
+                <span class="leader-copy"><span class="name"><bdi dir="auto">${esc(r.name)}</bdi></span><span class="leader-form">${renderFormDots(r.formResults)}</span></span>
+                <span class="leader-score" data-primary-metric="${metric.key}"><strong dir="ltr">${esc(metric.value)}</strong><span>${esc(t(metric.labelKey))}</span></span>
+              </span>
+                  <span class="leader-metrics">
                     ${communityEnabled ? `<span class="metric-chip ${sortBy === 'votingPoints' ? 'is-sort-key' : ''}">${esc(t('votingPoints'))} <strong>${complete ? r.votingPoints : '—'}</strong></span><span class="metric-chip ${sortBy === 'motmAwards' ? 'is-sort-key' : ''}">MOTM <strong>${complete ? r.motmAwards : '—'}</strong></span><span class="metric-chip ${sortBy === 'monthAwards' ? 'is-sort-key' : ''}">${esc(t('monthAwards'))} <strong>${r.monthAwards}</strong></span>` : ''}
                     <span class="metric-chip ${sortBy === "form" ? "is-sort-key" : ""}">${esc(t("form"))} <strong>${formatFormPoints(r.formPoints)}</strong></span>
                     <span class="metric-chip">${renderFormDots(r.formResults)}</span>
@@ -2825,12 +2836,10 @@ function renderLeaderboard() {
                     <span class="metric-chip ${sortBy === "winPct" ? "is-sort-key" : ""}">${esc(t("winPct"))} <strong>${fmtPct(r.winPct)}</strong></span>
                     <span class="metric-chip ${sortBy === "gpm" ? "is-sort-key" : ""}">${esc(t("gpm"))} <strong>${fmt2(r.gpm)}</strong></span>
                     <span class="metric-chip ${sortBy === "curStreak" || sortBy === "bestStreak" ? "is-sort-key" : ""}">${esc(t("current"))} <strong>${r.curStreak}</strong> · ${esc(t("best"))} ${r.bestStreak}</span>
-                  </div>
-                </div>
-              </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
+                  </span><span class="sr-only">${esc(t("openProfileAction"))}</span>
             </button>
 
-          `
+          `; }
         )
         .join("")
 

@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500405" />
-  <link rel="manifest" href="./manifest.json?v=500405" />
-  <link rel="stylesheet" href="./styles.css?v=500405" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500406" />
+  <link rel="manifest" href="./manifest.json?v=500406" />
+  <link rel="stylesheet" href="./styles.css?v=500406" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -68,7 +68,11 @@
 
   <section id="screen-leaderboard" class="screen hidden" aria-labelledby="leaderboardTitle">
     <header class="screen-intro"><div><div class="eyebrow" data-i18n="competitive">Competitive ranking</div><h1 id="leaderboardTitle" data-i18n="leaderboard">Leaderboard</h1></div></header>
-    <article class="card"><div class="card-toolbar"><div><h2 data-i18n="standings">Standings</h2><p class="subnote" data-i18n="formDefault">Form is the default ranking.</p></div><label class="field-inline" for="lbSort"><span data-i18n="sortBy">Sort by</span><select id="lbSort" class="select"><option value="form" selected data-i18n="form">Form</option><option value="winPct" data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="votingPoints" data-i18n="votingPoints">Voting points</option><option value="motmAwards" data-i18n="motmAwards">MOTM awards</option><option value="monthAwards" data-i18n="monthAwards">Monthly awards</option></select></label></div><div id="leaderboardList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingLeaderboard">Loading leaderboard…</div></article>
+    <article class="card standings-card">
+      <div class="standings-toolbar"><label class="field-inline" for="lbSort"><span data-i18n="sortBy">Sort by</span><select id="lbSort" class="select"><option value="form" selected data-i18n="form">Form</option><option value="winPct" data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="votingPoints" data-i18n="votingPoints">Voting points</option><option value="motmAwards" data-i18n="motmAwards">MOTM awards</option><option value="monthAwards" data-i18n="monthAwards">Monthly awards</option></select></label>
+        <button id="btnLeaderboardDetails" class="btn btn-quiet ranking-details-toggle" type="button" aria-pressed="false" aria-controls="leaderboardList" data-i18n="rankingDetails">All statistics</button>
+      </div><div id="leaderboardList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingLeaderboard">Loading leaderboard…</div>
+    </article>
   </section>
 
   <section id="screen-table" class="screen hidden" aria-labelledby="tableTitle">
@@ -155,6 +159,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500405"></script>
+<script type="module" src="./app.js?v=500406"></script>
 </body>
 </html>

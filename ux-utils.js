@@ -2,6 +2,16 @@ export function normalizeSearch(value) {
   return String(value || "").trim().toLocaleLowerCase();
 }
 
+// Display the selected statistic, never a new score or ranking calculation.
+export function buildRankingMetric(row, sortBy) {
+  const fields = {form:'formPoints',winPct:'winPct',goals:'goals',gpm:'gpm',wins:'wins',matches:'matches',curStreak:'curStreak',bestStreak:'bestStreak',votingPoints:'votingPoints',motmAwards:'motmAwards',monthAwards:'monthAwards'};
+  const key = Object.hasOwn(fields,sortBy) ? sortBy : 'form';
+  const number = Number(row[fields[key]]) || 0;
+  const value = key === 'winPct' ? `${Math.round(number * 100)}%` : key === 'gpm' ? number.toFixed(2) : key === 'form' && !Number.isInteger(number) ? number.toFixed(1) : String(number);
+  const labelKey = {curStreak:'currentStreak',bestStreak:'bestWinStreak'}[key] || key;
+  return {key,labelKey,value};
+}
+
 export function normalizePlayerName(value) {
   return String(value || "").normalize("NFKC").trim().replace(/\s+/gu, " ");
 }

@@ -38,6 +38,22 @@ test('actual renderer shows the latest MOTM, exact career total and escaped play
   assert.match(h.node('profileHighlights').innerHTML,/data-open-match="2026-08-06"/);
   assert.equal(h.writes.length,0);
 });
+test('new MOTM showcase keeps every joint winner and one shared point total',()=>{
+  const h=harness(),state=results();
+  state.results.values().next().value.ranking.push({playerId:'b',points:5,first:1,second:0,third:0});
+  h.app.setResults(state);const html=h.node('dashboardMotm').innerHTML;
+  assert.match(html,/data-open-player="a"/);assert.match(html,/data-open-player="b"/);
+  assert.match(html,/Joint Men of the Match/);assert.match(html,/class="motm-score"><strong>5/);
+  assert.equal((html.match(/class="motm-score"/g)||[]).length,1);
+});
+test('empty and failed MOTM results never show a made-up hero score',()=>{
+  const h=harness(),empty=results();empty.results.values().next().value.totalBallots=0;
+  empty.results.values().next().value.ranking=[];h.app.setResults(empty);
+  assert.doesNotMatch(h.node('dashboardMotm').innerHTML,/class="motm-score"/);
+  const failed=results();failed.results.clear();failed.error=true;h.app.setResults(failed);
+  assert.doesNotMatch(h.node('dashboardMotm').innerHTML,/class="motm-score"/);
+  assert.match(h.node('dashboardMotm').innerHTML,/retry-results/);
+});
 test('missing award results render unknown total with retry, never a false zero',()=>{
   const h=harness(),state=results();state.results.clear();state.error=true;h.app.setResults(state);
   assert.match(h.node('profileMotmStat').innerHTML,/class="stValue">—/);

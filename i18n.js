@@ -2,6 +2,8 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    rankingDetails: "All statistics",
+    trendLabel_wins: "wins in a row", trendLabel_unbeaten: "appearances unbeaten", trendLabel_losses: "losses in a row", trendLabel_winless: "appearances without a win", trendLabel_scoring: "straight scoring appearances", trendLabel_attendance: "matches without absence", trendLabel_motm: "consecutive MOTM awards",
     votingPoints: "Voting points", monthAwards: "Monthly awards", voteLeaders: "Voting leaders", allTime: "All time", fullRanking: "Full ranking", motmShort: "MOTM",
     voteBreakdown: "Voting details", noVotePoints: "No points from closed votes yet.", allPlayersRanking: "All players",
     firstPlace: "1st choice", secondPlace: "2nd choice", thirdPlace: "3rd choice", noMonthAwards: "No Player of the Month awards yet.",
@@ -139,6 +141,8 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    rankingDetails: "تفاصيل الأرقام",
+    trendLabel_wins: "انتصارات متتالية", trendLabel_unbeaten: "مشاركات بلا خسارة", trendLabel_losses: "خسائر متتالية", trendLabel_winless: "مشاركات بلا فوز", trendLabel_scoring: "مشاركات متتالية سجّل فيها", trendLabel_attendance: "مباريات دون غياب", trendLabel_motm: "جوائز MOTM متتالية",
     votingPoints: "نقاط التصويت", monthAwards: "جوائز الشهر", voteLeaders: "متصدرو التصويت", allTime: "الإجمالي", fullRanking: "الترتيب الكامل", motmShort: "MOTM",
     voteBreakdown: "تفاصيل التصويت", noVotePoints: "لا توجد نقاط من تصويت مقفل بعد.", allPlayersRanking: "جميع اللاعبين",
     firstPlace: "الاختيار الأول", secondPlace: "الاختيار الثاني", thirdPlace: "الاختيار الثالث", noMonthAwards: "لم يفز بلاعب الشهر بعد.",

@@ -1,7 +1,7 @@
 import { collection, doc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { computeTrends, selectHeadlineTrends, selectProfileTrends, summarizeAwards } from './highlights-engine.js?v=500405';
-import { buildPlayerAvatar } from './ux-utils.js?v=500405';
-import { buildAwardStatistics, rankAwardRows } from './award-statistics.js?v=500405';
+import { computeTrends, selectHeadlineTrends, selectProfileTrends, summarizeAwards } from './highlights-engine.js?v=500406';
+import { buildPlayerAvatar } from './ux-utils.js?v=500406';
+import { buildAwardStatistics, rankAwardRows } from './award-statistics.js?v=500406';
 
 export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, notify }) {
   const $ = id => document.getElementById(id);
@@ -19,7 +19,7 @@ export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, 
   const playerLink = id => `<button type="button" class="spotlight-player" data-open-player="${esc(id)}">${avatar(id)}<strong><bdi>${esc(name(id))}</bdi></strong></button>`;
   const edit = trend => isAdmin() ? `<button type="button" class="btn btn-quiet trend-edit" data-hide-trend="${esc(trend.id)}" ${saving || !settingsReady ? 'disabled' : ''} aria-label="${esc(t('hideTrendAria',{name:name(trend.playerId),trend:text(trend)}))}">${esc(t('hideTrend'))}</button>` : '';
   function trendCard(trend, headline = false) {
-    return `<article class="trend-card ${trend.tone}">${headline ? playerLink(trend.playerId) : ''}<div class="trend-fact"><span class="trend-number" aria-hidden="true">${trend.count}</span><div><strong>${esc(text(trend))}</strong><span>${esc(date(trend.startDate))} — ${esc(date(trend.endDate))}</span></div></div><div class="trend-card-actions"><button type="button" class="text-action" data-open-match="${esc(trend.endMatchKey)}">${esc(t('lastInStreak'))}</button>${edit(trend)}</div></article>`;
+    return `<article class="trend-card ${trend.tone}">${headline ? playerLink(trend.playerId) : ''}<div class="trend-fact" role="group" aria-label="${esc(text(trend))}"><span class="trend-number" aria-hidden="true">${trend.count}</span><div><strong aria-hidden="true">${esc(t(`trendLabel_${trend.type}`))}</strong><span>${esc(date(trend.startDate))} — ${esc(date(trend.endDate))}</span></div></div><div class="trend-card-actions"><button type="button" class="text-action" data-open-match="${esc(trend.endMatchKey)}">${esc(t('lastInStreak'))}</button>${edit(trend)}</div></article>`;
   }
   function sync() {
     const model = getModel();
@@ -56,8 +56,8 @@ export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, 
     if (!latest) { box.innerHTML = state.error ? `<p class="note">${esc(t('awardLoadError'))}</p><button class="btn btn-quiet" data-community-action="retry-results">${esc(t('retryData'))}</button>` : ''; return; }
     const award = awards.byMatch.get(latest.matchKey);
     box.innerHTML = `<div class="card-heading"><div><span class="eyebrow">${esc(t('latestMotm'))}</span><h2 dir="ltr">MOTM</h2></div><time class="status-pill" datetime="${esc(latest.date)}">${esc(date(latest.date))}</time></div>
-      ${!award ? `<p class="note" ${state.error ? '' : 'role="status"'}>${esc(t(state.error ? 'awardLoadError' : 'loadingMvp'))}</p>${state.error ? `<button class="btn btn-quiet" data-community-action="retry-results">${esc(t('retryData'))}</button>` : ''}` : !award.winnerIds.length ? `<p class="note">${esc(t('noBallots'))}</p>` : `<div class="motm-winners">${award.winnerIds.map(playerLink).join('')}</div><div class="motm-award-meta"><span>${esc(t(award.winnerIds.length > 1 ? 'jointMotm' : 'motmFull'))}</span><strong>${award.result.ranking[0].points} ${esc(t('votePoints'))}</strong></div>`}
-      <button class="text-action" type="button" data-open-match="${esc(latest.matchKey)}">${esc(t('viewVoteResult'))}</button>`;
+      ${!award ? `<p class="note" ${state.error ? '' : 'role="status"'}>${esc(t(state.error ? 'awardLoadError' : 'loadingMvp'))}</p>${state.error ? `<button class="btn btn-quiet" data-community-action="retry-results">${esc(t('retryData'))}</button>` : ''}` : !award.winnerIds.length ? `<p class="note">${esc(t('noBallots'))}</p>` : `<div class="motm-showcase"><div class="motm-winners">${award.winnerIds.map(playerLink).join('')}</div><div class="motm-score"><strong>${award.result.ranking[0].points}</strong><span>${esc(t('votePoints'))}</span></div></div>`}
+      <div class="motm-footer"><span>${award?.winnerIds.length ? esc(t(award.winnerIds.length > 1 ? 'jointMotm' : 'motmFull')) : ''}</span><button class="text-action" type="button" data-open-match="${esc(latest.matchKey)}">${esc(t('viewVoteResult'))}</button></div>`;
   }
   function renderProfile() {
     const box = $('profileHighlights'), count = $('profileMotmStat');
