@@ -1,0 +1,16 @@
+{
+  "appId": "live.ftbll.futbolista",
+  "appName": "Futbolista",
+  "webDir": "www",
+  "backgroundColor": "#07110d",
+  "loggingBehavior": "debug",
+  "ios": {
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "zoomEnabled": true,
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "StatusBar": { "style": "DARK" }
+  }
+}

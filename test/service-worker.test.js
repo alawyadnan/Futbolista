@@ -6,6 +6,19 @@ import vm from "node:vm";
 const workerSource = readFileSync(new URL("../sw.js", import.meta.url), "utf8");
 const origin = "https://ftbll.live";
 
+test('privacy and support navigation cannot overwrite the cached application shell', async () => {
+  const worker = workerHarness();
+  worker.seed('/index.html','application shell');
+  await worker.request('/privacy.html',{mode:'navigate'});
+  await worker.request('/support.html',{mode:'navigate'});
+  assert.equal(await worker.cachedText('/index.html'),'application shell');
+  assert.equal(await worker.cachedText('/privacy.html'),'fresh network');
+  const offline = workerHarness({network:async()=>{throw new Error('offline');}});
+  offline.seed('/index.html','application shell'); offline.seed('/privacy.html','privacy policy');
+  assert.equal(await (await offline.request('/privacy.html',{mode:'navigate'})).text(),'privacy policy');
+  assert.equal((await offline.request('/support.html',{mode:'navigate'})).type,'error');
+});
+
 function workerHarness({ network, failOpen = false, failPut = false, failMatch = false } = {}) {
   const listeners = new Map();
   const stores = new Map();

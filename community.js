@@ -1,9 +1,9 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500406';
-import { renderWithFormDraft } from './ux-utils.js?v=500406';
-import { accountJourney, authFeedbackKey } from './account-ux.js?v=500406';
-import { awardPodium, motmWinners } from './highlights-engine.js?v=500406';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500408';
+import { renderWithFormDraft } from './ux-utils.js?v=500408';
+import { accountJourney, authFeedbackKey } from './account-ux.js?v=500408';
+import { awardPodium, motmWinners } from './highlights-engine.js?v=500408';
 
 export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onResultsChanged = () => {} }) {
   const $ = id => document.getElementById(id);
@@ -12,6 +12,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   let ownStops = [], adminStop = null, ballotStop = null, busy = false, authMode = 'signin';
   let generation = 0, lastPhase = '', timer = null, expiryTimer = null, ballotDirty = false;
   let accountView = '';
+  let deletionRequest = null, deletionReady = false, deletionError = false, deletionRequests = [], deletionStop = null;
   let editingRequest = false, passwordVisible = false, accountFeedback = null;
   let selectedSessionId = '';
   const results = new Map(), resultLoads = new Map();
@@ -39,6 +40,25 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const card = $('accountContent')?.querySelector('.account-card');
     if (card) card.insertAdjacentHTML('beforeend', `<p id="accountFeedback" class="account-feedback ${accountFeedback?.tone || ''}" role="${accountFeedback?.tone === 'error' ? 'alert' : 'status'}" ${accountFeedback ? '' : 'hidden'}>${esc(accountFeedback?.message || '')}</p>`);
     if (busy) $('accountContent')?.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    renderDeletion();
+  }
+  function renderDeletion() {
+    const box = $('accountDeletion');
+    if (!box) return;
+    box.classList.toggle('hidden', !user);
+    if (!user) { box.replaceChildren(); return; }
+    const content = deletionError ? `<p role="alert">${esc(t('deletionLoadFailed'))}</p>${button('refresh-account','retryData')}`
+      : !deletionReady ? `<p role="status">${esc(t('loadingAccount'))}</p>`
+      : deletionRequest ? `<p role="status">${esc(t('deletionPending'))}</p>`
+      : `<form id="accountDeletionForm"><p>${esc(t('deletionLead'))}</p><label class="deletion-confirm"><input type="checkbox" name="confirmDeletion" required><span>${esc(t('deletionConfirm'))}</span></label><button type="submit" class="btn dangerBtn" ${busy ? 'disabled' : ''}>${esc(t('requestDeletion'))}</button></form>`;
+    renderWithFormDraft(box, () => { box.innerHTML = `<h2>${esc(t('deleteAccount'))}</h2>${content}`; }, deletionReady && !deletionRequest && !deletionError);
+  }
+  function renderDeletionRequests() {
+    const box = $('adminDeletionRequests');
+    if (!box) return;
+    box.classList.toggle('hidden', !admin);
+    if (!admin) { box.replaceChildren(); return; }
+    box.innerHTML = `<h2>${esc(t('deletionRequests'))}</h2><p class="note">${esc(t('deletionAdminLead'))}</p>${deletionRequests.length ? deletionRequests.map(item => `<div class="account-request-row"><div><strong><bdi>${esc(item.email)}</bdi></strong><small><bdi>${esc(item.uid)}</bdi></small><small>${esc(item.createdAt?.toDate ? new Intl.DateTimeFormat(document.documentElement.lang,{dateStyle:'medium'}).format(item.createdAt.toDate()) : '—')}</small></div></div>`).join('') : `<p>${esc(t('noDeletionRequests'))}</p>`}`;
   }
   function feedback(message, tone = 'success') {
     accountFeedback = { message, tone };
@@ -86,6 +106,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   }
 
   function renderRequests() {
+    renderDeletionRequests();
     const box = $('accountRequests');
     if (!box) return;
     box.classList.toggle('hidden', !admin);
@@ -236,11 +257,21 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   function onAuth(nextUser, isAdmin) {
     const currentGeneration = ++generation;
     ownStops.forEach(stop => stop()); ownStops = []; adminStop?.(); adminStop = null;
+    deletionStop?.(); deletionStop = null;
+    deletionRequest = null; deletionReady = false; deletionError = false; deletionRequests = [];
     ballotStop?.(); ballotStop = null; ballotKey = ''; ownBallot = null; ballotDirty = false;
     selectedSessionId = '';
     user = nextUser; admin = isAdmin; link = null; linkRequest = null; requests = []; accountReady = false; accountError = false;
     bindReceiptCounts();
     editingRequest = false; passwordVisible = false; accountFeedback = null;
+    if (user) ownStops.push(onSnapshot(doc(db,'deletionRequests',user.uid),snap => {
+      if (generation !== currentGeneration) return;
+      deletionRequest = snap.exists() ? snap.data() : null; deletionReady = true; deletionError = false; renderDeletion();
+    },() => { if (generation === currentGeneration) { deletionError = true; renderDeletion(); } }));
+    if (admin) deletionStop = onSnapshot(collection(db,'deletionRequests'),snap => {
+      if (generation !== currentGeneration) return;
+      deletionRequests = snap.docs.map(item => ({...item.data(),uid:item.id})); renderDeletionRequests();
+    },error => { if (generation === currentGeneration) notify(errorMessage(error),'error'); });
     if (user && !admin) {
       let userReady = false, requestReady = false;
       const loaded = () => { accountReady = userReady && requestReady; render(); };
@@ -335,12 +366,20 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     if (event.target.matches('[data-vote-rank]')) { ballotDirty = true; updateChoiceAvailability(); }
   });
   document.addEventListener('submit',event => {
-    if (!['communityAuthForm','profileEditForm','linkPlayerForm','ballotForm'].includes(event.target.id)) return;
+    if (!['communityAuthForm','profileEditForm','linkPlayerForm','ballotForm','accountDeletionForm'].includes(event.target.id)) return;
     event.preventDefault();
     const form = event.target;
     if (!form.reportValidity()) return;
     action(async () => {
-      if (form.id === 'communityAuthForm') {
+      if (form.id === 'accountDeletionForm') {
+        if (!user || !deletionReady || deletionError || !form.elements.confirmDeletion.checked) return;
+        const ref = doc(db,'deletionRequests',user.uid);
+        await runTransaction(db,async transaction => {
+          const existing = await transaction.get(ref);
+          if (!existing.exists()) transaction.set(ref,{email:user.email || '',status:'pending',createdAt:serverTimestamp()});
+        });
+        notify(t('deletionPending'));
+      } else if (form.id === 'communityAuthForm') {
         const email = $('accountEmail').value.trim(), password = $('accountPassword').value;
         const credential = authMode === 'signup' ? await createUserWithEmailAndPassword(auth,email,password) : await signInWithEmailAndPassword(auth,email,password);
         if (authMode === 'signup') { try { await sendEmailVerification(credential.user); notify(t('verificationSent')); } catch { notify(t('verificationRetry'),'warning'); } }
@@ -376,5 +415,5 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   subscribeSessions();
   timer = setInterval(updateCountdown,15000);
   document.addEventListener('visibilitychange',() => { if (!document.hidden) { updateCountdown(); refreshHistory(); } });
-  return { onAuth, render, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
+  return { onAuth, render, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); deletionStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
 }

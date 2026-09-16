@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500406" />
-  <link rel="manifest" href="./manifest.json?v=500406" />
-  <link rel="stylesheet" href="./styles.css?v=500406" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500408" />
+  <link rel="manifest" href="./manifest.json?v=500408" />
+  <link rel="stylesheet" href="./styles.css?v=500408" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -45,6 +45,7 @@
 
 <aside id="emulatorNotice" class="emulator-notice hidden" data-i18n="localTest"></aside>
 <main id="mainContent" class="app" tabindex="-1">
+  <aside id="connectivityBanner" class="connectivity-banner" role="status" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M2 8c5-4 15-4 20 0M5 12c4-3 10-3 14 0M9 16c2-1 4-1 6 0M12 20h.01"/></svg><span data-i18n="offlineNotice">No internet connection</span></aside>
   <section id="screen-dashboard" class="screen" aria-labelledby="dashboardTitle">
     <header class="screen-intro dashboard-intro">
       <div><h1 id="dashboardTitle" data-i18n="dashboardTitle">Pickup Stats</h1></div>
@@ -107,9 +108,10 @@
     <div id="matchHistoryList" class="match-list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMatches">Loading matches…</div>
   </section>
 
-  <section id="screen-account" class="screen hidden" aria-labelledby="accountTitle"><header class="screen-intro"><h1 id="accountTitle" data-i18n="account">Account</h1></header><div id="accountContent"></div></section>
+  <section id="screen-account" class="screen hidden" aria-labelledby="accountTitle"><header class="screen-intro"><h1 id="accountTitle" data-i18n="account">Account</h1></header><div id="accountContent"></div><article id="accountDeletion" class="card account-card hidden"></article><p class="policy-links"><a href="./privacy.html" data-i18n="privacyPolicy">Privacy policy</a> · <a href="./support.html" data-i18n="support">Support</a></p></section>
   <section id="screen-players" class="screen hidden" data-admin="1" aria-labelledby="adminPlayersTitle">
     <article id="accountRequests" class="card hidden" data-admin="1"></article>
+    <article id="adminDeletionRequests" class="card hidden" data-admin="1"></article>
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="adminPlayersTitle" data-i18n="managePlayers">Manage players</h1><p data-i18n="manageLead">Add squad members and review recorded totals.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
     <article class="card admin-action-card"><h2 data-i18n="addPlayer">Add player</h2><p class="subnote" data-i18n="uniqueNames">Names must be unique.</p><div class="action-row"><label class="field grow" for="playerName"><span data-i18n="playerName">Player name</span><input id="playerName" class="input" autocomplete="off" maxlength="60" placeholder="e.g. Ahmed" data-i18n-placeholder="playerPlaceholder" /></label><button id="btnAddPlayer" type="button" class="btn btn-primary" data-i18n="addPlayer">Add player</button></div></article>
     <article class="card"><h2 data-i18n="squadList">Squad list</h2><div id="playersList" class="list skeleton-list" aria-live="polite" data-i18n="loadingAdminPlayers">Loading players…</div></article>
@@ -159,6 +161,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500406"></script>
+<script type="module" src="./app.js?v=500408"></script>
 </body>
 </html>

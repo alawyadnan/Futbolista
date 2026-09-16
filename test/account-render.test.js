@@ -56,7 +56,7 @@ function harness(language = 'ar') {
     for (const fn of listeners.click || []) fn({target:{closest:selector=>selector==='[data-community-action]' ? trigger : null}});
     return trigger;
   }
-  return {app,login,click,node,html:()=>node('accountContent').innerHTML,writes:()=>writes};
+  return {app,login,click,node,snapshots,html:()=>node('accountContent').innerHTML,writes:()=>writes};
 }
 
 test('actual verification screen includes spam advice and three accessible steps', () => {
@@ -97,5 +97,26 @@ test('password visibility is accessible and resets when changing authentication 
   h.click('signup-mode');
   assert.match(h.html(),/id="accountPassword"[^>]+type="password"/);
   assert.match(h.html(),/autocomplete="new-password"/);
+  assert.equal(h.writes(),0);
+});
+test('deletion request is available to unverified accounts only after status loads', () => {
+  const h = harness('en'); h.login({verified:false});
+  assert.doesNotMatch(h.node('accountDeletion').innerHTML,/id="accountDeletionForm"/);
+  h.snapshots.get('deletionRequests/local-render-test')({exists:()=>false});
+  const html = h.node('accountDeletion').innerHTML;
+  assert.match(html,/id="accountDeletionForm"/);
+  assert.match(html,/type="checkbox"[^>]+required/);
+  assert.match(html,/7 days/);
+  assert.match(html,/may change past voting points/);
+  assert.equal(h.writes(),0);
+});
+test('pending deletion shows truthful status and cannot be resubmitted from the UI', () => {
+  const h = harness('ar'); h.login({linked:true});
+  h.snapshots.get('deletionRequests/local-render-test')({exists:()=>true,data:()=>({status:'pending'})});
+  assert.match(h.node('accountDeletion').innerHTML,/وصل طلب الحذف/);
+  assert.doesNotMatch(h.node('accountDeletion').innerHTML,/id="accountDeletionForm"/);
+  const stale = h.snapshots.get('deletionRequests/local-render-test');
+  h.app.onAuth(null,false); stale({exists:()=>true,data:()=>({status:'pending'})});
+  assert.equal(h.node('accountDeletion').innerHTML,'');
   assert.equal(h.writes(),0);
 });

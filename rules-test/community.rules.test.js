@@ -39,6 +39,38 @@ before(async()=>{env=await initializeTestEnvironment({projectId:'demo-futbolista
 beforeEach(async()=>{await env.clearFirestore(); await seed(async db=>{for(const id of ['a','b','c','d','e']) await setDoc(doc(db,'players',id),{name:`Player ${id}`});});});
 after(async()=>{await env?.cleanup();});
 
+const deletionData = uid => ({email:`${uid}@example.test`,status:'pending',createdAt:serverTimestamp()});
+test('authenticated unverified account may request deletion but no one may forge, overwrite or complete it',async()=>{
+  const db=dbFor('alice',false),ref=doc(db,'deletionRequests','alice');
+  await assertFails(setDoc(doc(guestDb(),'deletionRequests','alice'),deletionData('alice')));
+  await assertFails(setDoc(doc(db,'deletionRequests','bob'),deletionData('alice')));
+  await assertFails(setDoc(ref,{...deletionData('alice'),email:'other@example.test'}));
+  await assertFails(setDoc(ref,{...deletionData('alice'),status:'completed'}));
+  await assertFails(setDoc(ref,{...deletionData('alice'),admin:true}));
+  await assertSucceeds(setDoc(ref,deletionData('alice')));
+  await assertSucceeds(getDoc(ref));
+  await assertSucceeds(getDocs(collection(adminDb(),'deletionRequests')));
+  await assertFails(getDoc(doc(dbFor('bob'),'deletionRequests','alice')));
+  await assertFails(getDocs(collection(db,'deletionRequests')));
+  await assertFails(getDocs(collection(guestDb(),'deletionRequests')));
+  await assertFails(setDoc(ref,deletionData('alice')));
+  await assertFails(updateDoc(doc(adminDb(),'deletionRequests','alice'),{status:'completed'}));
+  await assertFails(deleteDoc(ref));
+  await assertFails(deleteDoc(doc(adminDb(),'deletionRequests','alice')));
+});
+test('pending deletion blocks new profile changes, ballots and account-link approval without modifying football data',async()=>{
+  await seedLink(); await seedSession(); const db=dbFor('alice');
+  await assertSucceeds(setDoc(doc(db,'deletionRequests','alice'),deletionData('alice')));
+  await assertFails(updateDoc(doc(db,'playerProfiles','a'),profileData()));
+  await assertFails(setDoc(doc(db,'sessionVotes','open','ballots','alice'),ballotData()));
+  await setDoc(doc(dbFor('bob'),'accountRequests','bob'),requestData('bob','b'));
+  await setDoc(doc(dbFor('bob'),'deletionRequests','bob'),deletionData('bob'));
+  await assertFails(approval('bob','b'));
+  await assertFails(setDoc(doc(dbFor('bob'),'accountRequests','bob'),requestData('bob','c')));
+  assert.equal((await getDoc(doc(guestDb(),'players','a'))).data().name,'Player a');
+  assert.equal((await getDoc(doc(adminDb(),'users','alice'))).data().playerId,'a');
+});
+
 test('trend moderation is public-read but strictly admin-write and presentation-only',async()=>{
   const data={playerId:'a',type:'wins',startMatchKey:'2026-08-01',hidden:true,updatedAt:serverTimestamp()};
   await assertSucceeds(setDoc(doc(adminDb(),'trendVisibility','trend'),data));

@@ -1,29 +1,35 @@
 const CACHE_PREFIX = "futbolista-cache-";
-const CACHE = `${CACHE_PREFIX}v500406`;
+const CACHE = `${CACHE_PREFIX}v500408`;
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=500406",
-  "./app.js?v=500406",
-  "./data-engine.js?v=500406",
-  "./i18n.js?v=500406",
-  "./ux-utils.js?v=500406",
-  "./insights-engine.js?v=500406",
-  "./personalization.js?v=500406",
-  "./community-config.js?v=500406",
-  "./community-engine.js?v=500406",
-  "./community.js?v=500406",
-  "./account-ux.js?v=500406",
-  "./highlights.js?v=500406",
-  "./award-statistics.js?v=500406",
-  "./highlights-engine.js?v=500406",
+  "./privacy.html",
+  "./support.html",
+  "./policy.css",
+  "./styles.css?v=500408",
+  "./app.js?v=500408",
+  "./data-engine.js?v=500408",
+  "./i18n.js?v=500408",
+  "./ux-utils.js?v=500408",
+  "./platform.js?v=500408",
+  "./platform-utils.js?v=500408",
+  "./connectivity.js?v=500408",
+  "./insights-engine.js?v=500408",
+  "./personalization.js?v=500408",
+  "./community-config.js?v=500408",
+  "./community-engine.js?v=500408",
+  "./community.js?v=500408",
+  "./account-ux.js?v=500408",
+  "./highlights.js?v=500408",
+  "./award-statistics.js?v=500408",
+  "./highlights-engine.js?v=500408",
   "./icon.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable-512.png",
-  "./apple-touch-icon.png?v=500406",
-  "./manifest.json?v=500406"
+  "./apple-touch-icon.png?v=500408",
+  "./manifest.json?v=500408"
 ];
 
 self.addEventListener("install", event => {
@@ -83,16 +89,20 @@ async function fetchAndCache(request) {
 }
 
 async function navigationResponse(request) {
+  const path = new URL(request.url).pathname;
+  const policyPage = /\/(?:privacy|support)\.html$/.test(path);
+  const navigationKey = policyPage ? path : "./index.html";
+  const fallback = () => policyPage ? cachedAsset(navigationKey) : cachedNavigation();
   try {
     const response = await fetch(request, { cache: "no-store" });
     if (response.ok) {
-      await cacheResponse("./index.html", response);
+      await cacheResponse(navigationKey, response);
     } else if (isServerError(response)) {
-      return (await cachedNavigation()) || response;
+      return (await fallback()) || response;
     }
     return response;
   } catch {
-    return (await cachedNavigation()) || Response.error();
+    return (await fallback()) || Response.error();
   }
 }
 

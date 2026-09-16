@@ -3,3 +3,16 @@ node_modules/
 *-debug.*.log
 .firebase/
 .emulator-data/
+native/node_modules/
+native/build/
+native/Signing.local.xcconfig
+native/www/
+native/ios/App/App/public/
+native/ios/App/CapApp-SPM/.build/
+**/xcuserdata/
+**/DerivedData/
+*.ipa
+*.xcarchive
+*.p12
+*.mobileprovision
+.DS_Store

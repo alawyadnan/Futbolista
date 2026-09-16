@@ -1,0 +1,115 @@
+{
+  "release": "500408",
+  "firebaseSDK": "10.12.2",
+  "appId": "live.ftbll.futbolista",
+  "remoteJavaScript": false,
+  "outputs": [
+    {
+      "path": "www/app.bundle.js",
+      "bytes": 590500,
+      "imports": [
+        {
+          "path": "www/chunks/bridge-44F552YY.js",
+          "kind": "dynamic-import"
+        }
+      ]
+    },
+    {
+      "path": "www/chunks/web-DPOINJOV.js",
+      "bytes": 845,
+      "imports": [
+        {
+          "path": "www/chunks/chunk-WTMMOW2I.js",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    {
+      "path": "www/chunks/web-K3FLXGFU.js",
+      "bytes": 366,
+      "imports": [
+        {
+          "path": "www/chunks/chunk-WTMMOW2I.js",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    {
+      "path": "www/chunks/web-3Y6QB7X3.js",
+      "bytes": 928,
+      "imports": [
+        {
+          "path": "www/chunks/chunk-VY4OFQGE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "www/chunks/chunk-WTMMOW2I.js",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    {
+      "path": "www/chunks/web-4TWK6XFH.js",
+      "bytes": 8560,
+      "imports": [
+        {
+          "path": "www/chunks/chunk-AUWU5ILF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "www/chunks/chunk-WTMMOW2I.js",
+          "kind": "import-statement"
+        }
+      ]
+    },
+    {
+      "path": "www/chunks/bridge-44F552YY.js",
+      "bytes": 1901,
+      "imports": [
+        {
+          "path": "www/chunks/chunk-VY4OFQGE.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "www/chunks/chunk-AUWU5ILF.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "www/chunks/chunk-WTMMOW2I.js",
+          "kind": "import-statement"
+        },
+        {
+          "path": "www/chunks/web-DPOINJOV.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "www/chunks/web-K3FLXGFU.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "www/chunks/web-3Y6QB7X3.js",
+          "kind": "dynamic-import"
+        },
+        {
+          "path": "www/chunks/web-4TWK6XFH.js",
+          "kind": "dynamic-import"
+        }
+      ]
+    },
+    {
+      "path": "www/chunks/chunk-VY4OFQGE.js",
+      "bytes": 193,
+      "imports": []
+    },
+    {
+      "path": "www/chunks/chunk-AUWU5ILF.js",
+      "bytes": 359,
+      "imports": []
+    },
+    {
+      "path": "www/chunks/chunk-WTMMOW2I.js",
+      "bytes": 8172,
+      "imports": []
+    }
+  ]
+}

@@ -2,6 +2,18 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    privacyPolicy: "Privacy policy", support: "Support",
+    deleteAccount: "Delete account", requestDeletion: "Request account deletion",
+    deletionLead: "Your account, player link, personal profile and ballots will be deleted within 7 days, with confirmation sent to your email. Deleting ballots may change past voting points and awards. Shared match results remain. This cannot be undone after processing.",
+    deletionConfirm: "I understand and want to delete my account and associated personal data.",
+    deletionPending: "Deletion requested. The administrator will process it within 7 days and email you confirmation. New profile changes and votes are blocked while your request is pending.",
+    deletionLoadFailed: "Could not load deletion status. Retry before sending a request.",
+    deletionRequests: "Account deletion requests", noDeletionRequests: "No pending deletion requests.",
+    deletionAdminLead: "Process each request within 7 days using the verified account-deletion procedure. Remove authentication, links, profile, ballots and receipts; send confirmation to the account email. Do not delete shared match results. Never mark a request complete before deletion succeeds.",
+    offlineNotice: "No internet connection",
+    finishFormFirst: "Finish the open form, then open the link again.",
+    nativeUnavailable: "Some device features are unavailable. You can still browse your statistics.",
+    exportFailed: "Could not share the backup. Try again.",
     rankingDetails: "All statistics",
     trendLabel_wins: "wins in a row", trendLabel_unbeaten: "appearances unbeaten", trendLabel_losses: "losses in a row", trendLabel_winless: "appearances without a win", trendLabel_scoring: "straight scoring appearances", trendLabel_attendance: "matches without absence", trendLabel_motm: "consecutive MOTM awards",
     votingPoints: "Voting points", monthAwards: "Monthly awards", voteLeaders: "Voting leaders", allTime: "All time", fullRanking: "Full ranking", motmShort: "MOTM",
@@ -141,6 +153,18 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    privacyPolicy: "سياسة الخصوصية", support: "الدعم",
+    deleteAccount: "حذف الحساب", requestDeletion: "إرسال طلب حذف الحساب",
+    deletionLead: "سيُحذف حسابك وربطه باللاعب وملفك الشخصي وتصويتاتك خلال ٧ أيام، ويصلك تأكيد على بريدك. حذف التصويتات قد يغيّر نقاط وجوائز التصويت السابقة، بينما تبقى نتائج المباريات الجماعية. لا يمكن التراجع بعد تنفيذ الحذف.",
+    deletionConfirm: "فهمت وأرغب في حذف حسابي والبيانات الشخصية المرتبطة به.",
+    deletionPending: "وصل طلب الحذف. ستنفّذه الإدارة خلال ٧ أيام وترسل تأكيدًا إلى بريدك. لن تتمكن من تعديل الملف أو التصويت أثناء انتظار الحذف.",
+    deletionLoadFailed: "تعذّر تحميل حالة الحذف. أعد المحاولة قبل إرسال الطلب.",
+    deletionRequests: "طلبات حذف الحسابات", noDeletionRequests: "لا توجد طلبات حذف معلّقة.",
+    deletionAdminLead: "نفّذ كل طلب خلال ٧ أيام وفق دليل حذف الحساب: حساب الدخول والربط والملف والتصويتات وإيصالاتها، ثم أرسل تأكيدًا إلى بريد صاحب الحساب. لا تحذف نتائج المباريات الجماعية، ولا تعتبر الطلب مكتملًا قبل نجاح الحذف.",
+    offlineNotice: "لا يوجد اتصال بالإنترنت",
+    finishFormFirst: "أكمل النموذج المفتوح، ثم افتح الرابط مجددًا.",
+    nativeUnavailable: "تعذّر تشغيل بعض مزايا الجهاز. يمكنك متابعة تصفح الإحصائيات.",
+    exportFailed: "تعذّرت مشاركة النسخة الاحتياطية. حاول مجددًا.",
     rankingDetails: "تفاصيل الأرقام",
     trendLabel_wins: "انتصارات متتالية", trendLabel_unbeaten: "مشاركات بلا خسارة", trendLabel_losses: "خسائر متتالية", trendLabel_winless: "مشاركات بلا فوز", trendLabel_scoring: "مشاركات متتالية سجّل فيها", trendLabel_attendance: "مباريات دون غياب", trendLabel_motm: "جوائز MOTM متتالية",
     votingPoints: "نقاط التصويت", monthAwards: "جوائز الشهر", voteLeaders: "متصدرو التصويت", allTime: "الإجمالي", fullRanking: "الترتيب الكامل", motmShort: "MOTM",

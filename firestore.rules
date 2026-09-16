@@ -9,7 +9,8 @@ service cloud.firestore {
     function claimPath(pid) { return /databases/$(database)/documents/playerClaims/$(pid); }
     function requestPath(uid) { return /databases/$(database)/documents/accountRequests/$(uid); }
     function playerExists(pid) { return pid is string && exists(/databases/$(database)/documents/players/$(pid)); }
-    function linked() { return verified() && exists(userPath(request.auth.uid)); }
+    function deletionPending(uid) { return exists(/databases/$(database)/documents/deletionRequests/$(uid)); }
+    function linked() { return verified() && !deletionPending(request.auth.uid) && exists(userPath(request.auth.uid)); }
     function ownsPlayer(pid) { return linked() && get(userPath(request.auth.uid)).data.playerId == pid; }
     function cleanName(name) {
       return name is string && name.size() > 0 && name.size() <= 40
@@ -30,6 +31,21 @@ service cloud.firestore {
     match /players/{playerId} { allow read: if true; allow write: if admin(); }
     match /logs/{logId} { allow read: if true; allow write: if admin(); }
 
+    // No existing document is modified by a deletion request. Only the owner
+    // can create it, including an unverified account; deletion itself is a
+    // trusted manual operation, never a public client-side cascade.
+    match /deletionRequests/{uid} {
+      allow get: if admin() || (signedIn() && request.auth.uid == uid);
+      allow list: if admin();
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasAll(['email','status','createdAt'])
+        && request.resource.data.keys().hasOnly(['email','status','createdAt'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
     match /accountRequests/{uid} {
       allow get: if admin() || (signedIn() && request.auth.uid == uid);
       allow list: if admin();
@@ -39,15 +55,15 @@ service cloud.firestore {
           && d.keys().hasOnly(['requestedPlayerId', 'email', 'status', 'createdAt', 'updatedAt'])
           && playerExists(d.requestedPlayerId) && d.email == request.auth.token.email;
       }
-      allow create: if verified() && request.auth.uid == uid && !exists(userPath(uid))
+      allow create: if verified() && request.auth.uid == uid && !deletionPending(uid) && !exists(userPath(uid))
         && validRequest() && request.resource.data.status == 'pending'
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
       allow update: if (
-        verified() && request.auth.uid == uid && !exists(userPath(uid)) && validRequest()
+        verified() && request.auth.uid == uid && !deletionPending(uid) && !exists(userPath(uid)) && validRequest()
         && resource.data.status in ['pending', 'rejected'] && request.resource.data.status == 'pending'
         && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
       ) || (
-        admin() && resource.data.status == 'pending'
+        admin() && !deletionPending(uid) && resource.data.status == 'pending'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
         && request.resource.data.updatedAt == request.time
         && (request.resource.data.status == 'rejected' || (
@@ -64,7 +80,7 @@ service cloud.firestore {
     match /users/{uid} {
       allow get: if admin() || (signedIn() && request.auth.uid == uid);
       allow list: if admin();
-      allow create: if admin()
+      allow create: if admin() && !deletionPending(uid)
         && request.resource.data.keys().hasAll(['playerId', 'createdAt'])
         && request.resource.data.keys().hasOnly(['playerId', 'createdAt'])
         && playerExists(request.resource.data.playerId) && request.resource.data.createdAt == request.time

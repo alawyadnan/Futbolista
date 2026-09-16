@@ -26,16 +26,19 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500406";
+} from "./data-engine.js?v=500408";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500406";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500406";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500406";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500406";
-import { resolvePublicPlayers } from "./community-engine.js?v=500406";
-import { createCommunity } from "./community.js?v=500406";
-import { createHighlights } from "./highlights.js?v=500406";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500406";
+import { countText, directionFor, translate } from "./i18n.js?v=500408";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500408";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500408";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500408";
+import { resolvePublicPlayers } from "./community-engine.js?v=500408";
+import { createCommunity } from "./community.js?v=500408";
+import { createHighlights } from "./highlights.js?v=500408";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500408";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500408";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500408";
+import { observeConnectivity } from "./connectivity.js?v=500408";
 
 import {
   appRouteFor,
@@ -53,9 +56,8 @@ import {
   paginateItems,
   parseAppRoute,
   playerNameKey,
-  publicAppUrl,
   selectDisplayMonth
-} from "./ux-utils.js?v=500406";
+} from "./ux-utils.js?v=500408";
 
 
 /* =========================================================
@@ -141,6 +143,7 @@ const scheduleRender = createRenderScheduler(() => renderAll());
 let addPlayerBusy = false;
 
 let addLogBusy = false;
+let exportBusy = false;
 
 const pendingPlayerNames = new Set();
 
@@ -305,9 +308,10 @@ function toggleLanguage() {
 
 
 async function shareContent({ title, text, hash }) {
-  const url = publicAppUrl(window.location.href, hash);
+  const url = sharedAppUrl(window.location.href, hash, isNativeApp());
   const previousFocus = document.activeElement;
   try {
+    if (await shareNativeContent({ title, text, url })) return;
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title, text, url });
@@ -537,6 +541,22 @@ function handleModalKeydown(event) {
 
 document.addEventListener("DOMContentLoaded", () => {
   applyLanguage();
+  observeConnectivity({onChange: offline => {
+    const banner = $("connectivityBanner");
+    if (banner) banner.hidden = !offline;
+  }});
+  initializeNativeApp({
+    onResume: () => { community?.render(); highlights?.render(); },
+    onRoute: hash => {
+      if (activeModal || addPlayerBusy || addLogBusy) return;
+      if (document.querySelector('.screen:not(.hidden)[data-admin="1"]') || [...document.querySelectorAll('.screen:not(.hidden) form')].some(form => form.getClientRects().length)) {
+        notify(t('finishFormFirst'), 'warning');
+        return;
+      }
+      window.location.hash = hash;
+    },
+    onFailure: () => notify(t("nativeUnavailable"), "warning")
+  });
   if ($("logDate")) $("logDate").value = localISODate();
 
   document.querySelector(".skip-link")?.addEventListener("click", event => {
@@ -750,9 +770,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   syncScreenFromLocation();
 
-  if ("serviceWorker" in navigator && !localEmulator) {
+  // The native builder removes this entire branch; website caching is unchanged.
+  if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500406").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500408").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1155,6 +1176,7 @@ function updateDataActionState() {
     const button = $(id);
     if (!button) continue;
     button.disabled = unavailable
+      || ((id === "btnExportTop" || id === "btnExport") && exportBusy)
       || (id === "btnAddPlayer" && addPlayerBusy)
       || (id === "btnAddLog" && addLogBusy);
   }
@@ -5265,7 +5287,7 @@ function esc(
    EXPORT
 ========================================================= */
 
-function exportJSON() {
+async function exportJSON() {
 
   if (!isAdmin) return notify(t("adminRequired"), "warning");
   if (!isDataReady()) return notify(t("dataStillLoading"), "warning");
@@ -5290,6 +5312,15 @@ function exportJSON() {
 
   };
 
+  if (isNativeApp()) {
+    if (exportBusy) return;
+    exportBusy = true;
+    updateDataActionState();
+    try { await exportNativeJSON(JSON.stringify(data, null, 2), backupFileName(localISODate())); }
+    catch { notify(t("exportFailed"), "error"); }
+    finally { exportBusy = false; updateDataActionState(); }
+    return;
+  }
 
   const blob =
     new Blob(
