@@ -1,9 +1,9 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500408';
-import { renderWithFormDraft } from './ux-utils.js?v=500408';
-import { accountJourney, authFeedbackKey } from './account-ux.js?v=500408';
-import { awardPodium, motmWinners } from './highlights-engine.js?v=500408';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500409';
+import { renderWithFormDraft } from './ux-utils.js?v=500409';
+import { accountJourney, authFeedbackKey } from './account-ux.js?v=500409';
+import { awardPodium, motmWinners } from './highlights-engine.js?v=500409';
 
 export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onResultsChanged = () => {} }) {
   const $ = id => document.getElementById(id);
@@ -19,10 +19,12 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   const publicStops = [];
   let sessionsReady = false, sessionsError = false, loadingArchive = false, disposed = false;
   let stopSessions = null;
+  let archiveCheckedAt = Date.now();
+  const ARCHIVE_FRESHNESS_MS = 5 * 60 * 1000;
   let receiptStops = [], receiptKey = '';
   const resultErrors = new Set(), receiptCounts = new Map();
   const playerName = id => getPlayers().find(player => String(player.id) === id)?.name || t('unknown');
-  const errorMessage = error => t(authFeedbackKey(error) || (error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','participantRequired','sessionTooLarge','sessionTooSmall'].includes(error.message) ? error.message : 'communityFailed'));
+  const errorMessage = error => t(authFeedbackKey(error) || (error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','participantRequired','sessionTooLarge','sessionTooSmall','deletionActionsPaused'].includes(error.message) ? error.message : 'communityFailed'));
   const button = (action, label, extra = '') => `<button type="button" class="btn btn-quiet" data-community-action="${action}" ${extra}>${esc(t(label))}</button>`;
   const field = (id, label, type = 'text', value = '', extra = '') => `<label class="field" for="${id}"><span>${esc(t(label))}</span><input id="${id}" name="${id}" class="input" type="${type}" value="${esc(value)}" ${extra}></label>`;
   const option = (id, label, selected = '') => `<option value="${esc(id)}" ${id === selected ? 'selected' : ''}>${esc(label)}</option>`;
@@ -34,7 +36,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   };
   function render() { renderAccount(); renderRequests(); renderAdminVoting(); renderVoting(); }
   function renderAccount() {
-    const view = `${generation}:${authMode}:${editingRequest}:${accountReady}:${accountError}:${link?.playerId || ''}:${linkRequest?.status || ''}`;
+    const view = `${generation}:${authMode}:${editingRequest}:${accountReady}:${accountError}:${deletionReady}:${deletionError}:${!!deletionRequest}:${link?.playerId || ''}:${linkRequest?.status || ''}`;
     renderWithFormDraft($('accountContent'), renderAccountContent, accountView === view);
     accountView = view;
     const card = $('accountContent')?.querySelector('.account-card');
@@ -85,13 +87,18 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
       return;
     }
     const identity = `<div class="account-identity"><bdi dir="auto">${esc(user.email || '')}</bdi>${button('signout','logout')}</div>`;
+    if (deletionRequest) {
+      box.innerHTML = `<article class="card account-card">${identity}<span class="account-status">${esc(t('deletionRequested'))}</span><h2>${esc(t('accountPaused'))}</h2><p class="note">${esc(t('deletionActionsPaused'))}</p>${link ? button('my-stats','viewMyStats') : ''}</article>`;
+      return;
+    }
     if (admin) { box.innerHTML = `<article class="card account-card">${identity}<h2>${esc(t('adminWorkspace'))}</h2><p class="note">${esc(t('adminAccountLead'))}</p></article>`; return; }
     if (!user.emailVerified) {
       box.innerHTML = `<article class="card account-card">${identity}${journey()}<h2>${esc(t('verifyEmail'))}</h2><p class="note">${esc(t('verifyEmailLead'))}</p><p class="verification-tip">${esc(t('checkSpam'))}</p><div class="account-actions verification-actions">${button('refresh-account','verifiedContinue')}${button('verify-email','sendVerification')}</div></article>`;
       return;
     }
     if (accountError) { box.innerHTML = `<article class="card account-card">${identity}<h2>${esc(t('noData'))}</h2>${button('refresh-account','retryData')}</article>`; return; }
-    if (!accountReady) { box.innerHTML = `<article class="card account-card" aria-busy="true">${identity}<p>${esc(t('loadingAccount'))}</p></article>`; return; }
+    if (deletionError) { box.innerHTML = `<article class="card account-card">${identity}<p role="alert">${esc(t('deletionLoadFailed'))}</p>${button('refresh-account','retryData')}</article>`; return; }
+    if (!accountReady || !deletionReady) { box.innerHTML = `<article class="card account-card" aria-busy="true">${identity}<p>${esc(t('loadingAccount'))}</p></article>`; return; }
     if (link) {
       const profile = profiles.get(link.playerId);
       box.innerHTML = `<article class="card account-card">${identity}<span class="account-status linked">${esc(t('accountLinked'))}</span><div class="account-linked"><span class="account-shirt" aria-hidden="true">${profile?.preferredNumber ?? '—'}</span><div><div class="eyebrow">${esc(t('myProfile'))}</div><h2><bdi dir="auto">${esc(playerName(link.playerId))}</bdi></h2></div></div>
@@ -160,7 +167,21 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
         await Promise.allSettled(batch.map(loadResult));
         publishResults();
       }
-    } finally { loadingArchive = false; publishResults(); }
+    } finally { loadingArchive = false; archiveCheckedAt = Date.now(); publishResults(); }
+  }
+
+  function resume() {
+    updateCountdown();
+    // Long-lived native sessions must not keep deleted/corrected ballots forever.
+    // Refresh only on return to the foreground, never poll in the background.
+    if (!disposed && !loadingArchive && !busy && globalThis.navigator?.onLine !== false
+      && Date.now() - archiveCheckedAt >= ARCHIVE_FRESHNESS_MS) {
+      results.clear(); resultErrors.clear(); archiveCheckedAt = Date.now();
+      publishResults();
+      if (sessionsError) subscribeSessions();
+      else refreshArchive();
+    }
+    render(); refreshHistory();
   }
 
   async function saveMatchEntry(entry) {
@@ -197,7 +218,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     box.dataset.session = session.id;
     const enoughCandidates = session.candidatePlayerIds.length >= 4;
     const participating = session.candidatePlayerIds.includes(link?.playerId);
-    const allowed = !!(user?.emailVerified && link && participating && enoughCandidates);
+    const allowed = !!(user?.emailVerified && link && participating && enoughCandidates && deletionReady && !deletionRequest && !deletionError);
     const candidates = session.candidatePlayerIds.filter(id => id !== link?.playerId);
     const openSessions = sessions.filter(item => votingState(item).state === 'open');
     box.innerHTML = `<div class="card-heading"><div><div class="eyebrow">${esc(t('trainingDate'))} · <time datetime="${esc(session.date)}">${esc(sessionDate(session))}</time></div><h2>${esc(t('sessionMvp'))}</h2></div><span class="status-pill live">${esc(t('votingOpen'))}</span></div>
@@ -205,7 +226,10 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
       <div class="voting-clock"><span>${esc(t('votingEndsIn'))}</span><strong data-vote-countdown></strong></div>
       ${allowed ? `<form id="ballotForm" data-session="${esc(session.id)}"><p class="vote-guidance">${esc(t('rankThreeLead'))}</p><fieldset class="vote-ranking"><legend class="sr-only">${esc(t('rankThreeLead'))}</legend>${['firstChoice','secondChoice','thirdChoice'].map((label,index) => `<div class="vote-choice" data-rank="${index}"><span class="vote-rank" aria-hidden="true">${index+1}</span><div class="vote-choice-body"><label class="field" for="voteChoice${index}"><span>${esc(t(label))}<small>${index === 2 ? esc(t('onePoint')) : `${[5,3][index]} ${esc(t('votePoints'))}`}</small></span><select id="voteChoice${index}" class="select" data-vote-rank="${index}" required>${option('',t('selectPlayer'))}${candidates.map(id => option(id,playerName(id),choices[index])).join('')}</select></label>${index ? `<button type="button" class="vote-reorder" data-vote-up="${index}" aria-label="${esc(t('moveVoteUp',{rank:t(index === 1 ? 'firstChoice' : 'secondChoice')}))}">${esc(t('moveUp'))}</button>` : ''}</div></div>`).join('')}</fieldset>
         <p class="note">${esc(t('ballotPrivacy'))}</p><div class="vote-submit"><span class="vote-saved">${ownBallot ? esc(t('youVoted')) : ''}</span><button class="btn btn-primary" type="submit">${esc(t(ownBallot ? 'updateVote' : 'submitVote'))}</button></div></form>` : !enoughCandidates ? `<p class="note">${esc(t('votingCandidatesPending'))}</p>` : `<p class="note">${esc(t('linkedRequired'))}</p>${button('open-account',user ? 'account' : 'signIn')}`}`;
-    if (!allowed && enoughCandidates && link && !participating) {
+    if (deletionRequest) {
+      const note = box.querySelector('.note');
+      if (note) note.textContent = t('deletionActionsPaused');
+    } else if (!allowed && enoughCandidates && link && !participating) {
       const note = box.querySelector('.note');
       note.textContent = t('participantRequired');
       box.querySelector('[data-community-action="open-account"]')?.remove();
@@ -266,8 +290,8 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     editingRequest = false; passwordVisible = false; accountFeedback = null;
     if (user) ownStops.push(onSnapshot(doc(db,'deletionRequests',user.uid),snap => {
       if (generation !== currentGeneration) return;
-      deletionRequest = snap.exists() ? snap.data() : null; deletionReady = true; deletionError = false; renderDeletion();
-    },() => { if (generation === currentGeneration) { deletionError = true; renderDeletion(); } }));
+      deletionRequest = snap.exists() ? snap.data() : null; deletionReady = true; deletionError = false; renderAccount(); renderVoting();
+    },() => { if (generation === currentGeneration) { deletionError = true; renderAccount(); renderVoting(); } }));
     if (admin) deletionStop = onSnapshot(collection(db,'deletionRequests'),snap => {
       if (generation !== currentGeneration) return;
       deletionRequests = snap.docs.map(item => ({...item.data(),uid:item.id})); renderDeletionRequests();
@@ -386,14 +410,17 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
         if ($('accountPassword')) $('accountPassword').value = '';
       } else if (form.id === 'profileEditForm') {
         if (!link || !user?.emailVerified) throw new Error('linkedRequired');
+        if (!deletionReady || deletionRequest || deletionError) throw new Error('deletionActionsPaused');
         const rawNumber = $('preferredNumber').value;
         const profile = validateProfile({displayName:$('displayName').value,preferredNumber:rawNumber === '' ? null : Number(rawNumber)});
         if (profile.error) throw new Error(profile.error);
         await updateDoc(doc(db,'playerProfiles',link.playerId),{...profile.value,updatedAt:serverTimestamp()}); notify(t('profileSaved'));
       } else if (form.id === 'linkPlayerForm') {
         if (!user?.emailVerified || link) throw new Error('linkedRequired');
+        if (!deletionReady || deletionRequest || deletionError) throw new Error('deletionActionsPaused');
         await setDoc(doc(db,'accountRequests',user.uid),{requestedPlayerId:$('requestedPlayer').value,email:user.email,status:'pending',createdAt:linkRequest?.createdAt || serverTimestamp(),updatedAt:serverTimestamp()}); editingRequest = false; renderAccount(); notify(t('requestSent'));
       } else if (form.id === 'ballotForm') {
+        if (!deletionReady || deletionRequest || deletionError) throw new Error('deletionActionsPaused');
         const session = sessions.find(item => item.id === form.dataset.session), choices = [...form.querySelectorAll('[data-vote-rank]')].map(select => select.value);
         const invalid = validateBallot({session,user:link,choices}); if (invalid) throw new Error(invalid);
         const uid = user.uid, pid = link.playerId;
@@ -414,6 +441,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   }
   subscribeSessions();
   timer = setInterval(updateCountdown,15000);
-  document.addEventListener('visibilitychange',() => { if (!document.hidden) { updateCountdown(); refreshHistory(); } });
-  return { onAuth, render, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); deletionStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
+  const onVisibility = () => { if (!document.hidden) resume(); };
+  document.addEventListener('visibilitychange',onVisibility);
+  return { onAuth, render, resume, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; document.removeEventListener?.('visibilitychange',onVisibility); stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); deletionStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
 }

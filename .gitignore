@@ -3,7 +3,8 @@ node_modules/
 *-debug.*.log
 .firebase/
 .emulator-data/
-native/node_modules/
+native/node_modules
+native/build-*.log
 native/build/
 native/Signing.local.xcconfig
 native/www/

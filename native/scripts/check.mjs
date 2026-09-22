@@ -38,5 +38,5 @@ assert.equal(build.remoteJavaScript,false);
 const xcode=spawnSync('xcodebuild',['-version'],{encoding:'utf8'});
 // Source checks cannot attest to a native build or signature. Keep those unknown
 // here rather than overwriting evidence from a separately observed Xcode build.
-console.log(JSON.stringify({scope:'source-and-assets-only',sourceAndPackagedAssets:'passed',copiedAssets:count,xcodeAvailable:xcode.status===0,compiledIOS:'not-checked',signedIPA:'not-checked',storeReady:false,releaseBlockers:['Real iPhone and signed archive validation','Owner-approved privacy/support pages and App Store privacy declarations','Secure in-app account deletion and associated-data handling','Apple signing team and App Store Connect setup']},null,2));
+console.log(JSON.stringify({scope:'source-and-assets-only',sourceAndPackagedAssets:'passed',copiedAssets:count,xcodeAvailable:xcode.status===0,compiledIOS:'not-checked',signedIPA:'not-checked',storeReady:false,releaseBlockers:['Validate this update on the owner’s physical iPhone','Create a signed Release archive and obtain owner approval before upload']},null,2));
 if(process.argv.includes('--release'))process.exitCode=1;

@@ -2,6 +2,9 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    searchResultsCount: "{count} of {total} players",
+    deletionRequested: "Deletion requested", accountPaused: "Account changes paused",
+    deletionActionsPaused: "Your deletion request is pending. Voting and profile changes are paused; you can still view match results and statistics.",
     privacyPolicy: "Privacy policy", support: "Support",
     deleteAccount: "Delete account", requestDeletion: "Request account deletion",
     deletionLead: "Your account, player link, personal profile and ballots will be deleted within 7 days, with confirmation sent to your email. Deleting ballots may change past voting points and awards. Shared match results remain. This cannot be undone after processing.",
@@ -153,6 +156,9 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    searchResultsCount: "{count} من {total} لاعب",
+    deletionRequested: "طلب الحذف قيد المعالجة", accountPaused: "تعديل الحساب متوقف",
+    deletionActionsPaused: "طلب حذف حسابك قيد المعالجة. التصويت وتعديل الملف متوقفان، ويمكنك الاستمرار في مشاهدة النتائج والإحصائيات.",
     privacyPolicy: "سياسة الخصوصية", support: "الدعم",
     deleteAccount: "حذف الحساب", requestDeletion: "إرسال طلب حذف الحساب",
     deletionLead: "سيُحذف حسابك وربطه باللاعب وملفك الشخصي وتصويتاتك خلال ٧ أيام، ويصلك تأكيد على بريدك. حذف التصويتات قد يغيّر نقاط وجوائز التصويت السابقة، بينما تبقى نتائج المباريات الجماعية. لا يمكن التراجع بعد تنفيذ الحذف.",

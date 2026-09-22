@@ -1,11 +1,26 @@
 export function normalizeSearch(value) {
-  return String(value || "").trim().toLocaleLowerCase();
+  // Search only: never rewrite a stored name or use this for player identity.
+  return String(value || "").normalize("NFKC").toLocaleLowerCase()
+    .replace(/[\u064b-\u065f\u0670\u0640]/gu, "")
+    .replace(/[أإآٱ]/gu, "ا").replace(/ى/gu, "ي")
+    .trim().replace(/\s+/gu, " ");
+}
+
+export function matchesPlayerSearch(name, query = "") {
+  const normalized = normalizeSearch(name);
+  return normalizeSearch(query).split(" ").every(token => normalized.includes(token));
+}
+
+export function filterRankingRows(rows, query = "", preserveRanks = true) {
+  // Rank before filtering: a search must never promote a player to #1.
+  return rows.map((row, index) => ({ ...row, displayRank: preserveRanks && Object.prototype.hasOwnProperty.call(row, 'rank') ? row.rank : index + 1 }))
+    .filter(row => matchesPlayerSearch(row.name, query));
 }
 
 // Display the selected statistic, never a new score or ranking calculation.
 export function buildRankingMetric(row, sortBy) {
   const fields = {form:'formPoints',winPct:'winPct',goals:'goals',gpm:'gpm',wins:'wins',matches:'matches',curStreak:'curStreak',bestStreak:'bestStreak',votingPoints:'votingPoints',motmAwards:'motmAwards',monthAwards:'monthAwards'};
-  const key = Object.hasOwn(fields,sortBy) ? sortBy : 'form';
+  const key = Object.prototype.hasOwnProperty.call(fields,sortBy) ? sortBy : 'form';
   const number = Number(row[fields[key]]) || 0;
   const value = key === 'winPct' ? `${Math.round(number * 100)}%` : key === 'gpm' ? number.toFixed(2) : key === 'form' && !Number.isInteger(number) ? number.toFixed(1) : String(number);
   const labelKey = {curStreak:'currentStreak',bestStreak:'bestWinStreak'}[key] || key;
@@ -33,9 +48,8 @@ export function isValidISODate(value) {
 }
 
 export function filterAndSortPlayers(players = [], stats = {}, query = "", sortBy = "name") {
-  const needle = normalizeSearch(query);
   const rows = players
-    .filter(player => normalizeSearch(player?.name).includes(needle))
+    .filter(player => matchesPlayerSearch(player?.name, query))
     .map(player => ({
       ...player,
       stats: stats[String(player?.id)] || { matches: 0, goals: 0 }
@@ -82,7 +96,7 @@ export function filterMatches(matches = [], playerNameForId = () => "", query = 
     if (!periodMatches) return false;
     if (playerId && !(match?.parts || []).some(part => String(part.playerId) === String(playerId))) return false;
     if (!needle) return true;
-    return (match?.parts || []).some(part => normalizeSearch(playerNameForId(part.playerId)).includes(needle));
+    return (match?.parts || []).some(part => matchesPlayerSearch(playerNameForId(part.playerId), needle));
   });
 }
 

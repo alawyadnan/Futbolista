@@ -10,15 +10,18 @@ import { translate } from '../i18n.js';
 function harness(fail = new Set()) {
   const snapshots=new Map(),listeners={},nodes=new Map(),reads=[];
   let latest, active=0, maxActive=0;
+  let now = Date.now();
+  const Clock = class extends Date { static now() { return now; } };
+  let ballots = [{id:'voter',data:()=>({voterPlayerId:'d',firstPlayerId:'a',secondPlayerId:'b',thirdPlayerId:'c'})}];
   const node=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',dataset:{},classList:{toggle(){},contains(){return false;}},querySelector(){return {insertAdjacentHTML(){}};},querySelectorAll:()=>[],replaceChildren(){},setAttribute(){}});return nodes.get(id);};
   const getDocs=async path=>{
     reads.push(path);active++;maxActive=Math.max(maxActive,active);
     await new Promise(resolve=>setTimeout(resolve,2));active--;
     if(fail.has(path))throw Error('offline');
-    return {docs:[{id:'voter',data:()=>({voterPlayerId:'d',firstPlayerId:'a',secondPlayerId:'b',thirdPlayerId:'c'})}]};
+    return {docs:ballots};
   };
   const create=runInNewContext(readFileSync(new URL('../community.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export function createCommunity','function createCommunity')+'\ncreateCommunity;',{
-    ...engine,...awards,...account,
+    ...engine,...awards,...account,Date:Clock,
     document:{documentElement:{lang:'en'},getElementById:node,querySelectorAll:()=>[],addEventListener:(type,fn)=>{(listeners[type] ||= []).push(fn);}},
     renderWithFormDraft:(_root,fn)=>fn(),
     collection:(_db,...parts)=>parts.join('/'),doc:(_db,...parts)=>parts.join('/'),query:ref=>ref,where(){},orderBy(){},limit(){},
@@ -27,6 +30,7 @@ function harness(fail = new Set()) {
   });
   const app=create({db:{},auth:{},getModel:()=>({}),getPlayers:()=>[],isDataReady:()=>true,t:(key,vars)=>translate('en',key,vars),esc:String,notify(){},openProfile(){},onProfilesChanged(){},showAccount(){},onResultsChanged:state=>{latest=state;}});
   return {app,reads,maxActive:()=>maxActive,state:()=>latest,
+    advance(ms){now += ms;}, clearBallots(){ballots=[];},
     sessions(rows){snapshots.get('sessionVotes')({docs:rows.map(row=>({id:row.id,data:()=>row}))});},
     retry(){for(const fn of listeners.click)fn({target:{closest:selector=>selector==='[data-community-action]'?{dataset:{communityAction:'retry-results'}}:null}});}};
 }
@@ -39,6 +43,18 @@ test('actual archive loader reads all closed sessions, no open ballots, with at 
   assert.equal(h.reads.length,13);assert.ok(h.maxActive()<=4);assert.ok(h.reads.every(path=>!path.includes('/open/')));
   h.sessions(rows);await until(()=>h.state()?.ready);assert.equal(h.reads.length,13);
   h.app.dispose();
+});
+
+test('foreground refresh invalidates old awards, notices removed ballots and avoids repeated reads',async()=>{
+  const h=harness();h.sessions([session('a')]);
+  await until(()=>h.state()?.results.size===1);
+  h.app.resume();assert.equal(h.reads.length,1);
+  h.clearBallots();h.advance(5*60*1000+1);h.app.resume();
+  assert.equal(h.state().results.size,0,'Do not present stale totals as complete');
+  h.app.resume();
+  await until(()=>h.state()?.results.get('a')?.totalBallots===0);
+  assert.equal(h.reads.length,2);
+  h.app.resume();assert.equal(h.reads.length,2);h.app.dispose();
 });
 test('failed archive reads stay unknown and manual retry recovers without rereading successes',async()=>{
   const fail=new Set(['sessionVotes/b/ballots']);const h=harness(fail);

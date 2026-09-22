@@ -26,19 +26,19 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500408";
+} from "./data-engine.js?v=500409";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500408";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500408";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500408";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500408";
-import { resolvePublicPlayers } from "./community-engine.js?v=500408";
-import { createCommunity } from "./community.js?v=500408";
-import { createHighlights } from "./highlights.js?v=500408";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500408";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500408";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500408";
-import { observeConnectivity } from "./connectivity.js?v=500408";
+import { countText, directionFor, translate } from "./i18n.js?v=500409";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500409";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500409";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500409";
+import { resolvePublicPlayers } from "./community-engine.js?v=500409";
+import { createCommunity } from "./community.js?v=500409";
+import { createHighlights } from "./highlights.js?v=500409";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500409";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500409";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500409";
+import { observeConnectivity } from "./connectivity.js?v=500409";
 
 import {
   appRouteFor,
@@ -49,6 +49,7 @@ import {
   compareRouteFor,
   createRenderScheduler,
   filterAndSortPlayers,
+  filterRankingRows,
   filterMatches,
   isResetConfirmation,
   isValidISODate,
@@ -57,7 +58,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500408";
+} from "./ux-utils.js?v=500409";
 
 
 /* =========================================================
@@ -167,6 +168,7 @@ let playerDirectoryScrollY = 0;
 let profileReturnScreen = "playerstats";
 
 let profileReturnScrollY = 0;
+const profileTrail = [];
 
 let showAllTeammates = false;
 
@@ -546,7 +548,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (banner) banner.hidden = !offline;
   }});
   initializeNativeApp({
-    onResume: () => { community?.render(); highlights?.render(); },
+    onResume: () => { community?.resume(); highlights?.render(); },
     onRoute: hash => {
       if (activeModal || addPlayerBusy || addLogBusy) return;
       if (document.querySelector('.screen:not(.hidden)[data-admin="1"]') || [...document.querySelectorAll('.screen:not(.hidden) form')].some(form => form.getClientRects().length)) {
@@ -622,6 +624,18 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("btnProfileBack")?.addEventListener("click", () => {
+    const previous = profileTrail.pop();
+    if (previous) {
+      if (document.getElementById(`screen-${previous.screen}`)?.dataset.admin === "1") {
+        showScreen(previous.screen, { scroll: false });
+        setActiveNav(isAdmin ? previous.screen : "dashboard");
+      } else {
+        window.history.pushState(null, "", previous.hash);
+        syncScreenFromLocation();
+      }
+      requestAnimationFrame(() => restoreScrollPosition(previous.scrollY));
+      return;
+    }
     currentProfileId = null;
     showScreen(profileReturnScreen, { scroll: false });
     const activeScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "dashboard";
@@ -713,6 +727,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnAddPlayer")?.addEventListener("click", addPlayerSafely);
   $("btnAddLog")?.addEventListener("click", addLogSafely);
   $("lbSort")?.addEventListener("change", renderLeaderboard);
+  $("leaderboardSearch")?.addEventListener("input", renderLeaderboard);
+  $("tableSearch")?.addEventListener("input", renderTable);
   $("btnLeaderboardDetails")?.addEventListener("click", () => {
     const expanded = $("btnLeaderboardDetails").getAttribute('aria-pressed') !== 'true';
     $("btnLeaderboardDetails").setAttribute('aria-pressed',String(expanded));
@@ -727,6 +743,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const trigger = event.target.closest?.('[data-award-table]');
     if (!trigger || !AWARD_SORT_KEYS.includes(trigger.dataset.awardTable)) return;
     $("tableSort").value = trigger.dataset.awardTable;
+    if ($("tableSearch")) $("tableSearch").value = "";
     showScreen('table'); setActiveNav('table');
     $("tableSort").focus({preventScroll:true});
   });
@@ -773,7 +790,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500408").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500409").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1306,6 +1323,9 @@ function syncScreenFromLocation() {
     ? currentComparisonRoute()
     : appRouteFor(route.screen, route.screen === 'history' ? historyPlayerId : route.playerId);
   if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
+  for (let index = profileTrail.length - 1; index >= 0; index--) {
+    if (profileTrail[index].hash === canonical) { profileTrail.length = index; break; }
+  }
 
   if (previousScreen === "playerprofile" && route.screen === profileReturnScreen) {
     requestAnimationFrame(() => restoreScrollPosition(profileReturnScrollY));
@@ -2814,7 +2834,9 @@ function renderLeaderboard() {
     "form";
 
 
-  const { rows, awardSort, complete, pending, error } = rankingRows(sortBy);
+  const { rows: allRows, awardSort, complete, pending, error } = rankingRows(sortBy);
+  const rows = filterRankingRows(allRows, $("leaderboardSearch")?.value || "", awardSort);
+  if ($("leaderboardSearchCount")) $("leaderboardSearchCount").textContent = pending ? "" : t('searchResultsCount', { count: rows.length, total: allRows.length });
 
 
   const box =
@@ -2843,7 +2865,7 @@ function renderLeaderboard() {
 
             <button type="button" class="item leader-row player-link" data-open-player="${esc(r.id)}">
               <span class="leader-overview">
-                <span class="rank-badge ${(awardSort ? r.rank !== null && r.rank <= 3 : i < 3) ? "top" : ""}">${awardSort ? r.rank ?? '—' : i + 1}</span>
+                <span class="rank-badge ${r.displayRank !== null && r.displayRank <= 3 ? "top" : ""}">${r.displayRank ?? '—'}</span>
                 <span class="leader-avatar" data-avatar-tone="${avatar.tone}" aria-hidden="true">${esc(avatar.initials)}</span>
                 <span class="leader-copy"><span class="name"><bdi dir="auto">${esc(r.name)}</bdi></span><span class="leader-form">${renderFormDots(r.formResults)}</span></span>
                 <span class="leader-score" data-primary-metric="${metric.key}"><strong dir="ltr">${esc(metric.value)}</strong><span>${esc(t(metric.labelKey))}</span></span>
@@ -2867,7 +2889,7 @@ function renderLeaderboard() {
 
       :
 
-      emptyState("♛", t("noRanked"), t("noRankedLead"));
+      allRows.length ? emptyState("⌕", t("noSearchPlayers"), t("noSearchPlayersLead")) : emptyState("♛", t("noRanked"), t("noRankedLead"));
 
 }
 
@@ -2884,7 +2906,9 @@ function renderTable() {
     "winPct";
 
 
-  const { rows, awardSort, complete, pending, error } = rankingRows(sortBy);
+  const { rows: allRows, awardSort, complete, pending, error } = rankingRows(sortBy);
+  const rows = filterRankingRows(allRows, $("tableSearch")?.value || "", awardSort);
+  if ($("tableSearchCount")) $("tableSearchCount").textContent = pending ? "" : t('searchResultsCount', { count: rows.length, total: allRows.length });
 
 
   const body =
@@ -2913,7 +2937,7 @@ function renderTable() {
 
             <tr>
 
-              <td>${awardSort ? r.rank ?? '—' : idx + 1}</td>
+              <td>${r.displayRank ?? '—'}</td>
 
               <td data-sort-key="name"><button type="button" class="inline-player-link table-player-link" data-open-player="${esc(r.id)}"><bdi dir="auto">${esc(r.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span></button></td>
 
@@ -2945,7 +2969,7 @@ function renderTable() {
 
       :
 
-      `<tr><td colspan="12" class="noteCell">${esc(t("noRanked"))}</td></tr>`;
+      `<tr><td colspan="12" class="noteCell">${esc(t(allRows.length ? "noSearchPlayers" : "noRanked"))}</td></tr>`;
 
   const table = body.closest("table");
   table?.querySelectorAll('tr').forEach(row => {
@@ -3049,6 +3073,11 @@ function openProfile(
 ) {
 
   const sourceScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "playerstats";
+  if (sourceScreen !== "playerprofile") profileTrail.length = 0;
+  if (sourceScreen !== "playerprofile" || String(pid) !== currentProfileId) {
+    profileTrail.push({ screen: sourceScreen, hash: window.location.hash || "#players", scrollY: window.scrollY });
+    if (profileTrail.length > 30) profileTrail.shift();
+  }
   if (sourceScreen !== "playerprofile") {
     profileReturnScreen = sourceScreen;
     profileReturnScrollY = window.scrollY;

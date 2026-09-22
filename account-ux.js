@@ -19,5 +19,5 @@ export function authFeedbackKey(error) {
     'auth/user-disabled': 'accountUnavailable',
     'auth/requires-recent-login': 'accountSignInAgain'
   };
-  return Object.hasOwn(keys, error?.code) ? keys[error.code] : null;
+  return Object.prototype.hasOwnProperty.call(keys, error?.code) ? keys[error.code] : null;
 }

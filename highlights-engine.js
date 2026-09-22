@@ -1,4 +1,4 @@
-import { votingState, timestampMillis } from './community-engine.js?v=500408';
+import { votingState, timestampMillis } from './community-engine.js?v=500409';
 
 // A technical ID orders equal rows for display, but must never decide an award.
 export function motmWinners(result) {
@@ -42,7 +42,7 @@ export function summarizeAwards(sessions = [], results = new Map(), now = Date.n
       byPlayer.get(id).push(award);
     }
   }
-  return { byMatch, byPlayer, closed, loaded, complete: loaded === closed.length, latest: closed.at(-1) || null,
+  return { byMatch, byPlayer, closed, loaded, complete: loaded === closed.length, latest: closed[closed.length - 1] || null,
     pendingKeys: new Set(known.filter(session => votingState(session,now).state !== 'closed').map(session => session.matchKey)) };
 }
 
@@ -69,7 +69,7 @@ function suffix(rows, predicate) {
 export function computeTrends(model, awards = summarizeAwards()) {
   const matches = [...(model?.matchSummaries?.values() || [])]
     .sort((a,b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt || a.matchKey.localeCompare(b.matchKey));
-  const latest = matches.at(-1);
+  const latest = matches[matches.length - 1];
   const order = new Map(matches.map((match,index) => [match.matchKey,index]));
   const trends = [];
   for (const player of model?.playerById?.values() || []) {
@@ -87,18 +87,18 @@ export function computeTrends(model, awards = summarizeAwards()) {
     // An ongoing vote has no winner yet. Missing/failed/zero-vote final results
     // break the chain; a win on either side of a gap is not consecutive MOTM.
     const eligible = [...parts];
-    while (eligible.length && awards.pendingKeys.has(eligible.at(-1).matchKey)) eligible.pop();
+    while (eligible.length && awards.pendingKeys.has(eligible[eligible.length - 1].matchKey)) eligible.pop();
     runs.motm = suffix(eligible, part => awards.byMatch.get(part.matchKey)?.winnerIds.includes(playerId));
     for (const [type, run] of Object.entries(runs)) {
       const rule = TREND_RULES[type];
       if (run.length < rule.min) continue;
-      const start = run[0], end = run.at(-1);
+      const start = run[0], end = run[run.length - 1];
       const trend = { playerId, type, count: run.length, startMatchKey: start.matchKey, endMatchKey: end.matchKey,
         startDate: start.date, endDate: end.date, tone: rule.tone,
         strong: run.length >= rule.strong, current: end.matchKey === latest?.matchKey,
         score: run.length / rule.strong + rule.priority / 10 };
       // MOTM may end at the latest closed vote while today's vote is still open.
-      if (type === 'motm') trend.current = end.matchKey === awards.latest?.matchKey && parts.at(-1)?.matchKey === latest?.matchKey;
+      if (type === 'motm') trend.current = end.matchKey === awards.latest?.matchKey && parts[parts.length - 1]?.matchKey === latest?.matchKey;
       trend.id = trendDocumentId(trend);
       trends.push(trend);
     }

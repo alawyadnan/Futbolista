@@ -46,10 +46,11 @@ function harness(language = 'ar') {
     t:(key,vars)=>translate(language,key,vars),esc:value=>String(value).replace(/[&<>"']/g,character=>`&#${character.charCodeAt(0)};`),
     notify(){},openProfile(){},onProfilesChanged(){},showAccount(){}
   });
-  function login({verified=true,status='',linked=false,admin=false}={}) {
+  function login({verified=true,status='',linked=false,admin=false,deletionReady=true}={}) {
     app.onAuth({uid:'local-render-test',email:'render@example.test',emailVerified:verified},admin);
     snapshots.get('users/local-render-test')?.({exists:()=>linked,data:()=>({playerId:'p'})});
     snapshots.get('accountRequests/local-render-test')?.({exists:()=>!!status,data:()=>({status,requestedPlayerId:'p'})});
+    if (deletionReady) snapshots.get('deletionRequests/local-render-test')?.({exists:()=>false});
   }
   function click(action) {
     const trigger = {dataset:{communityAction:action},setAttribute(key,value){this[key]=value;}};
@@ -100,7 +101,7 @@ test('password visibility is accessible and resets when changing authentication 
   assert.equal(h.writes(),0);
 });
 test('deletion request is available to unverified accounts only after status loads', () => {
-  const h = harness('en'); h.login({verified:false});
+  const h = harness('en'); h.login({verified:false,deletionReady:false});
   assert.doesNotMatch(h.node('accountDeletion').innerHTML,/id="accountDeletionForm"/);
   h.snapshots.get('deletionRequests/local-render-test')({exists:()=>false});
   const html = h.node('accountDeletion').innerHTML;
@@ -114,9 +115,29 @@ test('pending deletion shows truthful status and cannot be resubmitted from the 
   const h = harness('ar'); h.login({linked:true});
   h.snapshots.get('deletionRequests/local-render-test')({exists:()=>true,data:()=>({status:'pending'})});
   assert.match(h.node('accountDeletion').innerHTML,/وصل طلب الحذف/);
+  assert.match(h.html(),/تعديل الحساب متوقف/);
+  assert.doesNotMatch(h.html(),/id="profileEditForm"|id="linkPlayerForm"/);
   assert.doesNotMatch(h.node('accountDeletion').innerHTML,/id="accountDeletionForm"/);
   const stale = h.snapshots.get('deletionRequests/local-render-test');
   h.app.onAuth(null,false); stale({exists:()=>true,data:()=>({status:'pending'})});
   assert.equal(h.node('accountDeletion').innerHTML,'');
   assert.equal(h.writes(),0);
+});
+
+test('profile changes stay unavailable until deletion status is known', () => {
+  const h = harness('en'); h.login({linked:true,deletionReady:false});
+  assert.doesNotMatch(h.html(),/id="profileEditForm"/);
+  h.snapshots.get('deletionRequests/local-render-test')({exists:()=>false});
+  assert.match(h.html(),/id="profileEditForm"/);
+  assert.equal(h.writes(),0);
+});
+
+test('a pending deletion removes an eligible participant’s ballot form without changing Firestore', () => {
+  const h = harness('en'); h.login({linked:true});
+  const session = {date:'2026-09-22',openedAt:Date.now()-1000,candidatePlayerIds:['p','a','b','c']};
+  h.snapshots.get('sessionVotes')({docs:[{id:'local-session',data:()=>session}]});
+  assert.match(h.node('dashboardVoting').innerHTML,/id="ballotForm"/);
+  h.snapshots.get('deletionRequests/local-render-test')({exists:()=>true,data:()=>({status:'pending'})});
+  assert.doesNotMatch(h.node('dashboardVoting').innerHTML,/id="ballotForm"/);
+  assert.equal(h.writes(),0);h.app.dispose();
 });

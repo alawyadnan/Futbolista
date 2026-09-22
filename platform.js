@@ -1,4 +1,4 @@
-import { nativeLinkRoute, shareWasCancelled } from './platform-utils.js?v=500408';
+import { nativeLinkRoute, shareWasCancelled } from './platform-utils.js?v=500409';
 
 export function isNativeApp() {
   return globalThis.Capacitor?.isNativePlatform?.() === true;
