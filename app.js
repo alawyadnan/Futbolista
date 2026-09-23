@@ -25,19 +25,19 @@ import {
   buildDataModel as buildFootballDataModel,
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead
-} from "./data-engine.js?v=500412";
+} from "./data-engine.js?v=500413";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500412";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships } from "./insights-engine.js?v=500412";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500412";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500412";
-import { resolvePublicPlayers } from "./community-engine.js?v=500412";
-import { createCommunity } from "./community.js?v=500412";
-import { createHighlights } from "./highlights.js?v=500412";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500412";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500412";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500412";
-import { observeConnectivity } from "./connectivity.js?v=500412";
+import { countText, directionFor, translate } from "./i18n.js?v=500413";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500413";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500413";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500413";
+import { resolvePublicPlayers } from "./community-engine.js?v=500413";
+import { createCommunity } from "./community.js?v=500413";
+import { createHighlights } from "./highlights.js?v=500413";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500413";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500413";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500413";
+import { observeConnectivity } from "./connectivity.js?v=500413";
 
 import {
   appRouteFor,
@@ -60,7 +60,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500412";
+} from "./ux-utils.js?v=500413";
 
 
 /* =========================================================
@@ -160,6 +160,9 @@ let compareOptionsSignature = "";
 
 let comparisonOpen = false;
 let comparisonPlayerId = "";
+let comparisonMeetingsMode = 'against';
+let comparisonMeetingsLimit = 5;
+let historyReturnContext = null;
 
 let logPlayerOptionsSignature = "";
 
@@ -595,6 +598,7 @@ document.addEventListener("DOMContentLoaded", () => {
       event.preventDefault();
       const target = btn.dataset.nav;
       if (btn.dataset.admin === "1" && !isAdmin) return;
+      historyReturnContext = null;
       showScreen(target);
       setActiveNav(target);
     });
@@ -685,6 +689,20 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   $("cmpPlayerB")?.addEventListener("change", handleCompareSelection);
   $("compareResult")?.addEventListener("click", event => {
+    const meetingMode = event.target.closest('[data-meetings-mode]');
+    if (meetingMode) {
+      comparisonMeetingsMode = meetingMode.dataset.meetingsMode === 'together' ? 'together' : 'against';
+      comparisonMeetingsLimit = 5;
+      renderComparisonMeetings();
+      return;
+    }
+    if (event.target.closest('#btnMoreComparisonMeetings')) {
+      const oldLimit = comparisonMeetingsLimit;
+      comparisonMeetingsLimit += 5;
+      renderComparisonMeetings();
+      $('comparisonMeetingsList')?.querySelectorAll('[data-open-match]')[oldLimit]?.focus({preventScroll:true});
+      return;
+    }
     const button = event.target.closest('[data-compare-scope]');
     if (!button || !['all', 'recent'].includes(button.dataset.compareScope)) return;
     comparisonScope = button.dataset.compareScope;
@@ -694,6 +712,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("btnShareProfile")?.addEventListener("click", sharePlayerProfile);
+  $("btnHistoryReturn")?.addEventListener("click", returnFromMatchHistory);
   $("btnPlayerHistory")?.addEventListener("click", () => {
     if (!currentProfileId) return;
     historyPlayerId = String(currentProfileId);
@@ -701,6 +720,10 @@ document.addEventListener("DOMContentLoaded", () => {
     showScreen('history'); setActiveNav('history');
   });
   $("btnShareComparison")?.addEventListener("click", shareComparison);
+  $("btnComparisonMeetings")?.addEventListener("click", () => {
+    $('comparisonMeetings')?.scrollIntoView({block:'start',behavior:prefersReducedMotion() ? 'auto' : 'smooth'});
+    $('comparisonMeetingsTitle')?.focus({preventScroll:true});
+  });
 
   $("playerSearch")?.addEventListener("input", renderPlayerCardsNameOnly);
   $("playerSort")?.addEventListener("change", renderPlayerCardsNameOnly);
@@ -857,7 +880,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500412").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500413").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1444,6 +1467,7 @@ function showScreen(
     name = "dashboard";
     target = document.getElementById("screen-dashboard");
   }
+  if (name !== 'history' && name !== 'playerprofile') historyReturnContext = null;
 
   document
     .querySelectorAll(".screen")
@@ -2007,6 +2031,7 @@ function selectProfileTab(value) {
 
 function handleCompareSelection() {
   comparisonPlayerId = $("cmpPlayerB")?.value || "";
+  comparisonMeetingsLimit = 5;
   renderCompare();
   updateLocationForScreen("playerprofile", { replace: true });
 }
@@ -3462,6 +3487,12 @@ function renderProfileInsights(pid) {
 function openHistoryMatch(matchKey) {
   const index = getSortedMatches().findIndex(match => String(match.matchKey) === String(matchKey));
   if (index < 0) return;
+  const fromProfile = document.querySelector('.screen:not(.hidden)')?.id === 'screen-playerprofile';
+  historyReturnContext = fromProfile ? {
+    screen:'playerprofile', hash:window.location.hash, scrollY:window.scrollY,
+    comparison:comparisonOpen, meetingsMode:comparisonMeetingsMode, meetingsLimit:comparisonMeetingsLimit, matchKey:String(matchKey),
+    showAllTeammates, partnershipSort, trail:profileTrail.slice()
+  } : null;
   historyPlayerId = '';
   historyExactDate = '';
   if ($("historySearch")) $("historySearch").value = "";
@@ -3473,8 +3504,25 @@ function openHistoryMatch(matchKey) {
   setActiveNav("history");
   requestAnimationFrame(() => {
     const button = [...document.querySelectorAll("[data-match-toggle]")].find(item => item.dataset.matchToggle === String(matchKey));
-    button?.scrollIntoView({ block: "start", behavior: "instant" });
+    (button?.closest('.matchCard') || button)?.scrollIntoView({ block: "start", behavior: "instant" });
     button?.focus({ preventScroll: true });
+  });
+}
+
+function returnFromMatchHistory() {
+  const context = historyReturnContext;
+  if (!context || parseAppRoute(context.hash).screen !== 'playerprofile') return;
+  historyReturnContext = null;
+  profileTrail.splice(0, profileTrail.length, ...context.trail);
+  restoreProfileContext(context);
+  comparisonMeetingsMode = context.meetingsMode;
+  comparisonMeetingsLimit = context.meetingsLimit;
+  window.history.pushState(null, '', context.hash);
+  syncScreenFromLocation();
+  requestAnimationFrame(() => {
+    const source = context.comparison ? '.comparison-meetings' : '.profile-panel:not([hidden])';
+    [...document.querySelectorAll(`${source} [data-open-match]`)].find(button => button.dataset.openMatch === context.matchKey)?.focus({preventScroll:true});
+    restoreScrollPosition(context.scrollY);
   });
 }
 
@@ -3525,6 +3573,12 @@ function renderTeammates(pid) {
 function renderMatchHistory() {
   const box = $("matchHistoryList");
   if (!box) return;
+  const back = $('btnHistoryReturn');
+  $('screen-history')?.classList.toggle('has-context-return', !!historyReturnContext);
+  if (back) {
+    back.classList.toggle('hidden', !historyReturnContext);
+    back.textContent = t(historyReturnContext?.comparison ? 'backToComparison' : 'backToProfile');
+  }
   const allMatches = getSortedMatches();
   renderHistoryOptions(allMatches);
   renderHistoryDateRail(allMatches);
@@ -4093,8 +4147,10 @@ function renderCompare() {
   const bId = String($("cmpPlayerB")?.value || "");
   const box = $("compareResult");
   const shareButton = $("btnShareComparison");
+  const meetingsButton = $('btnComparisonMeetings');
   if (!box) return;
   shareButton?.classList.add("hidden");
+  meetingsButton?.classList.add('hidden');
   if (!aId || !bId || aId === bId) {
     box.replaceChildren();
     updatePageContext("playerprofile");
@@ -4107,6 +4163,7 @@ function renderCompare() {
     return;
   }
   shareButton?.classList.remove("hidden");
+  meetingsButton?.classList.remove('hidden');
   updatePageContext("compare", `${aPlayer.name} ${t("versus")} ${bPlayer.name}`);
   const aStats = computeComparisonWindow(model, aId, comparisonScope);
   const bStats = computeComparisonWindow(model, bId, comparisonScope);
@@ -4156,7 +4213,44 @@ function renderCompare() {
         ${compareCenterValueRow(t("draws"), h2h.togetherDraws)}
         ${compareCenterValueRow(t("losses"), h2h.togetherLosses)}
       </div>
-    </div>`;
+    </div>
+    <article id="comparisonMeetings" class="card comparison-meetings" aria-labelledby="comparisonMeetingsTitle">
+      <div class="card-heading"><h2 id="comparisonMeetingsTitle" tabindex="-1">${esc(t('sharedMatches'))}</h2><span id="comparisonMeetingsCount" class="status-pill" role="status"></span></div>
+      <p class="compare-scope-caption">${esc(t('allTime'))}</p>
+      <div id="comparisonMeetingsModes" class="segment-control" role="group" aria-label="${esc(t('meetingType'))}">
+        <button type="button" data-meetings-mode="against" aria-pressed="true" aria-controls="comparisonMeetingsList">${esc(t('asOpponents'))}</button>
+        <button type="button" data-meetings-mode="together" aria-pressed="false" aria-controls="comparisonMeetingsList">${esc(t('sameTeam'))}</button>
+      </div>
+      <div class="meeting-player-labels"><bdi dir="auto">${esc(aPlayer.name)}</bdi><span>${esc(t('goals'))}</span><bdi dir="auto">${esc(bPlayer.name)}</bdi></div>
+      <div id="comparisonMeetingsList" class="comparison-meeting-list"></div>
+      <button type="button" id="btnMoreComparisonMeetings" class="btn btn-quiet full" hidden>${esc(t('showMoreMatches'))}</button>
+    </article>`;
+  renderComparisonMeetings();
+}
+
+function renderComparisonMeetings() {
+  const list = $('comparisonMeetingsList');
+  if (!list) return;
+  const rows = computeSharedMatches(model, currentProfileId, comparisonPlayerId, comparisonMeetingsMode);
+  const page = paginateItems(rows, comparisonMeetingsLimit);
+  $('comparisonMeetingsModes')?.querySelectorAll('[data-meetings-mode]').forEach(button =>
+    button.setAttribute('aria-pressed', String(button.dataset.meetingsMode === comparisonMeetingsMode)));
+  if ($('comparisonMeetingsCount')) $('comparisonMeetingsCount').textContent = countText(language, rows.length, 'match');
+  if ($('btnMoreComparisonMeetings')) $('btnMoreComparisonMeetings').hidden = !page.remaining;
+  const side = (row, key, name) => {
+    const result = ['win','draw','loss'].includes(row[key+'Result']) ? row[key+'Result'] : 'loss';
+    const own = row[key+'OwnGoals'];
+    return `<span class="meeting-side"><span class="sr-only">${esc(name)}: </span><strong>${row[key+'Goals']}</strong><span class="sr-only">${esc(t('goals'))}</span><span class="meeting-outcome ${result}">${esc(t(result))}</span>${own ? `<small class="meeting-own">${esc(t('ownGoals'))}: ${own}</small>` : ''}</span>`;
+  };
+  if (!rows.length) {
+    list.innerHTML = emptyState('◷', t(comparisonMeetingsMode === 'together' ? 'noTogetherMatches' : 'noAgainstMatches'), '');
+    return;
+  }
+  list.innerHTML = page.visible.map(row => `<button type="button" class="meeting-row" data-open-match="${esc(row.matchKey)}">
+    ${side(row,'a',playerName(currentProfileId))}
+    <span class="meeting-date"><time datetime="${esc(row.date)}">${esc(formatMatchDate(row.date))}</time><span>${esc(t('details'))}<span aria-hidden="true"> ↗</span></span></span>
+    ${side(row,'b',playerName(comparisonPlayerId))}
+  </button>`).join('');
 }
 
 

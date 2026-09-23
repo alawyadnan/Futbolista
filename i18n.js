@@ -2,6 +2,9 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    sharedMatches: "Their matches", sharedMatchHistory: "Meeting history", meetingType: "Match relationship", asOpponents: "Opponents", sameTeam: "Same team",
+    noAgainstMatches: "No matches against each other", noTogetherMatches: "No matches on the same team",
+    backToComparison: "Back to comparison", backToProfile: "Back to profile",
     directoryScope: "Player list", latestTraining: "Latest session", clearPlayerSearch: "Clear search", directoryTotals: "All-time statistics",
     noDirectoryPlayers: "No matching players", noDirectoryPlayersLead: "Clear the search or choose all players.",
     profileSections: "Player sections", profileOverview: "Statistics", profileAwards: "Awards", profilePartners: "Teammates",
@@ -162,6 +165,9 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    sharedMatches: "مبارياتهما", sharedMatchHistory: "سجل اللقاءات", meetingType: "نوع اللقاء", asOpponents: "مواجهات", sameTeam: "في فريق واحد",
+    noAgainstMatches: "لم يتواجها بعد", noTogetherMatches: "لم يلعبا في فريق واحد بعد",
+    backToComparison: "العودة للمقارنة", backToProfile: "العودة لملف اللاعب",
     directoryScope: "قائمة اللاعبين", latestTraining: "آخر تمرين", clearPlayerSearch: "مسح البحث", directoryTotals: "إحصائياتهم الإجمالية",
     noDirectoryPlayers: "لا يوجد لاعب مطابق", noDirectoryPlayersLead: "امسح البحث أو اختر جميع اللاعبين.",
     profileSections: "أقسام اللاعب", profileOverview: "الأرقام", profileAwards: "الجوائز", profilePartners: "الزملاء",

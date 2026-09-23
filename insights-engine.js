@@ -30,6 +30,27 @@ export function computeComparisonWindow(model, playerId, scope = "all") {
   return { ...summarizeWindow(parts), current, best };
 }
 
+// Shared appearances, not adjacent dates or raw log rows. Keep each player's
+// recorded result; never infer/rewrite it from the other player or team score.
+export function computeSharedMatches(model, playerAId, playerBId, mode = 'against') {
+  const aId = String(playerAId ?? ''), bId = String(playerBId ?? '');
+  if (!aId || !bId || aId === bId || !model?.playerById?.has(aId) || !model.playerById.has(bId)) return [];
+  const rows = [], seen = new Set();
+  for (const a of playerParticipations(model, aId)) {
+    if (seen.has(a.matchKey)) continue;
+    seen.add(a.matchKey);
+    const b = model.byMatch?.get(a.matchKey)?.find(part => part.playerId === bId);
+    if (!b || (a.side === b.side) !== (mode === 'together')) continue;
+    const match = model.matchSummaries?.get(a.matchKey);
+    if (!match) continue;
+    rows.push({matchKey:a.matchKey,date:match.date,createdAt:match.createdAt || 0,
+      aGoals:a.normalGoals,bGoals:b.normalGoals,aOwnGoals:a.ownGoals,bOwnGoals:b.ownGoals,
+      aResult:a.result,bResult:b.result});
+  }
+  return rows.sort((a,b) => String(b.date).localeCompare(String(a.date))
+    || b.createdAt - a.createdAt || String(b.matchKey).localeCompare(String(a.matchKey)));
+}
+
 // Same-side records, using exactly the existing head-to-head outcome policy.
 // One pass over canonical matches; no per-partner queries or raw-log counting.
 export function computePartnerships(model, playerId) {

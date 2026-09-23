@@ -1,8 +1,8 @@
 # Futbolista for iPhone
 
 Published baseline: App Store version 1.0 (build 2), release 500408.
-Current local update: **1.0.1 (build 6), release 500412**. Not uploaded or published.
-See `../UPDATE-500412.md` for scope, verification and remaining release steps.
+Current local update: **1.0.1 (build 7), release 500413**. Not uploaded or published.
+See `../UPDATE-500413.md` for scope, verification and remaining release steps.
 Historical submission evidence lives in `store/SUBMISSION-STATUS-500408.md`.
 
 ## Architecture and identity
@@ -56,7 +56,7 @@ forms. Device accounts do not share Safari's authentication storage.
 
 1. Review this update on the owner's physical iPhone, including keyboard,
    foreground/background, sharing cancellation and existing account persistence.
-2. Create a signed Release archive of 1.0.1 (3) with the existing developer team.
+2. Create a signed Release archive of 1.0.1 (7) with the existing developer team.
 3. Upload and submit only after explicit owner approval. Preserve the app's
    free/unlisted distribution and Saudi availability.
 
