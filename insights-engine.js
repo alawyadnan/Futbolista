@@ -30,6 +30,29 @@ export function computeComparisonWindow(model, playerId, scope = "all") {
   return { ...summarizeWindow(parts), current, best };
 }
 
+// Same-side records, using exactly the existing head-to-head outcome policy.
+// One pass over canonical matches; no per-partner queries or raw-log counting.
+export function computePartnerships(model, playerId) {
+  const id = String(playerId ?? '');
+  if (!model?.playerById?.has(id)) return [];
+  const rows = new Map(), seen = new Set();
+  for (const part of playerParticipations(model, id)) {
+    if (seen.has(part.matchKey)) continue;
+    seen.add(part.matchKey);
+    for (const mate of model?.byMatch?.get(part.matchKey) || []) {
+      if (mate.playerId === id || mate.side !== part.side || !model.playerById.has(mate.playerId)) continue;
+      if (!rows.has(mate.playerId)) rows.set(mate.playerId, {playerId:mate.playerId,matches:0,wins:0,draws:0,losses:0,winPct:0});
+      const row = rows.get(mate.playerId);
+      row.matches++;
+      if (part.result === 'win' && mate.result === 'win') row.wins++;
+      else if (part.result === 'draw' && mate.result === 'draw') row.draws++;
+      else row.losses++;
+      row.winPct = row.wins / row.matches;
+    }
+  }
+  return [...rows.values()];
+}
+
 // Input is canonical match summaries, never raw normal/own-goal log rows.
 // Count the full filtered selection, independently of UI pagination.
 export function summarizePlayerHistory(matches = [], playerId = '') {

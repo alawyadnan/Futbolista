@@ -2,6 +2,8 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    profileSections: "Player sections", profileOverview: "Statistics", profileAwards: "Awards", profilePartners: "Teammates",
+    playedTogetherTitle: "Played together", mostSharedWins: "Most wins together", winsTogether: "Wins together", sharedWinPct: "{percent} wins",
     matchDates: "Match dates", comparisonPeriod: "Statistics period", recentFive: "Last 5 appearances",
     recentFiveEach: "Each player's latest 5 appearances; fewer if not yet played.",
     searchResultsCount: "{count} of {total} players",
@@ -158,6 +160,8 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    profileSections: "أقسام اللاعب", profileOverview: "الأرقام", profileAwards: "الجوائز", profilePartners: "الزملاء",
+    playedTogetherTitle: "لعبوا معًا", mostSharedWins: "الأكثر فوزًا معًا", winsTogether: "انتصارات معًا", sharedWinPct: "نسبة الفوز {percent}",
     matchDates: "تواريخ المباريات", comparisonPeriod: "فترة الإحصائيات", recentFive: "آخر ٥ مشاركات",
     recentFiveEach: "آخر ٥ مشاركات لكل لاعب، أو المتاح إن كانت مشاركاته أقل.",
     searchResultsCount: "{count} من {total} لاعب",

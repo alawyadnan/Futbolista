@@ -24,24 +24,25 @@ import {
 import {
   buildDataModel as buildFootballDataModel,
   calculateMonthScores as calculateFootballMonthScores,
-  computeHeadToHead as computeFootballHeadToHead,
-  computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500410";
+  computeHeadToHead as computeFootballHeadToHead
+} from "./data-engine.js?v=500411";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500410";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow } from "./insights-engine.js?v=500410";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500410";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500410";
-import { resolvePublicPlayers } from "./community-engine.js?v=500410";
-import { createCommunity } from "./community.js?v=500410";
-import { createHighlights } from "./highlights.js?v=500410";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500410";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500410";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500410";
-import { observeConnectivity } from "./connectivity.js?v=500410";
+import { countText, directionFor, translate } from "./i18n.js?v=500411";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships } from "./insights-engine.js?v=500411";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500411";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500411";
+import { resolvePublicPlayers } from "./community-engine.js?v=500411";
+import { createCommunity } from "./community.js?v=500411";
+import { createHighlights } from "./highlights.js?v=500411";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500411";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500411";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500411";
+import { observeConnectivity } from "./connectivity.js?v=500411";
 
 import {
   appRouteFor,
+  PROFILE_TABS,
+  normalizeProfileTab,
   buildHistoryPeriods,
   buildMatchDates,
   buildPlayerAvatar,
@@ -59,7 +60,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500410";
+} from "./ux-utils.js?v=500411";
 
 
 /* =========================================================
@@ -139,6 +140,8 @@ let unsubscribeLogs = null;
 let isAdmin = false;
 
 let currentProfileId = null;
+let currentProfileTab = 'overview';
+let partnershipSort = 'matches';
 
 const scheduleRender = createRenderScheduler(() => renderAll());
 
@@ -372,7 +375,7 @@ function sharePlayerProfile() {
   shareContent({
     title: `${name} · Futbolista`,
     text: t("shareProfileText", { name }),
-    hash: appRouteFor("playerprofile", currentProfileId)
+    hash: appRouteFor("playerprofile", currentProfileId, currentProfileTab)
   });
 }
 
@@ -629,6 +632,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnProfileBack")?.addEventListener("click", () => {
     const previous = profileTrail.pop();
     if (previous) {
+      restoreProfileContext(previous);
       if (document.getElementById(`screen-${previous.screen}`)?.dataset.admin === "1") {
         showScreen(previous.screen, { scroll: false });
         setActiveNav(isAdmin ? previous.screen : "dashboard");
@@ -653,6 +657,23 @@ document.addEventListener("DOMContentLoaded", () => {
     updateLocationForScreen("playerprofile");
     $("profileComparison")?.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
     $("cmpPlayerB")?.focus({ preventScroll: true });
+  });
+  $("profileTabs")?.addEventListener('click', event => {
+    const tab = event.target.closest('[data-profile-tab]');
+    if (tab) selectProfileTab(tab.dataset.profileTab);
+  });
+  $("profileTabs")?.addEventListener('keydown', event => {
+    const tab = event.target.closest('[data-profile-tab]');
+    if (!tab || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const index = PROFILE_TABS.indexOf(tab.dataset.profileTab);
+    const forward = event.key === (language === 'ar' ? 'ArrowLeft' : 'ArrowRight');
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? PROFILE_TABS.length - 1 : (index + (forward ? 1 : -1) + PROFILE_TABS.length) % PROFILE_TABS.length;
+    selectProfileTab(PROFILE_TABS[next]);
+  });
+  $('partnershipSort')?.addEventListener('change', () => {
+    partnershipSort = $('partnershipSort').value === 'wins' ? 'wins' : 'matches';
+    if (currentProfileId) renderTeammates(currentProfileId);
   });
   $("btnCloseComparison")?.addEventListener("click", () => {
     comparisonOpen = false;
@@ -824,7 +845,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500410").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500411").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1303,6 +1324,7 @@ function handleSnapshotError(error, generation = snapshotGeneration) {
 
 
 function updateDataStatus() {
+  if ($('profileLoading')) $('profileLoading').hidden = hasDataModel || loadError;
   let banner = $("dataStatusBanner");
   if (!loadError && !retryingData) {
     if (banner?.contains(document.activeElement)) $("mainContent")?.focus({ preventScroll: true });
@@ -1339,11 +1361,20 @@ function updateDataStatus() {
 
 function syncScreenFromLocation() {
   const previousScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "";
+  for (let index = profileTrail.length - 1; index >= 0; index--) {
+    if (profileTrail[index].hash === window.location.hash) {
+      restoreProfileContext(profileTrail[index]);
+      profileTrail.length = index;
+      break;
+    }
+  }
   const route = parseAppRoute(window.location.hash);
   currentProfileId = route.screen === "playerprofile" ? route.playerId : null;
+  currentProfileTab = normalizeProfileTab(route.profileTab);
   comparisonOpen = route.comparison === true;
   comparisonPlayerId = route.comparisonPlayerId || "";
   comparisonScope = route.comparisonScope === 'recent' ? 'recent' : 'all';
+  if (route.screen === 'playerprofile') renderProfilePanels();
   if (route.screen === 'history') {
     if (historyPlayerId !== (route.historyPlayerId || '')) resetHistoryControls();
     historyPlayerId = route.historyPlayerId || '';
@@ -1356,7 +1387,7 @@ function syncScreenFromLocation() {
 
   const canonical = route.screen === "playerprofile" && comparisonOpen
     ? currentComparisonRoute()
-    : appRouteFor(route.screen, route.screen === 'history' ? historyPlayerId : route.playerId);
+    : appRouteFor(route.screen, route.screen === 'history' ? historyPlayerId : route.playerId, currentProfileTab);
   if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
   for (let index = profileTrail.length - 1; index >= 0; index--) {
     if (profileTrail[index].hash === canonical) { profileTrail.length = index; break; }
@@ -1377,13 +1408,19 @@ function updateLocationForScreen(name, { replace = false } = {}) {
   if (!section || section.dataset.admin === "1") return;
   const nextHash = name === "playerprofile" && comparisonOpen
     ? currentComparisonRoute()
-    : appRouteFor(name, name === "playerprofile" ? currentProfileId : name === 'history' ? historyPlayerId : "");
+    : appRouteFor(name, name === "playerprofile" ? currentProfileId : name === 'history' ? historyPlayerId : "", currentProfileTab);
   if (window.location.hash === nextHash) return;
   window.history[replace ? "replaceState" : "pushState"](null, "", nextHash);
 }
 
 
 function currentComparisonRoute() { return compareRouteFor(currentProfileId, comparisonPlayerId, comparisonScope); }
+
+function restoreProfileContext(previous) {
+  if (previous?.screen !== 'playerprofile') return;
+  showAllTeammates = previous.showAllTeammates === true;
+  partnershipSort = previous.partnershipSort === 'wins' ? 'wins' : 'matches';
+}
 
 function showScreen(
   name,
@@ -1926,12 +1963,34 @@ function renderCompareOptions() {
 }
 
 function renderProfileComparison() {
+  renderProfilePanels();
   $("profileComparison")?.classList.toggle("hidden", !comparisonOpen);
   $("btnCompareProfile")?.setAttribute("aria-expanded", String(comparisonOpen));
   $("btnCompareProfile")?.setAttribute("aria-controls", "profileComparison");
   if (!comparisonOpen) return;
   renderCompareOptions();
   renderCompare();
+}
+
+function renderProfilePanels() {
+  $('profileTabs')?.classList.toggle('hidden', comparisonOpen);
+  for (const key of PROFILE_TABS) {
+    const selected = key === currentProfileTab;
+    const tab = $(`profile-tab-${key}`);
+    tab?.setAttribute('aria-selected', String(selected));
+    if (tab) tab.tabIndex = selected ? 0 : -1;
+    const panel = $(`profile-panel-${key}`);
+    if (panel) panel.hidden = comparisonOpen || !selected;
+  }
+}
+
+function selectProfileTab(value) {
+  currentProfileTab = normalizeProfileTab(value);
+  comparisonOpen = false;
+  renderProfileComparison();
+  updateLocationForScreen('playerprofile', {replace:true});
+  $(`profile-tab-${currentProfileTab}`)?.focus({preventScroll:true});
+  $('profileTabs')?.scrollIntoView({block:'nearest',behavior:'auto'});
 }
 
 function handleCompareSelection() {
@@ -3127,7 +3186,7 @@ function openProfile(
   const sourceScreen = document.querySelector(".screen:not(.hidden)")?.id?.replace("screen-", "") || "playerstats";
   if (sourceScreen !== "playerprofile") profileTrail.length = 0;
   if (sourceScreen !== "playerprofile" || String(pid) !== currentProfileId) {
-    profileTrail.push({ screen: sourceScreen, hash: window.location.hash || "#players", scrollY: window.scrollY });
+    profileTrail.push({ screen: sourceScreen, hash: window.location.hash || "#players", scrollY: window.scrollY, showAllTeammates, partnershipSort });
     if (profileTrail.length > 30) profileTrail.shift();
   }
   if (sourceScreen !== "playerprofile") {
@@ -3137,6 +3196,7 @@ function openProfile(
   }
 
   showAllTeammates = false;
+  currentProfileTab = 'overview';
   comparisonOpen = false;
   comparisonPlayerId = "";
   comparisonScope = 'all';
@@ -3305,7 +3365,7 @@ function renderPlayerProfile(
   ) {
 
     $("profileForm").innerHTML = form.formResults?.length
-      ? renderFormDots(form.formResults, true)
+      ? renderFormDots(form.formResults)
       : `<span class="note">${esc(t("noForm"))}</span>`;
 
   }
@@ -3435,196 +3495,38 @@ function openHistoryMatch(matchKey) {
    TEAMMATES
 ========================================================= */
 
-function renderTeammates(
-  pid
-) {
-
-  const counts =
-    computeTeammates(
-      String(pid)
-    );
-
-
-  const matesBox =
-    $("profileMates");
-
-
-  const neverBox =
-    $("profileNever");
-
-
-  const sorted =
-    Object
-      .entries(
-        counts
-      )
-      .sort(
-        (
-          a,
-          b
-        ) =>
-
-          (
-            b[1]
-            -
-            a[1]
-          )
-
-          ||
-
-          playerName(
-            a[0]
-          )
-          .localeCompare(
-            playerName(
-              b[0]
-            )
-          )
-
-      );
-
-
-  const playedIds =
-    new Set(
-
-      sorted.map(
-        (
-          [id]
-        ) =>
-          id
-      )
-
-    );
-
-
-  const never =
-    players
-
-      .filter(
-        x =>
-
-          String(
-            x.id
-          )
-          !==
-          String(
-            pid
-          )
-
-          &&
-
-          !playedIds.has(
-            String(
-              x.id
-            )
-          )
-      )
-
-      .map(
-        x =>
-          x.name
-          ||
-          "Unknown"
-      )
-
-      .sort(
-        (
-          a,
-          b
-        ) =>
-          a.localeCompare(b)
-      );
-
-
-  if (
-    matesBox
-  ) {
-
-    if (
-      !sorted.length
-    ) {
-
-      matesBox.classList.add(
-        "note"
-      );
-
-
-      matesBox.textContent =
-        t("noTeammates");
-
-    } else {
-
-      matesBox.classList.remove(
-        "note"
-      );
-
-
-      const visibleMates = showAllTeammates ? sorted : sorted.slice(0, 10);
-
-      matesBox.innerHTML =
-        visibleMates
-          .map(
-            (
-              [
-                id,
-                c
-              ],
-              index
-            ) => `
-
-              <button type="button" class="mateRow player-link" data-open-player="${esc(id)}">
-
-                <div class="playerName">
-                  <span class="mate-rank" aria-hidden="true">${index + 1}</span>
-                  <bdi dir="auto">${esc(playerName(id))}</bdi>
-                </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
-
-                <div class="mate-count-badge">
-                  ${esc(countText(language, c, "match"))}
-                </div>
-
-              </button>
-
-            `
-          )
-          .join("")
-        + (sorted.length > 10 ? `<button type="button" class="btn btn-quiet mates-toggle" data-toggle-teammates>${esc(t(showAllTeammates ? "showLess" : "showAll"))} <span aria-hidden="true">${showAllTeammates ? "↑" : "↓"}</span></button>` : "");
-
+function renderTeammates(pid) {
+  const rows = computePartnerships(model, pid);
+  const sorted = rows.slice().sort((a, b) =>
+    (partnershipSort === 'wins' ? b.wins - a.wins : 0)
+    || b.matches - a.matches
+    || playerName(a.playerId).localeCompare(playerName(b.playerId))
+    || a.playerId.localeCompare(b.playerId));
+  const playedIds = new Set(rows.map(row => row.playerId));
+  const matesBox = $('profileMates'), neverBox = $('profileNever');
+  if ($('partnershipSort')) $('partnershipSort').value = partnershipSort;
+  if (matesBox) {
+    matesBox.classList.toggle('note', !sorted.length);
+    if (!sorted.length) matesBox.innerHTML = emptyState('◉', t('noTeammates'), '', true);
+    else {
+      const visible = showAllTeammates ? sorted : sorted.slice(0, 10);
+      matesBox.innerHTML = visible.map(row => {
+        const name = playerName(row.playerId), avatar = buildPlayerAvatar(name);
+        return `<button type="button" class="mateRow partnership-row player-link" data-open-player="${esc(row.playerId)}">
+          <span class="partner-avatar" data-avatar-tone="${avatar.tone}" aria-hidden="true">${esc(avatar.initials)}</span>
+          <span class="partner-copy"><bdi dir="auto">${esc(name)}</bdi><span>${esc(countText(language, row.matches, 'match'))} · ${esc(t('sharedWinPct', {percent:fmtPct(row.winPct)}))}</span></span>
+          <span class="partner-wins"><strong>${row.wins}</strong><span>${esc(t('winsTogether'))}</span></span>
+          <span class="sr-only">${esc(t('openProfileAction'))}</span>
+        </button>`;
+      }).join('') + (sorted.length > 10 ? `<button type="button" class="btn btn-quiet mates-toggle" data-toggle-teammates>${esc(t(showAllTeammates ? 'showLess' : 'showAll'))}</button>` : '');
     }
-
   }
-
-
-  if (
-    neverBox
-  ) {
-
-    if (
-      !never.length
-    ) {
-
-      neverBox.classList.add(
-        "note"
-      );
-
-
-      neverBox.textContent =
-        "—";
-
-    } else {
-
-      neverBox.classList.remove("note");
-      neverBox.innerHTML = `<div class="never-chips">${never.map(name => `<span class="never-chip">${esc(name)}</span>`).join("")}</div>`;
-
-    }
-
+  if (neverBox) {
+    const never = players.filter(player => String(player.id) !== String(pid) && !playedIds.has(String(player.id)))
+      .map(player => player.name || t('unknown')).sort((a, b) => a.localeCompare(b));
+    neverBox.classList.toggle('note', !never.length);
+    neverBox.innerHTML = never.length ? `<div class="never-chips">${never.map(name => `<span class="never-chip">${esc(name)}</span>`).join('')}</div>` : '—';
   }
-
-}
-
-
-function computeTeammates(pid) {
-  return computeFootballTeammates(model, pid);
 }
 
 

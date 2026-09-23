@@ -1,4 +1,4 @@
-import { appRouteFor, compareRouteFor, parseAppRoute, publicAppUrl } from './ux-utils.js?v=500410';
+import { appRouteFor, compareRouteFor, parseAppRoute, publicAppUrl } from './ux-utils.js?v=500411';
 
 export const PUBLIC_APP_ORIGIN = 'https://ftbll.live/';
 
@@ -16,12 +16,12 @@ export function nativeLinkRoute(value) {
     if (!accepted || url.username || url.password || !['','/'].includes(url.pathname)) return null;
     const hash = url.hash || '#dashboard';
     if (/[\u0000-\u001f\u007f]/.test(decodeURIComponent(hash))) return null;
-    if (!/^#(?:dashboard|leaderboard|table|players|playerstats|account|history(?:\/player\/[^/]+)?|player\/[^/]+(?:\/compare(?:\/[^/]+(?:\/recent)?)?)?)$/.test(hash)) return null;
+    if (!/^#(?:dashboard|leaderboard|table|players|playerstats|account|history(?:\/player\/[^/]+)?|player\/[^/]+(?:\/(?:awards|matches|partners)|\/compare(?:\/[^/]+(?:\/recent)?)?)?)$/.test(hash)) return null;
     const route = parseAppRoute(hash);
     const ids = [route.playerId, route.historyPlayerId, route.comparisonPlayerId].filter(Boolean);
     if (ids.some(id => id.length > 1500 || /[\u0000-\u001f\u007f/]/.test(id))) return null;
     return route.comparison ? compareRouteFor(route.playerId,route.comparisonPlayerId,route.comparisonScope)
-      : appRouteFor(route.screen,route.historyPlayerId || route.playerId);
+      : appRouteFor(route.screen,route.historyPlayerId || route.playerId,route.profileTab);
   } catch { return null; }
 }
 

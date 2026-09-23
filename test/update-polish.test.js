@@ -54,6 +54,7 @@ test('opening a second player remembers the comparison route and original scroll
     document:{querySelector:()=>({id:'screen-playerprofile'})},
     window:{location:{hash:'#player/a/compare/b'},scrollY:1234},
     currentProfileId:'a',profileTrail:trail,comparisonOpen:true,comparisonPlayerId:'b',
+    showAllTeammates:false,partnershipSort:'matches',
     showScreen(){},setActiveNav(){}
   };
   runInNewContext(`${code}\nopenProfile('b');`, context);
@@ -71,6 +72,6 @@ test('ranking searches are labeled and version bump preserves bundle identity an
   }
   const project = read('native/ios/App/App.xcodeproj/project.pbxproj');
   assert.match(project,/MARKETING_VERSION = 1\.0\.1/);
-  assert.match(project,/CURRENT_PROJECT_VERSION = 4/);
+  assert.match(project,/CURRENT_PROJECT_VERSION = 5/);
   assert.match(project,/PRODUCT_BUNDLE_IDENTIFIER = live\.ftbll\.futbolista/);
 });

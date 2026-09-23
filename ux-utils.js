@@ -142,6 +142,9 @@ const PUBLIC_ROUTE_SCREENS = new Set([
   "history"
 ]);
 
+export const PROFILE_TABS = ['overview', 'awards', 'matches', 'partners'];
+export function normalizeProfileTab(value) { return PROFILE_TABS.includes(value) ? value : 'overview'; }
+
 export function parseAppRoute(hash = "") {
   const raw = String(hash || "").replace(/^#\/?/, "");
   const [route = "", first = "", third = "", fourth = "", fifth = ""] = raw.split("/");
@@ -157,7 +160,7 @@ export function parseAppRoute(hash = "") {
         return { screen: "playerprofile", playerId, comparison: true, comparisonPlayerId: comparisonPlayerId === playerId ? "" : comparisonPlayerId,
           ...(fifth === 'recent' && comparisonPlayerId && comparisonPlayerId !== playerId ? {comparisonScope:'recent'} : {}) };
       }
-      return { screen: "playerprofile", playerId };
+      return { screen: "playerprofile", playerId, ...(normalizeProfileTab(third) !== 'overview' ? {profileTab:third} : {}) };
     }
     // Previously shared links keep working, but land inside the first profile.
     if (route === "compare") {
@@ -171,12 +174,13 @@ export function parseAppRoute(hash = "") {
   return PUBLIC_ROUTE_SCREENS.has(screen) ? { screen, playerId: "" } : { screen: "dashboard", playerId: "" };
 }
 
-export function appRouteFor(screen, playerId = "") {
+export function appRouteFor(screen, playerId = "", profileTab = "overview") {
   if (screen === "history" && String(playerId || "").trim()) {
     return `#history/player/${encodeURIComponent(String(playerId).trim())}`;
   }
   if (screen === "playerprofile" && String(playerId || "").trim()) {
-    return `#player/${encodeURIComponent(String(playerId).trim())}`;
+    const tab = normalizeProfileTab(profileTab);
+    return `#player/${encodeURIComponent(String(playerId).trim())}${tab === 'overview' ? '' : '/' + tab}`;
   }
   if (screen === "playerstats") return "#players";
   return `#${PUBLIC_ROUTE_SCREENS.has(screen) ? screen : "dashboard"}`;

@@ -1,12 +1,12 @@
 {
-  "release": "500410",
+  "release": "500411",
   "firebaseSDK": "10.12.2",
   "appId": "live.ftbll.futbolista",
   "remoteJavaScript": false,
   "outputs": [
     {
       "path": "www/app.bundle.js",
-      "bytes": 598618,
+      "bytes": 601705,
       "imports": [
         {
           "path": "www/chunks/bridge-DFV2OT3U.js",

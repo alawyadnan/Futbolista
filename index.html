@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500410" />
-  <link rel="manifest" href="./manifest.json?v=500410" />
-  <link rel="stylesheet" href="./styles.css?v=500410" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500411" />
+  <link rel="manifest" href="./manifest.json?v=500411" />
+  <link rel="stylesheet" href="./styles.css?v=500411" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -92,16 +92,34 @@
 
 
   <section id="screen-playerprofile" class="screen hidden" aria-labelledby="profileName">
-    <article class="card profile-hero"><div class="profile-actions"><button id="btnProfileBack" class="btn btn-quiet backbtn" type="button"><span aria-hidden="true" class="back-arrow">←</span> <span data-i18n="back">Back</span></button><div class="profile-action-group"><button id="btnCompareProfile" class="btn btn-quiet" type="button"><span aria-hidden="true">⇄</span><span data-i18n="comparePlayer">Compare player</span></button><button id="btnShareProfile" class="btn btn-quiet icon-action" type="button" aria-label="Share player profile" data-i18n-aria="shareProfile"><span aria-hidden="true">↗</span><span class="sr-only" data-i18n="shareProfile">Share player profile</span></button></div></div><div class="profileIdentity"><div id="profileInitial" class="profileAvatar" aria-hidden="true">P</div><div><div class="eyebrow" data-i18n="profile">Player profile</div><h1 id="profileName" class="profileName">Player</h1><div id="profileSub" class="subnote"></div></div></div><div id="profileStatsGrid" class="statGrid"></div><div id="profileRecord" class="record-overview"></div></article>
-    <button id="btnPinPlayer" class="btn btn-quiet pin-button" type="button" aria-pressed="false"><span aria-hidden="true">☆</span><span data-i18n="pinPlayer">Pin to home</span></button>
-    <button id="btnPlayerHistory" class="btn btn-quiet player-history-button" type="button" data-i18n="allPlayerMatches">All appearances</button>
+    <article class="card profile-hero">
+      <div class="profile-actions"><button id="btnProfileBack" class="btn btn-quiet backbtn" type="button"><span aria-hidden="true" class="back-arrow">←</span> <span data-i18n="back">Back</span></button><div class="profile-action-group"><button id="btnCompareProfile" class="btn btn-quiet" type="button"><span aria-hidden="true">⇄</span><span data-i18n="comparePlayer">Compare player</span></button><button id="btnShareProfile" class="btn btn-quiet icon-action" type="button" aria-label="Share player profile" data-i18n-aria="shareProfile"><span aria-hidden="true">↗</span><span class="sr-only" data-i18n="shareProfile">Share player profile</span></button></div></div>
+      <div class="profileIdentity"><div id="profileInitial" class="profileAvatar" aria-hidden="true">—</div><div><div class="eyebrow" data-i18n="profile">Player profile</div><h1 id="profileName" class="profileName" data-i18n="profile">Player profile</h1><div id="profileSub" class="subnote"></div></div></div>
+      <div class="profile-hero-footer"><div class="profile-recent-form"><span data-i18n="last5">Last 5</span><div id="profileForm" class="formRow">—</div></div><button id="btnPinPlayer" class="btn btn-quiet pin-button" type="button" aria-pressed="false"><span aria-hidden="true">☆</span><span data-i18n="pinPlayer">Pin to home</span></button></div>
+    </article>
+    <div id="profileTabs" class="profile-tabs" role="tablist" aria-label="Player sections" data-i18n-aria="profileSections">
+      <button type="button" role="tab" id="profile-tab-overview" data-profile-tab="overview" aria-controls="profile-panel-overview" aria-selected="true" tabindex="0" data-i18n="profileOverview">Statistics</button>
+      <button type="button" role="tab" id="profile-tab-awards" data-profile-tab="awards" aria-controls="profile-panel-awards" aria-selected="false" tabindex="-1" data-i18n="profileAwards">Awards</button>
+      <button type="button" role="tab" id="profile-tab-matches" data-profile-tab="matches" aria-controls="profile-panel-matches" aria-selected="false" tabindex="-1" data-i18n="matches">Matches</button>
+      <button type="button" role="tab" id="profile-tab-partners" data-profile-tab="partners" aria-controls="profile-panel-partners" aria-selected="false" tabindex="-1" data-i18n="profilePartners">Teammates</button>
+    </div>
     <section id="profileComparison" class="profile-comparison hidden" aria-labelledby="comparisonHeading">
       <article class="card"><div class="card-heading"><h2 id="comparisonHeading" data-i18n="comparePlayer">Compare player</h2><button id="btnCloseComparison" type="button" class="btn btn-quiet" data-i18n="closeComparison">Close comparison</button></div><label class="field" for="cmpPlayerB"><span data-i18n="compareWith">Compare with</span><select id="cmpPlayerB" class="select"></select></label><div class="compare-actions"><button id="btnShareComparison" class="btn btn-quiet hidden" type="button" data-i18n="shareComparison">Share comparison</button></div></article>
       <div id="compareResult" class="compareWrap" aria-live="polite"></div>
     </section>
-    <div id="profileHighlights" class="profile-highlights"></div>
-    <div id="profileInsights" class="profile-insights"></div>
-    <div class="profile-details-grid"><article class="card"><div class="card-heading"><h2 data-i18n="form">Form</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileForm" class="formRow">—</div></article><article class="card"><div class="card-heading"><h2 data-i18n="mostTeammates">Most Teammates</h2><span class="metric-symbol" aria-hidden="true">◉</span></div><div id="profileMates" class="matesList skeleton-list" aria-live="polite" data-i18n="loadingConnections">Loading connections…</div></article><article class="card full-span"><div class="card-heading"><h2 data-i18n="recentMatches">Recent matches</h2><span class="status-pill"><span data-i18n="last5">Last 5</span></span></div><div id="profileMatches" class="profile-match-list"></div></article><article class="card full-span"><h2 data-i18n="neverPlayed">Never played with</h2><div id="profileNever" class="neverList note">—</div></article></div>
+    <p id="profileLoading" class="note" role="status" data-i18n="loadingStats">Loading statistics…</p>
+    <section id="profile-panel-overview" class="profile-panel" role="tabpanel" aria-labelledby="profile-tab-overview" tabindex="0">
+      <article class="card profile-numbers"><div id="profileStatsGrid" class="statGrid"></div><div id="profileRecord" class="record-overview"></div></article>
+      <div id="profileInsights" class="profile-insights"></div>
+    </section>
+    <section id="profile-panel-awards" class="profile-panel" role="tabpanel" aria-labelledby="profile-tab-awards" tabindex="0" hidden><div id="profileHighlights" class="profile-highlights"></div></section>
+    <section id="profile-panel-matches" class="profile-panel" role="tabpanel" aria-labelledby="profile-tab-matches" tabindex="0" hidden>
+      <article class="card"><div class="card-heading"><h2 data-i18n="recentMatches">Recent matches</h2><span class="status-pill" data-i18n="last5">Last 5</span></div><div id="profileMatches" class="profile-match-list"></div><button id="btnPlayerHistory" class="btn btn-quiet player-history-button" type="button" data-i18n="allPlayerMatches">All appearances</button></article>
+    </section>
+    <section id="profile-panel-partners" class="profile-panel" role="tabpanel" aria-labelledby="profile-tab-partners" tabindex="0" hidden>
+      <article class="card"><div class="card-heading"><h2 data-i18n="playedTogetherTitle">Played together</h2><label class="field-inline" for="partnershipSort"><span class="sr-only" data-i18n="sortBy">Sort by</span><select id="partnershipSort" class="select"><option value="matches" data-i18n="mostMatches">Most matches</option><option value="wins" data-i18n="mostSharedWins">Most wins together</option></select></label></div><div id="profileMates" class="matesList" aria-live="polite"></div></article>
+      <details class="card never-card"><summary data-i18n="neverPlayed">Never played with</summary><div id="profileNever" class="neverList note">—</div></details>
+    </section>
   </section>
 
   <section id="screen-history" class="screen hidden" aria-labelledby="historyTitle">
@@ -166,6 +184,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500410"></script>
+<script type="module" src="./app.js?v=500411"></script>
 </body>
 </html>

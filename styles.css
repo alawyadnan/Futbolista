@@ -938,3 +938,20 @@ button.profile-match-row{width:100%;color:var(--text);font:inherit;text-align:st
 .compare-identities .compareName{padding:10px 8px;font-size:15px}.compare-identities .compare-avatar{width:32px;height:32px;font-size:12px}
 .compare-head-to-head .compareCompactSide:first-child{color:var(--green)}.compare-head-to-head .compareCompactSide:last-child{color:var(--blue)}
 @media(max-width:640px){.history-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,.75fr);gap:12px 10px}.history-toolbar .field{min-width:0}.history-actions{grid-column:1/-1}.history-period-field .select{width:100%;min-width:0}.compare-identities{top:calc(64px + env(safe-area-inset-top,0px))}.compare-identities .compareName{font-size:12px;gap:5px}.compare-identities .compare-avatar{width:28px;height:28px}.compare-identities .compareVs{width:30px;height:30px}}
+/* 500411 — compact player identity, accessible sections and shared records. */
+.profile-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;position:sticky;top:calc(72px + env(safe-area-inset-top,0px));z-index:4;padding:6px;margin:12px 0 16px;border:1px solid var(--line);border-radius:16px;background:#0c1811;box-shadow:0 6px 14px rgba(0,0,0,.2);scroll-margin-top:calc(80px + env(safe-area-inset-top,0px))}
+.profile-tabs button{min-width:0;min-height:46px;padding:8px 3px;font:inherit;font-size:12px;font-weight:800;color:var(--muted);border:1px solid transparent;border-radius:10px;background:transparent;cursor:pointer;line-height:1.5}
+.profile-tabs button[aria-selected="true"]{background:#c4f5d6;color:#092717;border-color:#c4f5d6}
+.profile-panel[hidden]{display:none!important}.profile-panel{scroll-margin-top:140px;outline-offset:4px}.profile-panel>.card{margin-bottom:14px}
+.profile-hero-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:14px;margin-top:3px}
+.profile-recent-form{min-width:0;display:flex;flex-direction:column;gap:7px}.profile-recent-form>span{color:var(--muted);font-size:11px}.profile-recent-form .formRow{margin:0;min-height:28px;padding:0;border:0;background:none;overflow:visible;letter-spacing:0;font-size:11px}.profile-recent-form .result-dot{width:21px;height:21px;font-size:9px}
+.profile-hero-footer .pin-button{width:auto;min-height:44px;margin:0;padding:8px 12px;max-width:48%;font-size:11px;line-height:1.6}
+.profile-numbers .statGrid{margin-top:0}.profile-panel .player-history-button{width:100%;margin:18px 0 0}
+.matesList .partnership-row{align-items:center;padding:14px 0;gap:10px;min-height:70px}
+.partner-avatar{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:50%;border:1px solid rgba(67,223,135,.18);background:rgba(67,223,135,.09);color:var(--green);font-size:12px;font-weight:850}
+.partner-copy{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1;text-align:start}.partner-copy>bdi{font-size:14px;font-weight:800;overflow-wrap:anywhere;line-height:1.4}.partner-copy>span{color:var(--muted);font-size:10px;line-height:1.6}
+.partner-wins{display:flex;flex-direction:column;gap:4px;flex:0 0 60px;align-items:center;text-align:center}.partner-wins strong{font-size:23px;color:#a0edbc;font-variant-numeric:tabular-nums;line-height:1.2}.partner-wins>span{font-size:9px;color:var(--muted);line-height:1.4}
+.never-card>summary{min-height:44px;cursor:pointer;font-size:14px;font-weight:750;line-height:2.5}.never-card[open] .never-chips{padding-top:12px}
+#profile-panel-partners .card-heading{align-items:center;flex-wrap:wrap;gap:10px}#partnershipSort{max-width:210px;min-height:44px;font-size:12px}
+@media(max-width:640px){.profile-tabs{top:calc(64px + env(safe-area-inset-top,0px))}.profile-tabs button{font-size:11px}.profile-hero-footer{gap:8px}.profile-hero-footer .pin-button{padding-inline:8px;font-size:10px}}
+@media(max-width:350px){.partner-avatar{width:28px;height:28px;flex-basis:28px;font-size:10px}.matesList .partnership-row{gap:7px}.partner-copy>bdi{font-size:12px}.partner-wins{flex-basis:49px}.partner-copy>span{font-size:9px}.profile-tabs{gap:2px;padding:4px}}
