@@ -2,6 +2,8 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    directoryScope: "Player list", latestTraining: "Latest session", clearPlayerSearch: "Clear search", directoryTotals: "All-time statistics",
+    noDirectoryPlayers: "No matching players", noDirectoryPlayersLead: "Clear the search or choose all players.",
     profileSections: "Player sections", profileOverview: "Statistics", profileAwards: "Awards", profilePartners: "Teammates",
     playedTogetherTitle: "Played together", mostSharedWins: "Most wins together", winsTogether: "Wins together", sharedWinPct: "{percent} wins",
     matchDates: "Match dates", comparisonPeriod: "Statistics period", recentFive: "Last 5 appearances",
@@ -160,6 +162,8 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    directoryScope: "قائمة اللاعبين", latestTraining: "آخر تمرين", clearPlayerSearch: "مسح البحث", directoryTotals: "إحصائياتهم الإجمالية",
+    noDirectoryPlayers: "لا يوجد لاعب مطابق", noDirectoryPlayersLead: "امسح البحث أو اختر جميع اللاعبين.",
     profileSections: "أقسام اللاعب", profileOverview: "الأرقام", profileAwards: "الجوائز", profilePartners: "الزملاء",
     playedTogetherTitle: "لعبوا معًا", mostSharedWins: "الأكثر فوزًا معًا", winsTogether: "انتصارات معًا", sharedWinPct: "نسبة الفوز {percent}",
     matchDates: "تواريخ المباريات", comparisonPeriod: "فترة الإحصائيات", recentFive: "آخر ٥ مشاركات",

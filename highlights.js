@@ -1,7 +1,7 @@
 import { collection, doc, onSnapshot, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { computeTrends, selectHeadlineTrends, selectProfileTrends, summarizeAwards } from './highlights-engine.js?v=500411';
-import { buildPlayerAvatar } from './ux-utils.js?v=500411';
-import { buildAwardStatistics, rankAwardRows } from './award-statistics.js?v=500411';
+import { computeTrends, selectHeadlineTrends, selectProfileTrends, summarizeAwards } from './highlights-engine.js?v=500412';
+import { buildPlayerAvatar } from './ux-utils.js?v=500412';
+import { buildAwardStatistics, rankAwardRows } from './award-statistics.js?v=500412';
 
 export function createHighlights({ db, getModel, getProfileId, isAdmin, t, esc, notify }) {
   const $ = id => document.getElementById(id);

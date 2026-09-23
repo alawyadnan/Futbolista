@@ -71,6 +71,18 @@ export function filterAndSortPlayers(players = [], stats = {}, query = "", sortB
   return rows;
 }
 
+// A training date may contain several match IDs. Use the whole date, not one
+// match or the most recently edited log; never change all-time player totals.
+export function buildPlayerDirectory(players = [], model = {}, query = "", sortBy = "name", scope = "all") {
+  const matches = [...(model.matchSummaries?.values() || [])];
+  const latestDate = matches.reduce((latest, match) =>
+    isValidISODate(match.date) && match.date > latest ? match.date : latest, "");
+  const attendees = new Set(matches.filter(match => latestDate && match.date === latestDate)
+    .flatMap(match => (match.parts || []).map(part => String(part.playerId))));
+  const pool = scope === "latest" ? players.filter(player => attendees.has(String(player.id))) : players;
+  return { rows: filterAndSortPlayers(pool, model.stats, query, sortBy), total: pool.length, latestDate };
+}
+
 export function selectDisplayMonth(currentMonth, availableMonths = []) {
   const valid = [...new Set(availableMonths.filter(month => /^\d{4}-\d{2}$/.test(String(month))))]
     .sort((a, b) => b.localeCompare(a));

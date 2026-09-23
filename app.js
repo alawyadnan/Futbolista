@@ -25,19 +25,19 @@ import {
   buildDataModel as buildFootballDataModel,
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead
-} from "./data-engine.js?v=500411";
+} from "./data-engine.js?v=500412";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500411";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships } from "./insights-engine.js?v=500411";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500411";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500411";
-import { resolvePublicPlayers } from "./community-engine.js?v=500411";
-import { createCommunity } from "./community.js?v=500411";
-import { createHighlights } from "./highlights.js?v=500411";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500411";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500411";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500411";
-import { observeConnectivity } from "./connectivity.js?v=500411";
+import { countText, directionFor, translate } from "./i18n.js?v=500412";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships } from "./insights-engine.js?v=500412";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500412";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500412";
+import { resolvePublicPlayers } from "./community-engine.js?v=500412";
+import { createCommunity } from "./community.js?v=500412";
+import { createHighlights } from "./highlights.js?v=500412";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500412";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500412";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500412";
+import { observeConnectivity } from "./connectivity.js?v=500412";
 
 import {
   appRouteFor,
@@ -46,11 +46,11 @@ import {
   buildHistoryPeriods,
   buildMatchDates,
   buildPlayerAvatar,
+  buildPlayerDirectory,
   buildRankingMetric,
   compareMetricValues,
   compareRouteFor,
   createRenderScheduler,
-  filterAndSortPlayers,
   filterRankingRows,
   filterMatches,
   isResetConfirmation,
@@ -60,7 +60,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500411";
+} from "./ux-utils.js?v=500412";
 
 
 /* =========================================================
@@ -168,6 +168,7 @@ let pinnedPlayerId = null;
 try { pinnedPlayerId = readPinnedPlayer(localStorage); } catch {}
 
 let playerDirectoryScrollY = 0;
+let playerDirectoryScope = "all";
 
 let profileReturnScreen = "playerstats";
 
@@ -703,6 +704,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("playerSearch")?.addEventListener("input", renderPlayerCardsNameOnly);
   $("playerSort")?.addEventListener("change", renderPlayerCardsNameOnly);
+  $("playerDirectoryScopes")?.addEventListener("click", event => {
+    const button = event.target.closest('[data-directory-scope]');
+    if (!button || button.disabled) return;
+    playerDirectoryScope = button.dataset.directoryScope === 'latest' ? 'latest' : 'all';
+    renderPlayerCardsNameOnly();
+  });
+  $("btnClearPlayerSearch")?.addEventListener("click", () => {
+    $("playerSearch").value = "";
+    renderPlayerCardsNameOnly();
+    $("playerSearch").focus({preventScroll:true});
+  });
   $("historySearch")?.addEventListener("input", () => {
     historyExactDate = '';
     historyVisibleCount = HISTORY_PAGE_SIZE;
@@ -845,7 +857,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500411").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500412").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -3105,73 +3117,49 @@ function renderTable() {
 ========================================================= */
 
 function renderPlayerCardsNameOnly() {
-
-  const box =
-    $("playerCards");
-
-
-  if (!box) {
-
-    return;
-
+  const box = $("playerCards");
+  if (!box) return;
+  const query = $("playerSearch")?.value || "";
+  const sort = $("playerSort")?.value || "name";
+  const directory = buildPlayerDirectory(players, model, query, sort, playerDirectoryScope);
+  $("playerDirectoryScopes")?.querySelectorAll('[data-directory-scope]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.directoryScope === playerDirectoryScope));
+    button.disabled = button.dataset.directoryScope === 'latest' && !directory.latestDate;
+  });
+  if ($("playerSearchCount")) $("playerSearchCount").textContent = query.trim()
+    ? t('searchResultsCount', {count:directory.rows.length,total:directory.total})
+    : countText(language, directory.rows.length, 'player');
+  if ($("btnClearPlayerSearch")) $("btnClearPlayerSearch").hidden = !query;
+  if ($("playerDirectoryTotals")) $("playerDirectoryTotals").hidden = playerDirectoryScope !== 'latest';
+  const date = $("playerDirectoryDate");
+  if (date) {
+    date.hidden = playerDirectoryScope !== 'latest' || !directory.latestDate;
+    date.textContent = directory.latestDate ? formatMatchDate(directory.latestDate) : '';
+    date.dateTime = directory.latestDate;
   }
-
-
-  if (
-    !players.length
-  ) {
+  box.classList.remove("note");
+  if (!players.length) {
     box.innerHTML = emptyState("◉", t("noPlayers"), t("noPlayersLead"));
-
-
-    return;
-
-  }
-
-
-  box.classList.remove(
-    "note"
-  );
-
-
-  const sorted = filterAndSortPlayers(
-    players,
-    model.stats,
-    $("playerSearch")?.value || "",
-    $("playerSort")?.value || "name"
-  );
-
-  if (!sorted.length) {
-    box.innerHTML = emptyState("⌕", t("noSearchPlayers"), t("noSearchPlayersLead"));
     return;
   }
-
-
-  box.innerHTML =
-    sorted
-      .map(
-        p => {
-          const avatar = buildPlayerAvatar(p.name);
-          return `
-
-          <button type="button"
-            class="pCard pCardNameOnly"
-            data-player-id="${esc(p.id)}"
-            data-initial="${esc(avatar.initials)}"
-            data-avatar-tone="${avatar.tone}"
-          >
-
-            <div class="pName">
-              <bdi dir="auto">${esc(p.name || "")}</bdi>
-              <span class="pCardMeta">${esc(countText(language, p.stats.matches || 0, "match"))} · ${esc(countText(language, p.stats.goals || 0, "goal"))}</span>
-            </div><span class="sr-only">${esc(t("openProfileAction"))}</span>
-
-          </button>
-
-        `;
-        }
-      )
-      .join("");
-
+  if (!directory.rows.length) {
+    box.innerHTML = emptyState("⌕", t("noDirectoryPlayers"), t("noDirectoryPlayersLead"));
+    return;
+  }
+  const goalsFirst = sort === 'goals';
+  box.innerHTML = directory.rows.map(p => {
+    const avatar = buildPlayerAvatar(p.name);
+    const form = model.forms[p.id]?.formResults || [];
+    return `<button type="button" class="pCard directory-player" data-player-id="${esc(p.id)}" data-avatar-tone="${avatar.tone}">
+      <span class="directory-avatar" aria-hidden="true">${esc(avatar.initials)}</span>
+      <span class="pName"><bdi dir="auto">${esc(p.name || '')}</bdi>
+        <span class="pCardMeta">${esc(countText(language, p.stats[goalsFirst ? 'matches' : 'goals'] || 0, goalsFirst ? 'match' : 'goal'))}</span>
+        ${form.length ? `<span class="directory-form"><span class="sr-only">${esc(t('recentFive'))}: </span>${renderFormDots(form)}</span>` : ''}
+      </span>
+      <span class="directory-metric"><strong>${Number(p.stats[goalsFirst ? 'goals' : 'matches']) || 0}</strong><span>${esc(t(goalsFirst ? 'goals' : 'matches'))}</span></span>
+      <span class="sr-only">${esc(t('openProfileAction'))}</span>
+    </button>`;
+  }).join('');
 }
 
 

@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500411" />
-  <link rel="manifest" href="./manifest.json?v=500411" />
-  <link rel="stylesheet" href="./styles.css?v=500411" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500412" />
+  <link rel="manifest" href="./manifest.json?v=500412" />
+  <link rel="stylesheet" href="./styles.css?v=500412" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -87,7 +87,19 @@
 
   <section id="screen-playerstats" class="screen hidden" aria-labelledby="playersTitle">
     <header class="screen-intro"><div><div class="eyebrow" data-i18n="squad">The squad</div><h1 id="playersTitle" data-i18n="playerStats">Player Stats</h1></div></header>
-    <article class="card"><div class="directory-toolbar"><label class="field grow" for="playerSearch"><span data-i18n="searchPlayers">Search players</span><input id="playerSearch" class="input search-input" type="search" autocomplete="off" placeholder="Search by name…" data-i18n-placeholder="searchPlaceholder" /></label><label class="field directory-sort" for="playerSort"><span data-i18n="sortBy">Sort by</span><select id="playerSort" class="select"><option value="name" data-i18n="alpha">Alphabetical</option><option value="matches" data-i18n="mostMatches">Most matches</option><option value="goals" data-i18n="mostGoals">Most goals</option></select></label></div><div id="playerCards" class="playerCards skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPlayers">Loading players…</div></article>
+    <article class="card directory-card">
+      <div class="directory-toolbar">
+        <label class="field grow" for="playerSearch"><span data-i18n="searchPlayers">Search players</span><input id="playerSearch" class="input search-input" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-describedby="playerSearchCount" placeholder="Search by name…" data-i18n-placeholder="searchPlaceholder" /></label>
+        <label class="field directory-sort" for="playerSort"><span data-i18n="sortBy">Sort by</span><select id="playerSort" class="select"><option value="name" data-i18n="alpha">Alphabetical</option><option value="matches" data-i18n="mostMatches">Most matches</option><option value="goals" data-i18n="mostGoals">Most goals</option></select></label>
+      </div>
+      <div id="playerDirectoryScopes" class="directory-scopes" role="group" aria-label="Player list" data-i18n-aria="directoryScope">
+        <button type="button" class="btn btn-quiet" data-directory-scope="all" aria-pressed="true" aria-controls="playerCards" data-i18n="allPlayersRanking">All players</button>
+        <button type="button" class="btn btn-quiet" data-directory-scope="latest" aria-pressed="false" aria-controls="playerCards" disabled data-i18n="latestTraining">Latest session</button>
+      </div>
+      <p id="playerDirectoryTotals" class="directory-totals" hidden data-i18n="directoryTotals">All-time statistics</p>
+      <div class="directory-summary"><span id="playerSearchCount" class="search-count" role="status" aria-live="polite"></span><time id="playerDirectoryDate" hidden></time><button id="btnClearPlayerSearch" type="button" class="btn btn-quiet" hidden data-i18n="clearPlayerSearch">Clear search</button></div>
+      <div id="playerCards" class="playerCards skeleton-list" aria-busy="true" data-i18n="loadingPlayers">Loading players…</div>
+    </article>
   </section>
 
 
@@ -184,6 +196,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500411"></script>
+<script type="module" src="./app.js?v=500412"></script>
 </body>
 </html>

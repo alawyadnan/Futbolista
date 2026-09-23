@@ -955,3 +955,28 @@ button.profile-match-row{width:100%;color:var(--text);font:inherit;text-align:st
 #profile-panel-partners .card-heading{align-items:center;flex-wrap:wrap;gap:10px}#partnershipSort{max-width:210px;min-height:44px;font-size:12px}
 @media(max-width:640px){.profile-tabs{top:calc(64px + env(safe-area-inset-top,0px))}.profile-tabs button{font-size:11px}.profile-hero-footer{gap:8px}.profile-hero-footer .pin-button{padding-inline:8px;font-size:10px}}
 @media(max-width:350px){.partner-avatar{width:28px;height:28px;flex-basis:28px;font-size:10px}.matesList .partnership-row{gap:7px}.partner-copy>bdi{font-size:12px}.partner-wins{flex-basis:49px}.partner-copy>span{font-size:9px}.profile-tabs{gap:2px;padding:4px}}
+
+/* Squad directory: readable names and one clear statistic at phone widths. */
+.directory-card .directory-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,.45fr);gap:12px;margin-bottom:14px}
+.directory-toolbar .field{min-width:0}.directory-toolbar .input,.directory-toolbar .select{width:100%;min-width:0}
+.directory-scopes{display:flex;gap:7px;flex-wrap:wrap}.directory-scopes .btn{min-height:44px;border:1px solid var(--line);padding:8px 14px;font-size:12px;border-radius:24px}
+.directory-scopes .btn[aria-pressed="true"]{background:rgba(67,223,135,.12);border-color:rgba(67,223,135,.32);color:var(--green)}
+.directory-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:48px;margin:3px 0 8px;color:var(--muted);font-size:11px}
+.directory-summary time{margin-inline-start:auto;font-variant-numeric:tabular-nums}.directory-summary .btn{min-height:44px;padding:6px 10px;font-size:11px;margin-inline-start:auto}
+.directory-card [hidden]{display:none!important}.directory-totals{margin:14px 0 0;color:var(--muted);font-size:11px}
+.directory-card .playerCards{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.directory-player{gap:12px;min-height:112px;padding:15px;text-align:start;appearance:none;-webkit-appearance:none;color:var(--text)}
+.directory-player::before,.directory-player::after{display:none!important}
+.directory-avatar{display:grid;place-items:center;flex:0 0 40px;height:40px;border-radius:50%;border:1px solid rgba(67,223,135,.2);background:rgba(67,223,135,.08);color:var(--green);font-size:12px;font-weight:850}
+.directory-player[data-avatar-tone="1"] .directory-avatar{color:var(--blue);background:rgba(105,174,252,.09);border-color:rgba(105,174,252,.22)}
+.directory-player[data-avatar-tone="2"] .directory-avatar{color:var(--yellow);background:rgba(242,204,96,.09);border-color:rgba(242,204,96,.22)}
+.directory-player[data-avatar-tone="3"] .directory-avatar{color:var(--red);background:rgba(255,123,120,.09);border-color:rgba(255,123,120,.22)}
+.directory-player[data-avatar-tone="4"] .directory-avatar{color:var(--lime);background:rgba(183,243,107,.09);border-color:rgba(183,243,107,.22)}
+.directory-player .pName{min-width:0;flex:1;gap:4px}.directory-player .pName>bdi{display:block;font-size:14px;line-height:1.45;overflow-wrap:anywhere}.directory-player .pCardMeta{font-size:11px;font-weight:500}
+.directory-player .pName>bdi{text-align:left}[dir="rtl"] .directory-player .pName>bdi{text-align:right}
+.directory-form{display:flex;margin-top:4px}.directory-form .result-dots{gap:4px}.directory-form .result-dot{width:18px;height:18px;min-width:18px;font-size:9px}
+.directory-metric{display:flex;flex:0 0 52px;flex-direction:column;align-items:center;gap:5px;text-align:center;align-self:center}
+.directory-metric strong{font-size:26px;line-height:1.1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--green)}.directory-metric>span{color:var(--muted);font-size:10px;line-height:1.5}
+@media(max-width:1100px){.directory-card .playerCards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.directory-card .playerCards{grid-template-columns:minmax(0,1fr);gap:8px}.directory-card .directory-toolbar{grid-template-columns:minmax(0,1fr);gap:12px}.directory-toolbar .directory-sort{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);align-items:center;gap:8px}.directory-toolbar .select{font-size:16px;padding-inline:10px}.directory-toolbar .search-input{padding-inline-start:32px;padding-inline-end:8px;font-size:16px}.directory-player{min-height:106px;padding:13px;gap:11px}.directory-metric{flex-basis:50px}.directory-summary{margin-bottom:4px}}
+@media(max-width:350px){.directory-player{gap:8px;padding:11px}.directory-avatar{flex-basis:32px;height:32px;font-size:10px}.directory-metric{flex-basis:44px}.directory-player .pName>bdi{font-size:13px}}
