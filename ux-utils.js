@@ -86,10 +86,17 @@ export function buildHistoryPeriods(matches = []) {
   return { months, years };
 }
 
-export function filterMatches(matches = [], playerNameForId = () => "", query = "", period = "all", playerId = "") {
+// Recent dates are based on the current search/period, not on the paginated page.
+export function buildMatchDates(matches = [], limit = 8) {
+  return [...new Set(matches.map(match => String(match?.date || "")))]
+    .filter(isValidISODate).sort((a, b) => b.localeCompare(a)).slice(0, limit);
+}
+
+export function filterMatches(matches = [], playerNameForId = () => "", query = "", period = "all", playerId = "", exactDate = "") {
   const needle = normalizeSearch(query);
   return matches.filter(match => {
     const date = String(match?.date || "");
+    if (exactDate && date !== exactDate) return false;
     const periodMatches = period === "all"
       || (period.startsWith("month:") && date.startsWith(period.slice(6)))
       || (period.startsWith("year:") && date.startsWith(period.slice(5)));
@@ -137,7 +144,7 @@ const PUBLIC_ROUTE_SCREENS = new Set([
 
 export function parseAppRoute(hash = "") {
   const raw = String(hash || "").replace(/^#\/?/, "");
-  const [route = "", first = "", third = "", fourth = ""] = raw.split("/");
+  const [route = "", first = "", third = "", fourth = "", fifth = ""] = raw.split("/");
   try {
     if (route === "history" && first === "player" && third) {
       return { screen: "history", playerId: "", historyPlayerId: decodeURIComponent(third).trim() };
@@ -147,7 +154,8 @@ export function parseAppRoute(hash = "") {
       if (!playerId) return { screen: "dashboard", playerId: "" };
       if (third === "compare") {
         const comparisonPlayerId = decodeURIComponent(fourth).trim();
-        return { screen: "playerprofile", playerId, comparison: true, comparisonPlayerId: comparisonPlayerId === playerId ? "" : comparisonPlayerId };
+        return { screen: "playerprofile", playerId, comparison: true, comparisonPlayerId: comparisonPlayerId === playerId ? "" : comparisonPlayerId,
+          ...(fifth === 'recent' && comparisonPlayerId && comparisonPlayerId !== playerId ? {comparisonScope:'recent'} : {}) };
       }
       return { screen: "playerprofile", playerId };
     }
@@ -174,11 +182,11 @@ export function appRouteFor(screen, playerId = "") {
   return `#${PUBLIC_ROUTE_SCREENS.has(screen) ? screen : "dashboard"}`;
 }
 
-export function compareRouteFor(playerAId = "", playerBId = "") {
+export function compareRouteFor(playerAId = "", playerBId = "", scope = "all") {
   const aId = String(playerAId || "").trim(), bId = String(playerBId || "").trim();
   if (!aId) return "#players";
   const route = `#player/${encodeURIComponent(aId)}/compare`;
-  return bId && aId !== bId ? `${route}/${encodeURIComponent(bId)}` : route;
+  return bId && aId !== bId ? `${route}/${encodeURIComponent(bId)}${scope === 'recent' ? '/recent' : ''}` : route;
 }
 
 export function publicAppUrl(currentUrl, hash) {

@@ -26,23 +26,24 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   computeTeammates as computeFootballTeammates
-} from "./data-engine.js?v=500409";
+} from "./data-engine.js?v=500410";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500409";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory } from "./insights-engine.js?v=500409";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500409";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500409";
-import { resolvePublicPlayers } from "./community-engine.js?v=500409";
-import { createCommunity } from "./community.js?v=500409";
-import { createHighlights } from "./highlights.js?v=500409";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500409";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500409";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500409";
-import { observeConnectivity } from "./connectivity.js?v=500409";
+import { countText, directionFor, translate } from "./i18n.js?v=500410";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow } from "./insights-engine.js?v=500410";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500410";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500410";
+import { resolvePublicPlayers } from "./community-engine.js?v=500410";
+import { createCommunity } from "./community.js?v=500410";
+import { createHighlights } from "./highlights.js?v=500410";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500410";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500410";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500410";
+import { observeConnectivity } from "./connectivity.js?v=500410";
 
 import {
   appRouteFor,
   buildHistoryPeriods,
+  buildMatchDates,
   buildPlayerAvatar,
   buildRankingMetric,
   compareMetricValues,
@@ -58,7 +59,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500409";
+} from "./ux-utils.js?v=500410";
 
 
 /* =========================================================
@@ -180,6 +181,8 @@ const HISTORY_PAGE_SIZE = 10;
 
 let historyVisibleCount = HISTORY_PAGE_SIZE;
 let historyPlayerId = '';
+let historyExactDate = '';
+let comparisonScope = 'all';
 
 let sortedHistoryModel = null;
 
@@ -384,7 +387,7 @@ function shareComparison() {
   shareContent({
     title: `${playerA.name} ${t("versus")} ${playerB.name} · Futbolista`,
     text: t("shareComparisonText", { playerA: playerA.name, playerB: playerB.name }),
-    hash: compareRouteFor(playerAId, playerBId)
+    hash: compareRouteFor(playerAId, playerBId, comparisonScope)
   });
 }
 
@@ -659,6 +662,14 @@ document.addEventListener("DOMContentLoaded", () => {
     $("btnCompareProfile")?.focus({ preventScroll: true });
   });
   $("cmpPlayerB")?.addEventListener("change", handleCompareSelection);
+  $("compareResult")?.addEventListener("click", event => {
+    const button = event.target.closest('[data-compare-scope]');
+    if (!button || !['all', 'recent'].includes(button.dataset.compareScope)) return;
+    comparisonScope = button.dataset.compareScope;
+    updateLocationForScreen('playerprofile', {replace:true});
+    renderCompare();
+    $("compareResult")?.querySelector(`[data-compare-scope="${comparisonScope}"]`)?.focus({ preventScroll: true });
+  });
 
   $("btnShareProfile")?.addEventListener("click", sharePlayerProfile);
   $("btnPlayerHistory")?.addEventListener("click", () => {
@@ -672,12 +683,23 @@ document.addEventListener("DOMContentLoaded", () => {
   $("playerSearch")?.addEventListener("input", renderPlayerCardsNameOnly);
   $("playerSort")?.addEventListener("change", renderPlayerCardsNameOnly);
   $("historySearch")?.addEventListener("input", () => {
+    historyExactDate = '';
     historyVisibleCount = HISTORY_PAGE_SIZE;
     renderMatchHistory();
   });
   $("historyPeriod")?.addEventListener("change", () => {
+    historyExactDate = '';
     historyVisibleCount = HISTORY_PAGE_SIZE;
     renderMatchHistory();
+  });
+  $("historyDateRail")?.addEventListener("click", event => {
+    const button = event.target.closest('[data-history-date]');
+    if (!button) return;
+    historyExactDate = button.dataset.historyDate;
+    historyVisibleCount = HISTORY_PAGE_SIZE;
+    if (historyExactDate) getFilteredMatches().forEach(match => expandedMatchKeys.add(String(match.matchKey)));
+    renderMatchHistory();
+    $("historyDateRail")?.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
   });
   $("btnClearHistory")?.addEventListener("click", () => {
     historyPlayerId = ''; resetHistoryControls(); renderMatchHistory(); updateLocationForScreen('history');
@@ -729,6 +751,18 @@ document.addEventListener("DOMContentLoaded", () => {
   $("lbSort")?.addEventListener("change", renderLeaderboard);
   $("leaderboardSearch")?.addEventListener("input", renderLeaderboard);
   $("tableSearch")?.addEventListener("input", renderTable);
+  for (const [id, selectId, render] of [['leaderboardShortcuts', 'lbSort', renderLeaderboard], ['tableShortcuts', 'tableSort', renderTable]]) {
+    $(id)?.addEventListener('click', event => {
+      const button = event.target.closest('[data-ranking-sort]');
+      const select = $(selectId);
+      if (!button || !select || ![...select.options].some(option => option.value === button.dataset.rankingSort)) return;
+      select.value = button.dataset.rankingSort;
+      render();
+      $(id)?.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+      const wrap = $('tableBody')?.closest('.tablewrap');
+      if (id === 'tableShortcuts' && wrap) wrap.scrollLeft = 0;
+    });
+  }
   $("btnLeaderboardDetails")?.addEventListener("click", () => {
     const expanded = $("btnLeaderboardDetails").getAttribute('aria-pressed') !== 'true';
     $("btnLeaderboardDetails").setAttribute('aria-pressed',String(expanded));
@@ -790,7 +824,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500409").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500410").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1309,6 +1343,7 @@ function syncScreenFromLocation() {
   currentProfileId = route.screen === "playerprofile" ? route.playerId : null;
   comparisonOpen = route.comparison === true;
   comparisonPlayerId = route.comparisonPlayerId || "";
+  comparisonScope = route.comparisonScope === 'recent' ? 'recent' : 'all';
   if (route.screen === 'history') {
     if (historyPlayerId !== (route.historyPlayerId || '')) resetHistoryControls();
     historyPlayerId = route.historyPlayerId || '';
@@ -1348,7 +1383,7 @@ function updateLocationForScreen(name, { replace = false } = {}) {
 }
 
 
-function currentComparisonRoute() { return compareRouteFor(currentProfileId, comparisonPlayerId); }
+function currentComparisonRoute() { return compareRouteFor(currentProfileId, comparisonPlayerId, comparisonScope); }
 
 function showScreen(
   name,
@@ -2826,12 +2861,27 @@ function rankingStatus(error) {
   return `<p class="note" role="status">${esc(t(error ? 'awardLoadError' : 'loadingMvp'))}</p>${error ? `<button type="button" class="btn btn-quiet" data-community-action="retry-results">${esc(t('retryData'))}</button>` : ''}`;
 }
 
+function renderRankingShortcuts(id, sortBy) {
+  const box = $(id);
+  if (!box) return;
+  const keys = [['winPct', 'winPct'], ['goals', 'topScorers'], ...(communityEnabled ? [['motmAwards', 'motmShort'], ['votingPoints', 'votingPoints']] : [])];
+  // Keep the button nodes stable: sorting must not reset internal scroll or focus.
+  const signature = `${language}:${communityEnabled}`;
+  if (box.dataset.signature !== signature) {
+    box.innerHTML = keys.map(([key, label]) => `<button type="button" data-ranking-sort="${key}" aria-pressed="false">${esc(t(label))}</button>`).join('');
+    box.dataset.signature = signature;
+  }
+  box.querySelectorAll('[data-ranking-sort]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.rankingSort === sortBy)));
+}
+
 function renderLeaderboard() {
 
   const sortBy =
     $("lbSort")?.value
     ||
     "form";
+
+  renderRankingShortcuts('leaderboardShortcuts', sortBy);
 
 
   const { rows: allRows, awardSort, complete, pending, error } = rankingRows(sortBy);
@@ -2904,6 +2954,8 @@ function renderTable() {
     $("tableSort")?.value
     ||
     "winPct";
+
+  renderRankingShortcuts('tableShortcuts', sortBy);
 
 
   const { rows: allRows, awardSort, complete, pending, error } = rankingRows(sortBy);
@@ -3087,6 +3139,7 @@ function openProfile(
   showAllTeammates = false;
   comparisonOpen = false;
   comparisonPlayerId = "";
+  comparisonScope = 'all';
 
   currentProfileId =
     String(pid);
@@ -3362,6 +3415,7 @@ function openHistoryMatch(matchKey) {
   const index = getSortedMatches().findIndex(match => String(match.matchKey) === String(matchKey));
   if (index < 0) return;
   historyPlayerId = '';
+  historyExactDate = '';
   if ($("historySearch")) $("historySearch").value = "";
   if ($("historyPeriod")) $("historyPeriod").value = "all";
   historyVisibleCount = Math.max(HISTORY_PAGE_SIZE, index + 1);
@@ -3583,6 +3637,7 @@ function renderMatchHistory() {
   if (!box) return;
   const allMatches = getSortedMatches();
   renderHistoryOptions(allMatches);
+  renderHistoryDateRail(allMatches);
   const matches = getFilteredMatches(allMatches);
   renderHistorySelection(matches);
   if (!allMatches.length) {
@@ -3608,21 +3663,24 @@ function renderMatchHistory() {
     const labelForOutcome = outcome => t(outcome === "draw" ? "tie" : outcome);
     const detailsId = `match-details-${index}`;
     const participation = historyPlayerId ? match.parts.find(part => part.playerId === historyPlayerId) : null;
+    const month = match.date.slice(0, 7);
+    const monthHeading = index === 0 || page.visible[index - 1].date.slice(0, 7) !== month;
     return `
+      ${monthHeading ? `<h2 class="history-month-heading">${esc(formatMonthLabel(month))}</h2>` : ''}
       <article class="matchCard ${expanded ? "expanded" : "collapsed"}">
         <button type="button" class="matchTop match-summary" data-match-toggle="${esc(key)}" aria-expanded="${expanded}" aria-controls="${detailsId}">
-          <span class="matchDate"><span>${esc(t("matchday"))}</span><time datetime="${esc(match.date)}">${esc(formatMatchDate(match.date))}</time></span>
+          <span class="matchDate"><span>${esc(formatMatchWeekday(match.date))}</span><time datetime="${esc(match.date)}">${esc(formatMatchDate(match.date))}</time></span>
           <span class="match-summary-end"><span class="matchScore labeled-score" dir="ltr" aria-label="${esc(t('matchScoreAria',{a:match.scoreA,b:match.scoreB}))}"><span class="${outcomeA}" aria-hidden="true"><small dir="auto">${esc(t('teamA'))}</small><b>${match.scoreA}</b></span><span class="score-divider" aria-hidden="true">:</span><span class="${outcomeB}" aria-hidden="true"><small dir="auto">${esc(t('teamB'))}</small><b>${match.scoreB}</b></span></span><span class="match-chevron" aria-hidden="true">⌄</span></span>
         </button>
         ${participation ? `<div class="history-appearance"><span class="result-badge ${participation.result}">${esc(t(participation.result))}</span><span>${esc(teamLabel(participation.side))}</span><strong>${esc(countText(language,participation.normalGoals,'goal'))}</strong>${participation.ownGoals ? `<span class="own-goal-tag">${esc(t('ownGoals'))} · ${participation.ownGoals}</span>` : ''}</div>` : ''}
         <div id="${detailsId}" class="match-details" ${expanded ? "" : "hidden"}>
           <div class="matchGrid">
             <section class="teamBox ${outcomeA}" aria-label="${esc(t("teamA"))}">
-              <div class="teamTitle"><span>${esc(t("teamA"))}</span><strong>${esc(labelForOutcome(outcomeA))}</strong></div>
+              <div class="teamTitle"><span>${esc(t("teamA"))}<small>${esc(countText(language, match.teamA.length, 'player'))}</small></span><strong>${esc(labelForOutcome(outcomeA))}</strong></div>
               ${sideLines(match.teamA)}
             </section>
             <section class="teamBox ${outcomeB}" aria-label="${esc(t("teamB"))}">
-              <div class="teamTitle"><span>${esc(t("teamB"))}</span><strong>${esc(labelForOutcome(outcomeB))}</strong></div>
+              <div class="teamTitle"><span>${esc(t("teamB"))}<small>${esc(countText(language, match.teamB.length, 'player'))}</small></span><strong>${esc(labelForOutcome(outcomeB))}</strong></div>
               ${sideLines(match.teamB)}
             </section>
           </div>
@@ -3649,17 +3707,38 @@ function getSortedMatches() {
 
 
 function getFilteredMatches(sortedMatches = getSortedMatches()) {
-  return filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all", historyPlayerId);
+  return filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all", historyPlayerId, historyExactDate);
+}
+
+function formatMatchWeekday(date) {
+  if (!isValidISODate(date)) return t('matchday');
+  return new Intl.DateTimeFormat(language === 'ar' ? 'ar-SA-u-ca-gregory' : 'en-GB', { weekday: 'long' }).format(new Date(`${date}T12:00:00`));
+}
+
+function renderHistoryDateRail(allMatches) {
+  const box = $('historyDateRail');
+  if (!box) return;
+  const matches = filterMatches(allMatches, playerName, $('historySearch')?.value || '', $('historyPeriod')?.value || 'all', historyPlayerId);
+  const dates = buildMatchDates(matches);
+  if (!dates.includes(historyExactDate)) historyExactDate = '';
+  box.classList.toggle('hidden', !dates.length);
+  const signature = `${language}:${dates.join('|')}`;
+  if (box.dataset.signature !== signature) {
+    box.innerHTML = `<button type="button" class="date-chip date-chip-all" data-history-date="" aria-pressed="false"><span aria-hidden="true">◷</span><strong>${esc(t('allDates'))}</strong></button>` + dates.map(date => `<button type="button" class="date-chip" data-history-date="${date}" aria-pressed="false" aria-label="${esc(formatMatchDate(date))}"><span>${esc(formatMatchWeekday(date))}</span><strong>${Number(date.slice(8))}</strong><small>${esc(formatMonthLabel(date.slice(0, 7)))}</small></button>`).join('');
+    box.dataset.signature = signature;
+  }
+  box.querySelectorAll('[data-history-date]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.historyDate === historyExactDate)));
 }
 
 function resetHistoryControls() {
+  historyExactDate = '';
   if ($('historySearch')) $('historySearch').value = '';
   if ($('historyPeriod')) $('historyPeriod').value = 'all';
   historyVisibleCount = HISTORY_PAGE_SIZE;
 }
 
 function renderHistorySelection(matches) {
-  const active = !!(historyPlayerId || $('historySearch')?.value.trim() || $('historyPeriod')?.value !== 'all');
+  const active = !!(historyExactDate || historyPlayerId || $('historySearch')?.value.trim() || $('historyPeriod')?.value !== 'all');
   $('historySearch')?.closest('.field')?.classList.toggle('hidden', !!historyPlayerId);
   document.querySelector('#screen-history .screen-intro .eyebrow')?.classList.toggle('hidden', !!historyPlayerId);
   $('btnClearHistory')?.classList.toggle('hidden', !active);
@@ -3824,14 +3903,14 @@ function sideLines(
           const goals =
             x.normalGoals > 0
               ?
-              `(${x.normalGoals})`
+              `<span class="scorer-pill ${x.normalGoals >= 3 ? 'hat-trick' : ''}" aria-label="${esc(countText(language, x.normalGoals, 'goal'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m12 7 5 4-2 6H9l-2-6zM12 7V3m5 8 4-2m-6 8 3 3M9 17l-3 3m1-9L3 9"/></svg><b>${x.normalGoals}</b></span>`
               :
               "";
 
 
           return `
 
-            <div class="teamLine">
+            <div class="teamLine ${x.normalGoals > 0 ? 'has-goals' : ''}">
 
               <button type="button" class="playerName inline-player-link" data-open-player="${esc(x.playerId)}">
                 <bdi dir="auto">${esc(name)}</bdi>
@@ -4120,309 +4199,74 @@ function renderLogs() {
 ========================================================= */
 
 function renderCompare() {
-
   const aId = String(currentProfileId || "");
-
-
-  const bId =
-    String(
-      $("cmpPlayerB")?.value
-      ||
-      ""
-    );
-
-
-  const box =
-    $("compareResult");
-
-  const shareButton =
-    $("btnShareComparison");
-
-
-  if (!box) {
-
-    return;
-
-  }
-
+  const bId = String($("cmpPlayerB")?.value || "");
+  const box = $("compareResult");
+  const shareButton = $("btnShareComparison");
+  if (!box) return;
   shareButton?.classList.add("hidden");
-
-
-  if (
-    !aId
-    ||
-    !bId
-    ||
-    aId === bId
-  ) {
-
+  if (!aId || !bId || aId === bId) {
     box.replaceChildren();
     updatePageContext("playerprofile");
-
-
     return;
-
   }
-
-  const aPlayer =
-    players.find(
-      p =>
-        String(p.id)
-        ===
-        aId
-    );
-
-
-  const bPlayer =
-    players.find(
-      p =>
-        String(p.id)
-        ===
-        bId
-    );
-
-
-  if (
-    !aPlayer
-    ||
-    !bPlayer
-  ) {
-
+  const aPlayer = players.find(player => String(player.id) === aId);
+  const bPlayer = players.find(player => String(player.id) === bId);
+  if (!aPlayer || !bPlayer) {
     box.innerHTML = emptyState("!", t("playersNotFound"), t("playersNotFoundLead"), true);
-
-
     return;
-
   }
-
   shareButton?.classList.remove("hidden");
   updatePageContext("compare", `${aPlayer.name} ${t("versus")} ${bPlayer.name}`);
-
-
-  const aStats =
-    model.stats[aId]
-    ||
-    emptyStats();
-
-
-  const bStats =
-    model.stats[bId]
-    ||
-    emptyStats();
-
-
-  const aForm =
-    model.forms[aId]
-    ||
-    {
-      formIcons: "",
-      formResults: [],
-      formPoints: 0
-    };
-
-
-  const bForm =
-    model.forms[bId]
-    ||
-    {
-      formIcons: "",
-      formResults: [],
-      formPoints: 0
-    };
-
-
-  const h2h =
-    computeHeadToHead(
-      aId,
-      bId
-    );
-
-
+  const aStats = computeComparisonWindow(model, aId, comparisonScope);
+  const bStats = computeComparisonWindow(model, bId, comparisonScope);
+  const aForm = model.forms[aId] || { formResults: [], formPoints: 0 };
+  const bForm = model.forms[bId] || { formResults: [], formPoints: 0 };
+  const h2h = computeHeadToHead(aId, bId);
+  const identity = (player, side) => `<button type="button" class="compareName compare-player-${side} inline-player-link" data-open-player="${esc(player.id)}"><span class="compare-avatar" aria-hidden="true">${esc(buildPlayerAvatar(player.name).initials)}</span><bdi dir="auto">${esc(player.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span></button>`;
+  const metric = (key, label = key, format = String) => compareStatLine(t(label), format(aStats[key]), format(bStats[key]), aStats[key], bStats[key]);
   box.innerHTML = `
-
-    <div class="card">
-
+    <div class="card compare-identities">
       <div class="compareHeader horizontal">
-
-        <button type="button" class="compareName compare-player-a inline-player-link" data-open-player="${esc(aId)}">
-          <span class="compare-avatar" aria-hidden="true">${esc(buildPlayerAvatar(aPlayer.name).initials)}</span>
-          <bdi dir="auto">${esc(aPlayer.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span>
-        </button>
-
-        <div class="compareVs">
-          ${esc(t("versus"))}
-        </div>
-
-        <button type="button" class="compareName compare-player-b inline-player-link" data-open-player="${esc(bId)}">
-          <span class="compare-avatar" aria-hidden="true">${esc(buildPlayerAvatar(bPlayer.name).initials)}</span>
-          <bdi dir="auto">${esc(bPlayer.name)}</bdi><span class="sr-only"> ${esc(t("openProfileAction"))}</span>
-        </button>
-
+        ${identity(aPlayer, 'a')}<div class="compareVs">${esc(t("versus"))}</div>${identity(bPlayer, 'b')}
       </div>
-
     </div>
-
-
-    <div class="card">
-
-      <h2 class="card-title">
-        ${esc(t("headToHead"))}
-      </h2>
-
-      <div class="compareRows">
-
-        ${
-          compareCenterValueRow(
-            t("againstEachOther"),
-            h2h.againstMatches
-          )
-        }
-
-        ${
-          compareCompactDualRow(
-            t("wins"),
-            h2h.aWinsAgainst,
-            h2h.bWinsAgainst
-          )
-        }
-
-        ${
-          compareCenterValueRow(
-            t("draws"),
-            h2h.drawsAgainst
-          )
-        }
-
+    <div class="card compare-individual">
+      <h2 class="card-title">${esc(t("individualStats"))}</h2>
+      <div class="segment-control compare-scope" role="group" aria-label="${esc(t('comparisonPeriod'))}">
+        <button type="button" data-compare-scope="all" aria-pressed="${comparisonScope === 'all'}">${esc(t('allTime'))}</button>
+        <button type="button" data-compare-scope="recent" aria-pressed="${comparisonScope === 'recent'}">${esc(t('recentFive'))}</button>
       </div>
-
-    </div>
-
-
-    <div class="card compare-together">
-
-      <h2 class="card-title">
-        ${esc(t("teammatesRecord"))}
-      </h2>
-
-      <div class="compareRows">
-
-        ${
-          compareCenterValueRow(
-            t("matches"),
-            h2h.togetherMatches
-          )
-        }
-
-        ${
-          compareCenterValueRow(
-            t("wins"),
-            h2h.togetherWins
-          )
-        }
-
-        ${
-          compareCenterValueRow(
-            t("losses"),
-            h2h.togetherLosses
-          )
-        }
-
-        ${
-          compareCenterValueRow(
-            t("draws"),
-            h2h.togetherDraws
-          )
-        }
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h2 class="card-title">
-        ${esc(t("individualStats"))}
-      </h2>
-
+      ${comparisonScope === 'recent' ? `<p class="compare-scope-caption">${esc(t('recentFiveEach'))}</p>` : ''}
       <div class="compareTable">
-
-        ${
-          compareStatLine(
-            t("matches"),
-            aStats.matches,
-            bStats.matches,
-            aStats.matches,
-            bStats.matches
-          )
-        }
-
-        ${
-          compareStatLine(
-            t("goals"),
-            aStats.goals,
-            bStats.goals,
-            aStats.goals,
-            bStats.goals
-          )
-        }
-
-        ${
-          compareStatLine(
-            t("wins"),
-            aStats.wins,
-            bStats.wins,
-            aStats.wins,
-            bStats.wins
-          )
-        }
-
-        ${
-          compareStatLine(
-            t("winPct"),
-            fmtPct(aStats.winPct),
-            fmtPct(bStats.winPct),
-            aStats.winPct,
-            bStats.winPct
-          )
-        }
-
-        ${
-          compareStatLine(
-            t("gpm"),
-            fmt2(aStats.gpm),
-            fmt2(bStats.gpm),
-            aStats.gpm,
-            bStats.gpm
-          )
-        }
-
-        ${
-          compareStatLine(
-            t("bestWinStreak"),
-            aStats.best,
-            bStats.best,
-            aStats.best,
-            bStats.best
-          )
-        }
-
-        ${
-          compareFormStatLine(
-            t("form"),
-            renderFormDots(aForm.formResults || []),
-            renderFormDots(bForm.formResults || []),
-            aForm.formPoints,
-            bForm.formPoints
-          )
-        }
-
+        ${metric('matches')}
+        ${metric('goals')}
+        ${metric('wins')}
+        ${metric('winPct', 'winPct', fmtPct)}
+        ${metric('gpm', 'gpm', fmt2)}
+        ${metric('best', 'bestWinStreak')}
+        ${compareFormStatLine(t("form"), renderFormDots(aForm.formResults || []), renderFormDots(bForm.formResults || []), aForm.formPoints, bForm.formPoints)}
       </div>
-
     </div>
-
-  `;
-
+    <div class="card compare-head-to-head">
+      <h2 class="card-title">${esc(t("headToHead"))}</h2>
+      <span class="compare-scope-caption">${esc(t('allTime'))}</span>
+      <div class="compareRows">
+        ${compareCenterValueRow(t("againstEachOther"), h2h.againstMatches)}
+        ${compareCompactDualRow(t("wins"), h2h.aWinsAgainst, h2h.bWinsAgainst)}
+        ${compareCenterValueRow(t("draws"), h2h.drawsAgainst)}
+      </div>
+    </div>
+    <div class="card compare-together">
+      <h2 class="card-title">${esc(t("teammatesRecord"))}</h2>
+      <span class="compare-scope-caption">${esc(t('allTime'))}</span>
+      <div class="compareRows">
+        ${compareCenterValueRow(t("matches"), h2h.togetherMatches)}
+        ${compareCenterValueRow(t("wins"), h2h.togetherWins)}
+        ${compareCenterValueRow(t("draws"), h2h.togetherDraws)}
+        ${compareCenterValueRow(t("losses"), h2h.togetherLosses)}
+      </div>
+    </div>`;
 }
 
 

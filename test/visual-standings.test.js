@@ -21,7 +21,7 @@ test('actual compact renderer preserves all detailed statistics and safe player 
   for(const key of Object.keys(expected)){
     const list={innerHTML:''};
     runInNewContext(render+'\nrenderLeaderboard();',{$:id=>id==='lbSort'?{value:key}:list,rankingRows:()=>({rows:[row],awardSort:['votingPoints','motmAwards','monthAwards'].includes(key),complete:true}),
-      buildRankingMetric,buildPlayerAvatar,filterRankingRows,communityEnabled:true,t:k=>translate('en',k),esc:v=>String(v).replaceAll('<','&lt;').replaceAll('>','&gt;'),formatFormPoints:()=>3.5,renderFormDots:()=>'<span class="result-dots">W</span>',fmtPct:()=> '63%',fmt2:()=> '1.50'});
+      renderRankingShortcuts(){},buildRankingMetric,buildPlayerAvatar,filterRankingRows,communityEnabled:true,t:k=>translate('en',k),esc:v=>String(v).replaceAll('<','&lt;').replaceAll('>','&gt;'),formatFormPoints:()=>3.5,renderFormDots:()=>'<span class="result-dots">W</span>',fmtPct:()=> '63%',fmt2:()=> '1.50'});
     assert.match(list.innerHTML,new RegExp(`data-primary-metric="${key}"`));
     assert.ok(list.innerHTML.includes(`>${expected[key][1]}</strong>`));
     assert.match(list.innerHTML,/Ali &lt;script&gt;/);

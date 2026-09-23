@@ -2,6 +2,8 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    matchDates: "Match dates", comparisonPeriod: "Statistics period", recentFive: "Last 5 appearances",
+    recentFiveEach: "Each player's latest 5 appearances; fewer if not yet played.",
     searchResultsCount: "{count} of {total} players",
     deletionRequested: "Deletion requested", accountPaused: "Account changes paused",
     deletionActionsPaused: "Your deletion request is pending. Voting and profile changes are paused; you can still view match results and statistics.",
@@ -156,6 +158,8 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    matchDates: "تواريخ المباريات", comparisonPeriod: "فترة الإحصائيات", recentFive: "آخر ٥ مشاركات",
+    recentFiveEach: "آخر ٥ مشاركات لكل لاعب، أو المتاح إن كانت مشاركاته أقل.",
     searchResultsCount: "{count} من {total} لاعب",
     deletionRequested: "طلب الحذف قيد المعالجة", accountPaused: "تعديل الحساب متوقف",
     deletionActionsPaused: "طلب حذف حسابك قيد المعالجة. التصويت وتعديل الملف متوقفان، ويمكنك الاستمرار في مشاهدة النتائج والإحصائيات.",

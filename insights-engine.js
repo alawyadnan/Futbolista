@@ -17,6 +17,19 @@ function summarizeWindow(participations) {
   return summary;
 }
 
+// Each player's own latest appearances; absences are never counted as losses.
+// Consume canonical participations so duplicates/own goals cannot inflate totals.
+export function computeComparisonWindow(model, playerId, scope = "all") {
+  const all = playerParticipations(model, playerId);
+  const parts = scope === "recent" ? all.slice(-5) : all;
+  let current = 0, best = 0;
+  for (const part of parts) {
+    current = part.result === "win" ? current + 1 : 0;
+    best = Math.max(best, current);
+  }
+  return { ...summarizeWindow(parts), current, best };
+}
+
 // Input is canonical match summaries, never raw normal/own-goal log rows.
 // Count the full filtered selection, independently of UI pagination.
 export function summarizePlayerHistory(matches = [], playerId = '') {

@@ -122,7 +122,7 @@ test('actual leaderboard and table show a dash, not a gold first place, for unea
     const nodes=new Map();
     const node=id=>{if(!nodes.has(id))nodes.set(id,{value:id.endsWith('Search')?'':awardSort?'motmAwards':'wins',innerHTML:'',closest:()=>null});return nodes.get(id);};
     const context={$:node,rankingRows:()=>({rows:[{id:'a',name:'A',rank:null,motmAwards:0,votingPoints:0,monthAwards:0,formResults:[]}],awardSort,complete:true}),
-      communityEnabled:true,buildRankingMetric,buildPlayerAvatar,filterRankingRows,t:key=>key,esc:value=>String(value),formatFormPoints:()=>0,renderFormDots:()=>'',fmtPct:()=>0,fmt2:()=>0};
+      renderRankingShortcuts(){},communityEnabled:true,buildRankingMetric,buildPlayerAvatar,filterRankingRows,t:key=>key,esc:value=>String(value),formatFormPoints:()=>0,renderFormDots:()=>'',fmtPct:()=>0,fmt2:()=>0};
     runInNewContext(source.slice(source.indexOf('function renderLeaderboard('),source.indexOf('function renderPlayerCardsNameOnly('))+'\nrenderLeaderboard();renderTable();',context);
     assert.match(node('tableBody').innerHTML,awardSort?/<td>—<\/td>/:/<td>1<\/td>/);
     assert.match(node('leaderboardList').innerHTML,awardSort?/class="rank-badge ">—/:/class="rank-badge top">1/);

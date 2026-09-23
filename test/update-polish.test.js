@@ -71,6 +71,6 @@ test('ranking searches are labeled and version bump preserves bundle identity an
   }
   const project = read('native/ios/App/App.xcodeproj/project.pbxproj');
   assert.match(project,/MARKETING_VERSION = 1\.0\.1/);
-  assert.match(project,/CURRENT_PROJECT_VERSION = 3/);
+  assert.match(project,/CURRENT_PROJECT_VERSION = 4/);
   assert.match(project,/PRODUCT_BUNDLE_IDENTIFIER = live\.ftbll\.futbolista/);
 });
