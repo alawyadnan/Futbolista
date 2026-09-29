@@ -273,6 +273,16 @@ h2,.card-title{font-size:18px;line-height:1.2;letter-spacing:-.02em}
 .result-badge.win{background:var(--green)}
 .result-badge.draw{background:var(--yellow)}
 .result-badge.loss{background:var(--red)}
+.goals-only-tag{display:inline-flex;max-width:100%;padding:2px 7px;border:1px solid rgba(105,174,252,.3);border-radius:6px;background:rgba(105,174,252,.07);color:var(--blue);font-size:10px;font-weight:650;line-height:1.6;white-space:normal}
+.additional-goals-card{margin-block:18px}
+.additional-goals-card>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;cursor:pointer;list-style:none}
+.additional-goals-card>summary::-webkit-details-marker{display:none}
+.additional-goals-card>summary>span{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--line);border-radius:9px;color:var(--green)}
+.additional-goals-card[open]>summary>span{transform:rotate(45deg)}
+.additional-goals-card>summary:focus-visible{outline:2px solid var(--green);outline-offset:5px;border-radius:5px}
+.additional-goals-card .note,.additional-goals-record{font-size:12px;line-height:1.9;overflow-wrap:anywhere}
+.additional-goals-record{padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(67,223,135,.04);color:var(--muted)}
+.additional-goals-card .field{min-width:0}.additional-goals-card .input,.additional-goals-card .select{width:100%;max-width:100%;min-width:0}
 .own-goal-tag{padding:4px 7px;border-radius:7px;background:rgba(255,123,120,.09);color:#ffaaa7;font-size:9px;font-weight:850;white-space:nowrap}
 
 .match-list{display:flex;flex-direction:column;gap:14px}

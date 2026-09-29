@@ -1,5 +1,5 @@
 const CACHE_PREFIX = "futbolista-cache-";
-const CACHE = `${CACHE_PREFIX}v500413`;
+const CACHE = `${CACHE_PREFIX}v500414`;
 
 const ASSETS = [
   "./",
@@ -7,29 +7,29 @@ const ASSETS = [
   "./privacy.html",
   "./support.html",
   "./policy.css",
-  "./styles.css?v=500413",
-  "./app.js?v=500413",
-  "./data-engine.js?v=500413",
-  "./i18n.js?v=500413",
-  "./ux-utils.js?v=500413",
-  "./platform.js?v=500413",
-  "./platform-utils.js?v=500413",
-  "./connectivity.js?v=500413",
-  "./insights-engine.js?v=500413",
-  "./personalization.js?v=500413",
-  "./community-config.js?v=500413",
-  "./community-engine.js?v=500413",
-  "./community.js?v=500413",
-  "./account-ux.js?v=500413",
-  "./highlights.js?v=500413",
-  "./award-statistics.js?v=500413",
-  "./highlights-engine.js?v=500413",
+  "./styles.css?v=500414",
+  "./app.js?v=500414",
+  "./data-engine.js?v=500414",
+  "./i18n.js?v=500414",
+  "./ux-utils.js?v=500414",
+  "./platform.js?v=500414",
+  "./platform-utils.js?v=500414",
+  "./connectivity.js?v=500414",
+  "./insights-engine.js?v=500414",
+  "./personalization.js?v=500414",
+  "./community-config.js?v=500414",
+  "./community-engine.js?v=500414",
+  "./community.js?v=500414",
+  "./account-ux.js?v=500414",
+  "./highlights.js?v=500414",
+  "./award-statistics.js?v=500414",
+  "./highlights-engine.js?v=500414",
   "./icon.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-maskable-512.png",
-  "./apple-touch-icon.png?v=500413",
-  "./manifest.json?v=500413"
+  "./apple-touch-icon.png?v=500414",
+  "./manifest.json?v=500414"
 ];
 
 self.addEventListener("install", event => {

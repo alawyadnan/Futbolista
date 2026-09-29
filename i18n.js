@@ -2,6 +2,13 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    additionalGoals: "Additional goals", goalsOnly: "Goals only", recordedMatch: "Recorded match", chooseRecordedMatch: "Choose a recorded match", chooseGoalTeam: "Choose the team for these goals",
+    additionalGoalTeam: "Team at the time of the goal", additionalGoalCount: "Goals to add", saveAdditionalGoals: "Add goals",
+    additionalGoalsHint: "Add goals to an existing appearance, including goals scored for the other team. The player's recorded result stays unchanged.",
+    additionalKeepsResult: "Recorded appearance: {team} · {result}. No second appearance is added.",
+    additionalNeedsAppearance: "Choose a match and a player with an existing appearance.",
+    invalidAdditionalGoals: "Enter a whole number of goals to add, from 1 to 99.",
+    additionalSaveConflict: "Could not confirm this addition. Refresh the data before trying again.", additionalGoalsSaved: "Goals added. The player's recorded result is unchanged.",
     sharedMatches: "Their matches", sharedMatchHistory: "Meeting history", meetingType: "Match relationship", asOpponents: "Opponents", sameTeam: "Same team",
     noAgainstMatches: "No matches against each other", noTogetherMatches: "No matches on the same team",
     backToComparison: "Back to comparison", backToProfile: "Back to profile",
@@ -165,6 +172,13 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    additionalGoals: "إضافة أهداف", goalsOnly: "أهداف فقط", recordedMatch: "المباراة المسجّلة", chooseRecordedMatch: "اختر مباراة مسجّلة", chooseGoalTeam: "اختر الفريق لهذه الأهداف",
+    additionalGoalTeam: "الفريق عند تسجيل الهدف", additionalGoalCount: "عدد الأهداف الإضافية", saveAdditionalGoals: "إضافة الأهداف",
+    additionalGoalsHint: "أضف أهدافًا لمشاركة موجودة، حتى لو سجّلها مع الفريق الآخر. نتيجة اللاعب المسجّلة لا تتغيّر.",
+    additionalKeepsResult: "مشاركته المسجّلة: {team} · {result}. لا تُضاف مباراة ثانية.",
+    additionalNeedsAppearance: "اختر مباراة ولاعبًا له مشاركة مسجّلة فيها.",
+    invalidAdditionalGoals: "أدخل عددًا صحيحًا للأهداف الإضافية من 1 إلى 99.",
+    additionalSaveConflict: "تعذّر تأكيد هذه الإضافة. حدّث البيانات قبل المحاولة مجددًا.", additionalGoalsSaved: "أُضيفت الأهداف دون تغيير نتيجة اللاعب المسجّلة.",
     sharedMatches: "مبارياتهما", sharedMatchHistory: "سجل اللقاءات", meetingType: "نوع اللقاء", asOpponents: "مواجهات", sameTeam: "في فريق واحد",
     noAgainstMatches: "لم يتواجها بعد", noTogetherMatches: "لم يلعبا في فريق واحد بعد",
     backToComparison: "العودة للمقارنة", backToProfile: "العودة لملف اللاعب",

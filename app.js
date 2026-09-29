@@ -8,6 +8,7 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
+  runTransaction,
   connectFirestoreEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -24,20 +25,21 @@ import {
 import {
   buildDataModel as buildFootballDataModel,
   calculateMonthScores as calculateFootballMonthScores,
-  computeHeadToHead as computeFootballHeadToHead
-} from "./data-engine.js?v=500413";
+  computeHeadToHead as computeFootballHeadToHead,
+  isGoalAddition, goalAdditionSide, prepareGoalAddition, validateGoalAdditionSave
+} from "./data-engine.js?v=500414";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500413";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500413";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500413";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500413";
-import { resolvePublicPlayers } from "./community-engine.js?v=500413";
-import { createCommunity } from "./community.js?v=500413";
-import { createHighlights } from "./highlights.js?v=500413";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500413";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500413";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500413";
-import { observeConnectivity } from "./connectivity.js?v=500413";
+import { countText, directionFor, translate } from "./i18n.js?v=500414";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500414";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500414";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500414";
+import { resolvePublicPlayers } from "./community-engine.js?v=500414";
+import { createCommunity } from "./community.js?v=500414";
+import { createHighlights } from "./highlights.js?v=500414";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500414";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500414";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500414";
+import { observeConnectivity } from "./connectivity.js?v=500414";
 
 import {
   appRouteFor,
@@ -60,7 +62,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500413";
+} from "./ux-utils.js?v=500414";
 
 
 /* =========================================================
@@ -148,6 +150,8 @@ const scheduleRender = createRenderScheduler(() => renderAll());
 let addPlayerBusy = false;
 
 let addLogBusy = false;
+let addGoalsBusy = false;
+let goalAdditionRequest = null;
 let exportBusy = false;
 
 const pendingPlayerNames = new Set();
@@ -804,6 +808,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btnExportTop")?.addEventListener("click", window.__exportNow);
   $("btnAddPlayer")?.addEventListener("click", addPlayerSafely);
   $("btnAddLog")?.addEventListener("click", addLogSafely);
+  $('btnAddGoals')?.addEventListener('click', addGoalsSafely);
+  $('extraGoalMatch')?.addEventListener('change', renderGoalAdditionForm);
+  $('extraGoalPlayer')?.addEventListener('change', renderGoalAdditionForm);
   $("lbSort")?.addEventListener("change", renderLeaderboard);
   $("leaderboardSearch")?.addEventListener("input", renderLeaderboard);
   $("tableSearch")?.addEventListener("input", renderTable);
@@ -880,7 +887,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500413").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500414").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1096,7 +1103,7 @@ async function addLogSafely() {
 
   const samePlayerMatch =
     rawLogs.filter(
-      l =>
+      l => !isGoalAddition(l) &&
 
         String(
           l.playerId
@@ -1267,6 +1274,82 @@ function setButtonBusy(
   updateDataActionState();
 }
 
+/* Goal-only additions keep the original appearance, result and voting intact. */
+function renderGoalAdditionForm() {
+  const matchSelect = $('extraGoalMatch'), playerSelect = $('extraGoalPlayer');
+  if (!matchSelect || !playerSelect || !isAdmin) return;
+  const setOptions = (select, html) => {
+    if (select.dataset.options === html) return;
+    const value = select.value;
+    select.innerHTML = html;
+    select.dataset.options = html;
+    if ([...select.options].some(option => option.value === value)) select.value = value;
+  };
+  const matches = getSortedMatches();
+  const dateCounts = new Map();
+  matches.forEach(match => dateCounts.set(match.date, (dateCounts.get(match.date) || 0) + 1));
+  setOptions(matchSelect, `<option value="">${esc(t('chooseRecordedMatch'))}</option>` + matches.map(match =>
+    `<option value="${esc(match.matchKey)}">${esc(formatMatchDate(match.date))}${dateCounts.get(match.date) > 1 ? ` · ${esc(match.matchKey)}` : ''}</option>`).join(''));
+  const match = model.matchSummaries.get(matchSelect.value);
+  const parts = (match?.parts || []).filter(part => model.playerById.has(part.playerId))
+    .slice().sort((a, b) => playerName(a.playerId).localeCompare(playerName(b.playerId)));
+  setOptions(playerSelect, `<option value="">${esc(t('selectPlayer'))}</option>` + parts.map(part =>
+    `<option value="${esc(part.playerId)}">${esc(playerName(part.playerId))}</option>`).join(''));
+  const part = parts.find(row => row.playerId === playerSelect.value);
+  if ($('extraGoalRecord')) $('extraGoalRecord').textContent = part
+    ? t('additionalKeepsResult', { team: teamLabel(part.side), result: t(part.result) }) : t('additionalNeedsAppearance');
+  updateGoalAdditionState();
+}
+
+function updateGoalAdditionState() {
+  const available = isAdmin && isDataReady() && !addGoalsBusy;
+  for (const id of ['extraGoalMatch', 'extraGoalPlayer', 'extraGoalSide', 'extraGoalType', 'extraGoalCount']) {
+    if ($(id)) $(id).disabled = !available;
+  }
+  const selected = model.byMatch.get($('extraGoalMatch')?.value)?.some(part => part.playerId === $('extraGoalPlayer')?.value);
+  if ($('btnAddGoals')) {
+    $('btnAddGoals').disabled = !available || !selected;
+    $('btnAddGoals').textContent = t(addGoalsBusy ? 'saving' : 'saveAdditionalGoals');
+  }
+}
+
+async function addGoalsSafely() {
+  if (!isAdmin) return notify(t('adminRequired'), 'warning');
+  if (addGoalsBusy) return;
+  if (!isDataReady()) return notify(t('dataStillLoading'), 'warning');
+  let prepared;
+  try {
+    prepared = prepareGoalAddition(model, rawLogs, { matchKey: $('extraGoalMatch')?.value,
+      playerId: $('extraGoalPlayer')?.value, goals: $('extraGoalCount')?.value,
+      side: $('extraGoalSide')?.value, ownGoal: $('extraGoalType')?.value === 'own' });
+  } catch (error) { return notify(t(error.message), 'warning'); }
+  const signature = JSON.stringify(prepared);
+  if (goalAdditionRequest?.signature !== signature) goalAdditionRequest = {
+    signature, reference: doc(logsRef), sourceId: prepared.sourceId, entry: { ...prepared.entry, createdAt: Date.now() }
+  };
+  const request = goalAdditionRequest;
+  addGoalsBusy = true;
+  updateGoalAdditionState();
+  try {
+    await runTransaction(db, async transaction => {
+      const source = await transaction.get(doc(logsRef, request.sourceId));
+      const existing = await transaction.get(request.reference);
+      const action = validateGoalAdditionSave(source.exists() ? source.data() : null, request.entry,
+        existing.exists() ? existing.data() : null);
+      if (action === 'create') transaction.set(request.reference, request.entry);
+    });
+    goalAdditionRequest = null;
+    if ($('extraGoalCount')) $('extraGoalCount').value = '1';
+    notify(t('additionalGoalsSaved'));
+  } catch (error) {
+    console.error('Goal addition failed:', error);
+    notify(t(['additionalNeedsAppearance', 'additionalSaveConflict'].includes(error.message) ? error.message : 'saveFailed'), 'error');
+  } finally {
+    addGoalsBusy = false;
+    updateGoalAdditionState();
+  }
+}
+
 
 /* =========================================================
    FIREBASE ERROR
@@ -1287,6 +1370,7 @@ function updateDataActionState() {
       || (id === "btnAddPlayer" && addPlayerBusy)
       || (id === "btnAddLog" && addLogBusy);
   }
+  updateGoalAdditionState();
 }
 
 
@@ -1855,6 +1939,7 @@ function renderScreenContents(screen) {
     renderPlayersAdmin();
   } else if (screen === "matches") {
     renderLogs();
+    renderGoalAdditionForm();
   }
 
   document.querySelectorAll(`#screen-${screen} .skeleton-list`).forEach(element => {
@@ -3621,11 +3706,11 @@ function renderMatchHistory() {
           <div class="matchGrid">
             <section class="teamBox ${outcomeA}" aria-label="${esc(t("teamA"))}">
               <div class="teamTitle"><span>${esc(t("teamA"))}<small>${esc(countText(language, match.teamA.length, 'player'))}</small></span><strong>${esc(labelForOutcome(outcomeA))}</strong></div>
-              ${sideLines(match.teamA)}
+              ${sideLines(match.scorersA || match.teamA)}
             </section>
             <section class="teamBox ${outcomeB}" aria-label="${esc(t("teamB"))}">
               <div class="teamTitle"><span>${esc(t("teamB"))}<small>${esc(countText(language, match.teamB.length, 'player'))}</small></span><strong>${esc(labelForOutcome(outcomeB))}</strong></div>
-              ${sideLines(match.teamB)}
+              ${sideLines(match.scorersB || match.teamB)}
             </section>
           </div>
           ${community?.historyMarkup(key) || ''}
@@ -3858,6 +3943,7 @@ function sideLines(
 
               <button type="button" class="playerName inline-player-link" data-open-player="${esc(x.playerId)}">
                 <bdi dir="auto">${esc(name)}</bdi>
+                ${x.goalsOnly ? `<span class="goals-only-tag">${esc(t('goalsOnly'))}</span>` : ''}
                 ${ownGoalBadge}
                 <span class="sr-only">${esc(t("openProfileAction"))}</span>
               </button>
@@ -4027,6 +4113,8 @@ function renderLogs() {
     rawLogs
   ) {
 
+    if (isGoalAddition(l)) continue;
+
     const key =
       `${matchKeyOf(l)}::${String(l.playerId || "")}::${isOwnGoal(l) ? "own" : "normal"}`;
 
@@ -4057,6 +4145,7 @@ function renderLogs() {
       .map(
         l => {
 
+          const additional = goalAdditionSide(l);
           const result =
             normalizeResult(l);
 
@@ -4097,11 +4186,11 @@ function renderLogs() {
 
                   —
 
-                  ${esc(t(result))}
+                  ${esc(t(additional ? 'additionalGoals' : result))}
 
                   ${own ? ` · ${esc(t("ownGoal"))}` : ""}
 
-                  ${duplicate ? ` · ${esc(t("duplicate"))}` : ""}
+                  ${!additional && duplicate ? ` · ${esc(t("duplicate"))}` : ""}
 
                 </div>
 
@@ -4112,7 +4201,7 @@ function renderLogs() {
 
                   ·
 
-                  ${esc(teamLabel(side))}
+                  ${esc(teamLabel(additional || side))}
 
                   ·
 

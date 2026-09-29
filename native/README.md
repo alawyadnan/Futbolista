@@ -1,8 +1,8 @@
 # Futbolista for iPhone
 
 Published baseline: App Store version 1.0 (build 2), release 500408.
-Current local update: **1.0.1 (build 7), release 500413**. Not uploaded or published.
-See `../UPDATE-500413.md` for scope, verification and remaining release steps.
+Current local update: **1.0.1 (build 8), release 500414**. Not uploaded or published.
+See `../UPDATE-500414.md` for scope, verification and remaining release steps.
 Historical submission evidence lives in `store/SUBMISSION-STATUS-500408.md`.
 
 ## Architecture and identity

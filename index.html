@@ -23,9 +23,9 @@
     } catch {}
   </script>
   <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500413" />
-  <link rel="manifest" href="./manifest.json?v=500413" />
-  <link rel="stylesheet" href="./styles.css?v=500413" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500414" />
+  <link rel="manifest" href="./manifest.json?v=500414" />
+  <link rel="stylesheet" href="./styles.css?v=500414" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
@@ -157,6 +157,19 @@
     <article id="adminVoting" class="card hidden" data-admin="1"></article>
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="entryTitle" data-i18n="matchEntry">Match entry</h1><p data-i18n="entryLead">Add one participation at a time. Existing match data stays untouched.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
     <article class="card admin-action-card"><h2 data-i18n="addMatchEntry">Add match entry</h2><div class="gridForm entry-grid"><label class="field" for="logDate"><span data-i18n="date">Date</span><input id="logDate" class="input" type="date" /></label><label class="field" for="logPlayer"><span data-i18n="player">Player</span><select id="logPlayer" class="select"></select></label><label class="field" for="logGoals"><span data-i18n="goals">Goals</span><input id="logGoals" class="input" type="number" inputmode="numeric" min="0" max="99" value="0" /></label><label class="field" for="logResult"><span data-i18n="result">Result</span><select id="logResult" class="select"><option value="win" selected data-i18n="win">Win</option><option value="draw" data-i18n="draw">Draw</option><option value="loss" data-i18n="loss">Loss</option></select></label><label class="field" for="logSide"><span data-i18n="team">Team</span><select id="logSide" class="select"><option value="A" selected data-i18n="teamA">Team A</option><option value="B" data-i18n="teamB">Team B</option></select></label><label class="field" for="logGoalType"><span data-i18n="goalType">Goal type</span><select id="logGoalType" class="select"><option value="normal" selected data-i18n="normal">Normal</option><option value="own" data-i18n="ownGoal">Own Goal</option></select></label></div><div class="form-warning"><span aria-hidden="true">!</span> <span data-i18n="entryWarning">Normal and own-goal entries may coexist. Identical entry types are blocked.</span></div><button id="btnAddLog" type="button" class="btn btn-primary full" data-i18n="saveEntry">Save entry</button></article>
+    <details class="card additional-goals-card" data-admin="1">
+      <summary><strong data-i18n="additionalGoals">Additional goals</strong><span aria-hidden="true">＋</span></summary>
+      <p class="note" data-i18n="additionalGoalsHint">Add goals to an existing appearance, including goals scored for the other team. The player's recorded result stays unchanged.</p>
+      <div class="gridForm entry-grid">
+        <label class="field" for="extraGoalMatch"><span data-i18n="recordedMatch">Recorded match</span><select id="extraGoalMatch" class="select" disabled></select></label>
+        <label class="field" for="extraGoalPlayer"><span data-i18n="player">Player</span><select id="extraGoalPlayer" class="select" disabled></select></label>
+        <label class="field" for="extraGoalSide"><span data-i18n="additionalGoalTeam">Team at the time of the goal</span><select id="extraGoalSide" class="select" disabled><option value="" data-i18n="chooseGoalTeam">Choose the team for these goals</option><option value="A" data-i18n="teamA">Team A</option><option value="B" data-i18n="teamB">Team B</option></select></label>
+        <label class="field" for="extraGoalType"><span data-i18n="goalType">Goal type</span><select id="extraGoalType" class="select" disabled><option value="normal" data-i18n="normal">Normal</option><option value="own" data-i18n="ownGoal">Own Goal</option></select></label>
+        <label class="field" for="extraGoalCount"><span data-i18n="additionalGoalCount">Goals to add</span><input id="extraGoalCount" class="input" type="number" inputmode="numeric" min="1" max="99" value="1" disabled /></label>
+      </div>
+      <p id="extraGoalRecord" class="additional-goals-record" role="status"></p>
+      <button id="btnAddGoals" type="button" class="btn btn-primary full" disabled data-i18n="saveAdditionalGoals">Add goals</button>
+    </details>
     <article class="card"><h2 data-i18n="recentEntries">Recent entries</h2><div id="logsList" class="list skeleton-list" aria-live="polite" data-i18n="loadingEntries">Loading recent entries…</div></article>
   </section>
 
@@ -197,6 +210,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500413"></script>
+<script type="module" src="./app.js?v=500414"></script>
 </body>
 </html>

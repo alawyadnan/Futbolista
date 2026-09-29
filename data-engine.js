@@ -60,10 +60,59 @@ function metadataRank(log) {
   return `${String(timestampOf(log)).padStart(20, "0")}::${String(log?.id || "")}`;
 }
 
+export function isGoalAddition(log) {
+  return Object.prototype.hasOwnProperty.call(log || {}, 'goalAddition');
+}
+
+export function goalAdditionSide(log) {
+  return isGoalAddition(log) && VALID_SIDES.has(log.goalAddition?.side)
+    && Number.isInteger(log.goals) && log.goals > 0 && log.goals <= 99
+    ? log.goalAddition.side : null;
+}
+
+// Additional goals never create an appearance or supply result/team metadata.
+export function prepareGoalAddition(model, rawLogs, { matchKey, playerId, goals, side, ownGoal = false }) {
+  if (!VALID_SIDES.has(side)) throw new Error('chooseGoalTeam');
+  if (String(goals ?? '').trim() === '' || !Number.isInteger(Number(goals)) || Number(goals) < 1 || Number(goals) > 99) throw new Error('invalidAdditionalGoals');
+  const part = model.byMatch.get(String(matchKey))?.find(row => row.playerId === String(playerId));
+  if (!part || !model.playerById.has(String(playerId))) throw new Error('additionalNeedsAppearance');
+  const source = rawLogs.filter(log => !isGoalAddition(log) && log.id && String(log.playerId) === part.playerId && matchKeyOf(log) === part.matchKey)
+    .sort((a, b) => metadataRank(b).localeCompare(metadataRank(a)))[0];
+  if (!source) throw new Error('additionalNeedsAppearance');
+  const entry = { playerId: part.playerId, date: part.date, goals: Number(goals), ownGoal: ownGoal === true,
+    side: part.side, result: part.result, goalAddition: { side } };
+  if (part.matchKey !== part.date) entry.matchId = part.matchKey;
+  return { sourceId: String(source.id), entry };
+}
+
+// Checked again against server-read documents inside the save transaction.
+export function validateGoalAdditionSave(source, entry, existing = null) {
+  if (!source || isGoalAddition(source) || !goalAdditionSide(entry)
+    || String(source.playerId) !== entry.playerId || matchKeyOf(source) !== matchKeyOf(entry)
+    || normalizeSide(source) !== entry.side || normalizeResult(source) !== entry.result) throw new Error('additionalNeedsAppearance');
+  if (!existing) return 'create';
+  const fields = ['playerId', 'date', 'matchId', 'side', 'result', 'goals', 'ownGoal', 'createdAt'];
+  if (goalAdditionSide(existing) === goalAdditionSide(entry) && fields.every(key => existing[key] === entry[key])) return 'saved';
+  throw new Error('additionalSaveConflict');
+}
+
+function matchScorers(parts, side) {
+  return parts.flatMap(part => {
+    const extras = part.additionalGoalsBySide;
+    if (!extras) return part.side === side ? [part] : [];
+    const assigned = part.side === side;
+    const normalGoals = (assigned ? part.normalGoals - extras.A.normalGoals - extras.B.normalGoals : 0) + extras[side].normalGoals;
+    const ownGoals = (assigned ? part.ownGoals - extras.A.ownGoals - extras.B.ownGoals : 0) + extras[side].ownGoals;
+    return assigned || normalGoals || ownGoals ? [{ ...part, normalGoals, ownGoals, goalsOnly: !assigned }] : [];
+  });
+}
+
 export function buildDataModel(players = [], rawLogs = []) {
   const participationMap = new Map();
+  const orderedLogs = [...rawLogs].sort(compareRawOldestFirst);
 
-  for (const log of [...rawLogs].sort(compareRawOldestFirst)) {
+  for (const log of orderedLogs) {
+    if (isGoalAddition(log)) continue;
     const playerId = String(log?.playerId || "").trim();
     const date = String(log?.date || "").trim();
     const matchKey = matchKeyOf(log);
@@ -100,6 +149,22 @@ export function buildDataModel(players = [], rawLogs = []) {
     }
   }
 
+  // Deduplicate by Firestore document identity, not amount. Two intentionally
+  // separate additions can have the same amount; replaying one cannot double it.
+  const additions = new Map();
+  for (const log of orderedLogs) {
+    if (log?.id && goalAdditionSide(log)) additions.set(String(log.id), log);
+  }
+  for (const log of additions.values()) {
+    const part = participationMap.get(`${matchKeyOf(log)}::${String(log.playerId || '').trim()}`);
+    if (!part) continue;
+    const field = isOwnGoal(log) ? 'ownGoals' : 'normalGoals';
+    part.additionalGoalsBySide ||= { A: { normalGoals: 0, ownGoals: 0 }, B: { normalGoals: 0, ownGoals: 0 } };
+    part.additionalGoalsBySide[goalAdditionSide(log)][field] += log.goals;
+    part[field] += log.goals;
+    part.rawCount++;
+  }
+
   const participations = [...participationMap.values()]
     .map(({ metadataRank: _metadataRank, ...participation }) => participation)
     .sort(compareParticipationsOldestFirst);
@@ -123,14 +188,15 @@ export function buildDataModel(players = [], rawLogs = []) {
   for (const [matchKey, parts] of byMatch) {
     const teamA = parts.filter(part => part.side === "A");
     const teamB = parts.filter(part => part.side === "B");
+    const scorersA = matchScorers(parts, 'A'), scorersB = matchScorers(parts, 'B');
     const sum = (entries, field) => entries.reduce((total, entry) => total + entry[field], 0);
     matchSummaries.set(matchKey, {
       matchKey,
       date: parts.reduce((latest, part) => part.date > latest ? part.date : latest, ""),
       createdAt: parts.reduce((latest, part) => Math.max(latest, part.createdAt || 0), 0),
-      parts, teamA, teamB,
-      scoreA: sum(teamA, "normalGoals") + sum(teamB, "ownGoals"),
-      scoreB: sum(teamB, "normalGoals") + sum(teamA, "ownGoals")
+      parts, teamA, teamB, scorersA, scorersB,
+      scoreA: sum(scorersA, "normalGoals") + sum(scorersB, "ownGoals"),
+      scoreB: sum(scorersB, "normalGoals") + sum(scorersA, "ownGoals")
     });
   }
 
