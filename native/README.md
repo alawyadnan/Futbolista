@@ -1,8 +1,9 @@
 # Futbolista for iPhone
 
 Published baseline: App Store version 1.0 (build 2), release 500408.
-Current local update: **1.0.1 (build 8), release 500414**. Not uploaded or published.
-See `../UPDATE-500414.md` for scope, verification and remaining release steps.
+Current update in preparation: **1.0.1 (build 9), release 500415**. Store upload status must be verified separately.
+See `../UPDATE-500414.md` for the already-published goal adjustments and
+`store/PUSH-NOTIFICATIONS.md` for the new optional native notifications.
 Historical submission evidence lives in `store/SUBMISSION-STATUS-500408.md`.
 
 ## Architecture and identity
@@ -15,7 +16,10 @@ Do not change the bundle ID, native hostname/scheme or Firebase configuration:
 existing account identity, app storage and upgrade continuity depend on them.
 
 Email/password, verified-email linking and administrator approval are unchanged.
-Google/SMS login and push notifications are not implemented in this version.
+Google/SMS login remain unimplemented. Optional native group notifications use
+Firebase Messaging 12.19.2, added independently from the unchanged web Auth SDK.
+Users opt in under Account; administrators have preferences and a Firebase
+Notifications composer shortcut under Settings. No paid sending backend is used.
 In-app account-deletion requests are implemented; the owner processes them within
 seven days using `store/ACCOUNT-DELETION-RUNBOOK.md`. No client-side deletion
 cascade runs. Existing match data remains authoritative.
@@ -56,7 +60,7 @@ forms. Device accounts do not share Safari's authentication storage.
 
 1. Review this update on the owner's physical iPhone, including keyboard,
    foreground/background, sharing cancellation and existing account persistence.
-2. Create a signed Release archive of 1.0.1 (7) with the existing developer team.
+2. Create a signed Release archive of 1.0.1 (9) with the existing developer team.
 3. Upload and submit only after explicit owner approval. Preserve the app's
    free/unlisted distribution and Saudi availability.
 

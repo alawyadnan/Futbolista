@@ -41,5 +41,5 @@ await writeFile(join(out,'index.html'),html);
 for(const file of ['styles.css','policy.css','privacy.html','support.html','icon.svg','apple-touch-icon.png','icon-192.png','icon-512.png'])await copyFile(join(root,file),join(out,file));
 const outputs=Object.entries(result.metafile.outputs).map(([path,value])=>({path,bytes:value.bytes,imports:value.imports}));
 if(outputs.some(file=>file.imports.some(i=>i.external)))throw Error('Native app must not load remote JavaScript');
-await writeFile(join(native,'build-report.json'),JSON.stringify({release:'500414',firebaseSDK:'10.12.2',appId:'live.ftbll.futbolista',remoteJavaScript:false,outputs},null,2));
-console.log(JSON.stringify({built:true,release:'500414',javascriptBytes:outputs.reduce((n,f)=>n+f.bytes,0),remoteJavaScript:false}));
+await writeFile(join(native,'build-report.json'),JSON.stringify({release:'500415',firebaseSDK:'10.12.2',appId:'live.ftbll.futbolista',remoteJavaScript:false,outputs},null,2));
+console.log(JSON.stringify({built:true,release:'500415',javascriptBytes:outputs.reduce((n,f)=>n+f.bytes,0),remoteJavaScript:false}));

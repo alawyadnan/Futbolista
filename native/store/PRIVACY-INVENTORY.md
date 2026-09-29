@@ -13,8 +13,16 @@ Do not claim “Data not collected” in App Store Connect.
 | Language and pinned player | Device preferences | Device-local storage |
 | Temporary JSON export | Owner-triggered backup sharing | Native private cache until sharing completes |
 
-No analytics, ads, tracking, contacts, location, microphone, camera, payment or
-push-notification integration was added. Firebase remains the existing processor.
+Optional push notifications added in build 9 use a device installation identifier
+or delivery token, handled by Apple and Firebase for App Functionality. These are
+not linked to the Firebase account or player identity and are not stored in
+Firestore. Explicit notification opt-in is required; users can turn them off.
+App Store Connect additionally discloses Device ID as linked for App Functionality
+because Apple's definition includes linkage via the device itself. This is a
+conservative disclosure, not an account/player association implemented by the app.
+Device IDs are not used for tracking. Existing six data categories are preserved.
+No analytics, ads, advertising tracking, contacts, location, microphone, camera or
+payment integration was added. Firebase remains the existing processor.
 Confirm actual provider retention/logging and relevant App Store categories
 against the final deployed backend; a JS SDK inside a WebView still handles data.
 

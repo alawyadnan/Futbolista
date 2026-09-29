@@ -3,6 +3,9 @@ import { Share } from '@capacitor/share';
 import { Haptics } from '@capacitor/haptics';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { registerPlugin } from '@capacitor/core';
+import { installPushControls } from './push-controls.js';
+const Push = registerPlugin('FutbolistaPush');
 
 export const shareContent = payload => Share.share(payload);
 export const selectionFeedback = () => Haptics.selectionChanged();
@@ -14,6 +17,7 @@ export async function connect({ onResume, onURL }) {
   if (launch?.url) onURL(launch.url);
   // Styling failure must not disable navigation, login or sharing.
   await StatusBar.setStyle({style:Style.Dark}).catch(() => {});
+  await installPushControls(Push, {onURL, onResume, app:App}).catch(() => {});
 }
 
 export async function shareJSON(json, filename) {

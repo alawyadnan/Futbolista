@@ -6,7 +6,7 @@ import {runInNewContext} from 'node:vm';
 import {buildDataModel} from '../data-engine.js';
 import {countText,translate} from '../i18n.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const output=resolve(root,'../../outputs/update-500414');
+const output=resolve(root,'../../outputs/update-500415');
 await mkdir(output,{recursive:true});
 const source=await readFile(resolve(root,'app.js'),'utf8'),index=await readFile(resolve(root,'index.html'),'utf8');
 const renderer=source.slice(source.indexOf('function sideLines('),source.indexOf('function renderPlayersAdmin('));

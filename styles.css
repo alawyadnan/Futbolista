@@ -1008,3 +1008,4 @@ button.profile-match-row{width:100%;color:var(--text);font:inherit;text-align:st
 #screen-history.has-context-return .matchCard{scroll-margin-top:calc(140px + env(safe-area-inset-top,0px))}
 @media(max-width:640px){.history-context-back{top:calc(64px + env(safe-area-inset-top,0px))}.meeting-player-labels,.meeting-row{gap:6px}.meeting-player-labels{font-size:11px}.meeting-date time{font-size:11px}.meeting-side>strong{font-size:23px}.comparison-meetings .card-heading h2{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.meeting-row{transition:none}}
+:root .native-notification-card { margin-block: 16px; }
