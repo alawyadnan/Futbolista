@@ -1,0 +1,21 @@
+Futbolista 500420 — simplified match history, local only
+2026-10-01
+
+Removed the Match stats tab and its duplicate player/scorer/goal/own-goal counts.
+Expanded history cards and direct match pages now show the teams immediately.
+Kept canonical scores, all player rows and goal/own-goal markers, MOTM voting/results,
+direct links, profile links, expand/collapse, and the share button (at the card end).
+Removed the unused renderer, view state, event handler, styles and translations.
+No football statistics, Firestore data/schema/rules, authentication or export changes.
+
+338 web tests + 10 native tests passed. Rendering tests cover both focused and
+archive views, absence of the removed tabs, team/MOTM/share retention and collapse.
+10 AR/EN responsive checks at 320/360/390/430/1280: no horizontal page overflow.
+Archive expand/collapse tested at 390px. No browser JavaScript errors observed.
+Native assets rebuilt/copied, all 18 files verified. Cache references bumped to 500420.
+
+The successfully verified Xcode archive from earlier today contains 500419,
+NOT this change. Rebuild the Release archive with a fresh version/build before
+uploading; the native project still has the already-used 1.0.1 (9).
+Physical device and Apple distribution validation remain separate release checks.
+Nothing published, uploaded or submitted. Previous ZIPs/archives left untouched.

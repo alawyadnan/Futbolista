@@ -8,6 +8,7 @@ import { summarizeAwards } from '../highlights-engine.js';
 import { AWARD_SORT_KEYS, buildAwardStatistics, rankAwardRows } from '../award-statistics.js';
 import { buildRankingMetric, buildPlayerAvatar, filterRankingRows, captureTableScrollPosition, restoreTableScrollPosition } from '../ux-utils.js';
 import { directionFor } from '../i18n.js';
+import { applyTableColumns } from '../detail-ui.js';
 
 const now = Date.UTC(2026,8,9);
 const players = ['a','b','c','d'].map(id => ({id,name:id}));
@@ -123,7 +124,7 @@ test('actual leaderboard and table show a dash, not a gold first place, for unea
     const nodes=new Map();
     const node=id=>{if(!nodes.has(id))nodes.set(id,{value:id.endsWith('Search')?'':awardSort?'motmAwards':'wins',innerHTML:'',closest:()=>null});return nodes.get(id);};
     const context={$:node,rankingRows:()=>({rows:[{id:'a',name:'A',rank:null,motmAwards:0,votingPoints:0,monthAwards:0,formResults:[]}],awardSort,complete:true}),
-      captureTableScrollPosition,restoreTableScrollPosition,directionFor,language:'en',
+      captureTableScrollPosition,restoreTableScrollPosition,applyTableColumns,directionFor,language:'en',
       renderRankingShortcuts(){},communityEnabled:true,buildRankingMetric,buildPlayerAvatar,filterRankingRows,t:key=>key,esc:value=>String(value),formatFormPoints:()=>0,renderFormDots:()=>'',fmtPct:()=>0,fmt2:()=>0};
     runInNewContext(source.slice(source.indexOf('function renderLeaderboard('),source.indexOf('function renderPlayerCardsNameOnly('))+'\nrenderLeaderboard();renderTable();',context);
     assert.match(node('tableBody').innerHTML,awardSort?/<td>—<\/td>/:/<td>1<\/td>/);

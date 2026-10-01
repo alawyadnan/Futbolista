@@ -1,0 +1,73 @@
+Futbolista 500419 — cumulative LOCAL update, not published
+Date: 2026-10-01
+
+NEW IN THIS PASS
+- Dedicated single-match page, with a prominent centered score, training date,
+  team sheets, match statistics and the existing MOTM result/ballot presentation.
+- Public direct links: #history/match/<encoded match key>. Match IDs, not dates
+  alone, distinguish multiple matches played on the same day.
+- Share action on expanded history cards and single-match pages. Native shares
+  use the public ftbll.live origin, never capacitor://localhost. Shares include
+  only the public date, canonical team score and link; no private voter data.
+- Repeated taps cannot open overlapping share sheets. Cancellation does not
+  copy a link or show an error. Unsupported browser sharing falls back to a link.
+- Player match links open the focused view; contextual return to the player or
+  comparison remains. All matches returns to the normal archive. Missing links
+  show an honest empty state rather than a different match.
+- New routes are included in the existing strict native URL allowlist. Existing
+  profile/history/comparison routes remain supported. No new Universal Links or
+  per-match push routing is claimed.
+- Arabic/English labels, 44px share target, keyboard focus and responsive layout.
+- Service-worker cache and all active asset references updated to 500419.
+- Native release documentation corrected: the project still says 1.0.1 (9),
+  which must not simply be reused for the next Store upload.
+
+INCLUDED FROM THE PREVIOUS LOCAL PASSES (500417/500418)
+- Compact table presets for results, scoring and awards, retaining all statistics.
+- Match statistical comparisons and scorer links.
+- Monthly player performance and filtered match history.
+- Redesigned scoring leaders and head-to-head comparisons.
+- Direct two-player selection from the player directory.
+- Last-12-group-match participation calendar, distinguishing non-participation
+  from a recorded loss. No invented participation before a first appearance.
+- Existing Safari table-name scrolling fix remains preserved.
+
+VERIFICATION
+- Web tests: 338 passed, zero failures. Native source tests: 10 passed.
+- New tests execute actual sharing, filtering, route synchronization and rendering
+  functions, in addition to malformed links, score allocations and privacy checks.
+- Native bundle built: release 500419, JavaScript 666702 bytes, no remote JavaScript.
+- Capacitor copy completed; all 18 packaged assets verified identical.
+- Browser: 20 match-page layout checks (AR/EN, teams/stats, widths 320, 360, 390,
+  430, 1280); no page horizontal overflow; share target at least 44x44; admin hidden.
+- Dashboard, Leaderboard, Table, Players and History smoke-checked at 390px.
+- Direct cold-load match link, nonexistent match, all-matches/back navigation,
+  player-to-match navigation and contextual profile return checked.
+- No JavaScript console errors observed during these browser checks.
+- git diff --check passed.
+- Screenshots and responsive measurements are in outputs/update-500419.
+
+LIMITATIONS / APPLE RELEASE GATES
+- Unsigned iOS Simulator xcodebuild was attempted. First blocked by Swift cache
+  permissions; after the owner granted the two exact cache/log paths it remained
+  blocked by sandbox-exec: sandbox_apply: Operation not permitted. CoreSimulator
+  service connection was also unavailable to the command. This is NOT a successful
+  native compile, archive, signing, installation or App Store readiness check.
+- No physical iPhone test, actual share-sheet delivery, push delivery, admin login,
+  data save or voting action was performed in this pass. Share behavior was tested
+  with mocks; real device cancellation and account persistence still need a check.
+- Firebase rules/emulator tests were not rerun: rules and writes were unchanged.
+- Before distribution: publish the matching website route support, validate the
+  cumulative update on the owner's iPhone, verify the latest App Store version,
+  choose a fresh build/version, and create a signed Release archive.
+- Upload/publish only with explicit owner approval. Preserve the current app ID,
+  Firebase project, free/unlisted distribution and Saudi availability.
+
+DATA / RELEASE SAFETY
+- No production Firestore writes, migrations, deletes or resets.
+- No schema, Firebase configuration, authentication, rules or export changes.
+- Existing results, additional-goal allocations and voting totals remain canonical.
+- No leaderboard arrows reintroduced. No packages/dependency versions updated.
+- Nothing committed, pushed, published, uploaded or submitted to Apple.
+- The ZIP is the complete source project, not a signed IPA. Dependencies and
+  generated native assets can be regenerated using native/README.md.

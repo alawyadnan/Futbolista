@@ -1,7 +1,11 @@
 # Futbolista for iPhone
 
-Published baseline: App Store version 1.0 (build 2), release 500408.
-Current update in preparation: **1.0.1 (build 9), release 500415**. Store upload status must be verified separately.
+Historical first submission: App Store version 1.0 (build 2), release 500408.
+App Store Connect confirmed 1.0.1 (9) is distributed on 2026-10-01.
+Current local web bundle: **release 500420**, including 500417/500418 improvements and the simplified match history.
+Current submission candidate: **1.0.2 (10)**. The owner authorized web publication
+and Apple submission on 2026-10-01; upload/review status must be verified separately.
+See `../UPDATE-500420.txt` for the latest change and remaining release gates.
 See `../UPDATE-500414.md` for the already-published goal adjustments and
 `store/PUSH-NOTIFICATIONS.md` for the new optional native notifications.
 Historical submission evidence lives in `store/SUBMISSION-STATUS-500408.md`.
@@ -46,12 +50,14 @@ intentionally cannot certify App Store readiness; `--release` remains fail-close
 
 ## Preserved integrations
 
-Native share sheet for profiles, comparisons and the unchanged raw JSON export;
+Native share sheet for profiles, comparisons, individual matches and the unchanged raw JSON export;
 private temporary export files are removed after sharing. Haptics respect reduced
 motion. Status-bar and safe-area styling remain. Foreground refresh rechecks closed
 vote results after five minutes, without continuous polling or any data writes.
 
-Public share URLs remain `https://ftbll.live/#player/...`. Custom URLs such as
+Public share URLs include `https://ftbll.live/#player/...` and `https://ftbll.live/#history/match/...`.
+Publish the matching website route support before distributing this bundle so match links work for recipients.
+Custom URLs such as
 `futbolista://app/#player/...` select only allowlisted screens and never actions.
 HTTPS Universal Links are not configured. Incoming links do not discard active
 forms. Device accounts do not share Safari's authentication storage.
@@ -60,7 +66,8 @@ forms. Device accounts do not share Safari's authentication storage.
 
 1. Review this update on the owner's physical iPhone, including keyboard,
    foreground/background, sharing cancellation and existing account persistence.
-2. Create a signed Release archive of 1.0.1 (9) with the existing developer team.
+2. Verify the latest App Store version/build, choose a fresh unused build number
+   and appropriate version, then create a signed Release archive with the existing developer team.
 3. Upload and submit only after explicit owner approval. Preserve the app's
    free/unlisted distribution and Saudi availability.
 

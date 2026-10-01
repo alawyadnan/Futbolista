@@ -1,0 +1,53 @@
+Futbolista 500418 — additional local development, not published
+
+Includes all 500417 improvements plus:
+
+1. Compare directly from the player directory
+   Enable comparison mode, select two players, then compare. The selection
+   survives searching, sorting and directory scope changes. A third selection
+   cannot silently replace either player. Selected names stay visible in a
+   compact sticky panel; each can be removed. Returning from comparison restores
+   the directory context. Normal player cards still open profiles outside this mode.
+
+2. Redesigned direct-meeting record
+   Names, wins and draws are aligned with the green/blue comparison identities.
+   A proportion bar summarizes the existing head-to-head record. Added personal
+   goal totals from opponent meetings only, excluding same-side and unrelated
+   matches. These are not team goals or a new player rating. Empty records do not
+   invent a 0–0 match. Existing statistical periods, forms and shared match history
+   remain available; direct-meeting totals are explicitly all-time.
+
+3. Recorded group participation in the player profile
+   Date cells show the last 12 group matches, starting no earlier than the player's
+   first recorded appearance. Played matches retain recorded W/D/L; non-participation
+   is a separate neutral state, never a loss. Each cell opens the actual match.
+   Separate match IDs on the same date remain distinct. Goal additions and own-goal
+   rows never create additional appearances. No attendance data is written.
+
+Validation
+- 327 web/data/UI tests passed, including 12 new selection, participation and duel tests.
+- 10 native source/config tests passed; 337 tests in total.
+- Arabic and English responsive checks for picker, direct-meeting record and
+  participation at 320, 360, 390, 430 and 1280: 30 checks, no page overflow.
+- Long names, cross-search selection, third-selection guard, removal, cancellation,
+  directory return context and opening/returning from an unplayed match tested.
+- No JavaScript errors observed in the inspected preview session.
+- Native bundled web assets built/copied and source/asset checks passed.
+- Native JavaScript bundle: 663689 bytes, 7295 bytes above 500417 (~1.1%).
+- New Safari preview loaded successfully on iOS Simulator; a complete interactive
+  pass for the new features on a physical iPhone remains outstanding.
+- No new signed iOS binary compiled, installed or submitted.
+
+Safety and delivery
+- No Firestore writes, rules/config/auth changes, migrations, account actions or votes.
+- Original statistics, recorded results, award formulas and export remain unchanged.
+- No remote chart dependencies, fabricated ratings, xG or leaderboard arrows.
+- Service worker and asset references bumped to 500418; native version/build unchanged.
+- Not pushed to GitHub, deployed to the website or uploaded to Apple.
+- The source ZIP includes the native project and tests, excluding dependencies,
+  generated bundles, signing material and credentials. Follow native/README.md
+  to rebuild. The previous 500417 ZIP is retained unchanged.
+
+Design references consulted (patterns only; no assets copied):
+https://www.sofascore.com/football/player/compare
+https://www.fotmob.com/en-GB/topnews/68-detailed-stats-now-more-leagues

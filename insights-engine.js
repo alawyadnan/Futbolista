@@ -156,3 +156,64 @@ export function computePlayerRecords(model, playerId) {
   records.scoringRate = participations.length ? records.scoringMatches / participations.length : 0;
   return records;
 }
+
+// Read canonical summaries: goal-only additions are contributors, never a
+// second appearance. Own goals belong to the opponent's score, not a scorer.
+export function computeMatchBreakdown(match) {
+  const summarize = (side, other) => {
+    const scorers = match?.[`scorers${side}`] || match?.[`team${side}`] || [];
+    const opponents = match?.[`scorers${other}`] || match?.[`team${other}`] || [];
+    return {
+      players: new Set((match?.[`team${side}`] || []).map(p => p.playerId)).size,
+      goals: scorers.reduce((sum, p) => sum + p.normalGoals, 0),
+      scorers: new Set(scorers.filter(p => p.normalGoals > 0).map(p => p.playerId)).size,
+      ownGoalsFor: opponents.reduce((sum, p) => sum + p.ownGoals, 0)
+    };
+  };
+  const a = summarize('A', 'B'), b = summarize('B', 'A');
+  const contributors = (match?.parts || []).filter(p => p.normalGoals > 0)
+    .map(p => ({ playerId: p.playerId, goals: p.normalGoals }))
+    .sort((x, y) => y.goals - x.goals || String(x.playerId).localeCompare(String(y.playerId)));
+  return { a, b, contributors, normalGoals: a.goals + b.goals };
+}
+
+export function computeMonthlyPerformance(model, playerId) {
+  const months = new Map();
+  for (const part of playerParticipations(model, playerId)) {
+    const month = part.date?.slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month || '')) continue;
+    if (!months.has(month)) months.set(month, []);
+    months.get(month).push(part);
+  }
+  return [...months].sort(([a], [b]) => b.localeCompare(a))
+    .map(([month, parts]) => ({ month, ...summarizeWindow(parts) }));
+}
+
+// One cell per recorded group match. Do not call non-participation a loss,
+// and do not infer absence before the player's first recorded match.
+export function computeParticipationWindow(model, playerId, limit = 12) {
+  const id = String(playerId ?? ''), own = playerParticipations(model, id);
+  if (!own.length || !model?.playerById?.has(id)) return { matches: [], played: 0, total: 0 };
+  const size = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 24) : 12;
+  const parts = new Map(own.map(part => [part.matchKey, part]));
+  const all = [...(model.matchSummaries?.values() || [])]
+    .sort((a,b) => String(a.date).localeCompare(String(b.date)) || (a.createdAt || 0) - (b.createdAt || 0) || String(a.matchKey).localeCompare(String(b.matchKey)));
+  const first = all.findIndex(match => parts.has(match.matchKey));
+  if (first < 0) return { matches: [], played: 0, total: 0 };
+  const matches = all.slice(first).slice(-size).map(match => {
+    const part = parts.get(match.matchKey);
+    return { matchKey:match.matchKey, date:match.date, played:!!part,
+      result:part?.result || null, goals:part?.normalGoals ?? null };
+  });
+  return { matches, played:matches.filter(match => match.played).length, total:matches.length };
+}
+
+// Personal goals in shared opponent appearances. This is not team scoring,
+// an xG estimate, or a reclassification of the existing head-to-head results.
+export function computeDuelScoring(model, aId, bId) {
+  return computeSharedMatches(model, aId, bId).reduce((result, row) => {
+    result.aGoals += row.aGoals;
+    result.bGoals += row.bGoals;
+    return result;
+  }, {aGoals:0,bGoals:0});
+}

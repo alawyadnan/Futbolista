@@ -7,6 +7,7 @@ import {computeComparisonWindow} from '../insights-engine.js';
 import {buildMatchDates, filterMatches, buildPlayerAvatar, compareMetricValues, isValidISODate, compareRouteFor, parseAppRoute} from '../ux-utils.js';
 import {nativeLinkRoute} from '../platform-utils.js';
 import {translate, countText} from '../i18n.js';
+import {renderDuelRecord} from '../detail-ui.js';
 
 const players = [{id:'a',name:'Ali <script>'}, {id:'b',name:'Bader'}];
 const logs = Array.from({length:8}, (_, i) => ({id:`a${i}`,playerId:'a',date:`2026-09-${String(i+1).padStart(2,'0')}`,side:'A',result:i===6?'loss':'win',goals:i===7?2:1}));
@@ -66,7 +67,7 @@ test('actual comparison renderer exposes the selected scope with honest partial 
     const box={innerHTML:''};
     const nodes={cmpPlayerB:{value:'b'},compareResult:box};
     runInNewContext(render+'\nrenderCompare();',{$:id=>nodes[id],currentProfileId:'a',players,model,comparisonScope:scope,
-      computeComparisonWindow,computeFootballHeadToHead:computeHeadToHead,emptyStats:()=>({}),updatePageContext(){},
+      computeComparisonWindow,computeFootballHeadToHead:computeHeadToHead,renderDuelRecord,language:lang,emptyStats:()=>({}),updatePageContext(){},
       t:key=>translate(lang,key),esc,buildPlayerAvatar,renderFormDots:()=>'',fmtPct:v=>Math.round(v*100)+'%',fmt2:v=>v.toFixed(2),compareMetricValues});
     assert.match(box.innerHTML,new RegExp(`data-compare-scope="${scope}" aria-pressed="true"`));
     assert.match(box.innerHTML,/Ali &lt;script&gt;/);

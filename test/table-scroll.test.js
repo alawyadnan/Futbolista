@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { filterRankingRows, captureTableScrollPosition, restoreTableScrollPosition } from '../ux-utils.js';
 import { directionFor } from '../i18n.js';
+import { applyTableColumns } from '../detail-ui.js';
 
 const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 const source = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
@@ -68,7 +69,7 @@ test('table renderer retains each name, safe profile link and stat when sorting 
       const controls = { tableBody: body, tableSort: { value: sort }, tableSearch: { value: query }, tableSearchCount: {}, tableScope: {} };
       runInNewContext(renderer + '\nrenderTable();', {
         $: id => controls[id], renderRankingShortcuts() {}, filterRankingRows,
-        captureTableScrollPosition, restoreTableScrollPosition, directionFor, language: 'ar',
+        captureTableScrollPosition, restoreTableScrollPosition, applyTableColumns, directionFor, language: 'ar',
         rankingRows: () => ({ rows, complete: true, awardSort: ['motmAwards', 'votingPoints'].includes(sort) }),
         t: key => key, esc: value => String(value).replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
         fmtPct: () => '67%', fmt2: () => '0.40', communityEnabled: true, AWARD_SORT_KEYS: []

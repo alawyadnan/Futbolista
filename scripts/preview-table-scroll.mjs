@@ -25,6 +25,7 @@ for (const language of ['ar', 'en']) for (const mode of modes) {
   <script type="module">
   import { translate, directionFor } from '/work/Futbolista-next-update/i18n.js?v=500416';
   import { filterRankingRows, captureTableScrollPosition, restoreTableScrollPosition } from '/work/Futbolista-next-update/ux-utils.js?v=500416';
+  import { applyTableColumns } from '/work/Futbolista-next-update/detail-ui.js?v=500420';
   const language='${language}';
   const $=id=>document.getElementById(id), t=(key,vars)=>translate('${language}',key,vars);
   const esc=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');

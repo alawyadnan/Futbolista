@@ -1,0 +1,52 @@
+Futbolista 500417 — local update, not published
+
+What changed
+1. Mobile statistics table: Results, Goals, Awards and All views. Compact views
+   show the player and three relevant statistics without horizontal scrolling.
+   All keeps every existing column; the selected sorting statistic stays visible.
+   Removed the duplicate table shortcut strip, not any sorting capability.
+2. Match details: switch between the team sheets and paired statistics for
+   participants, normal goals, distinct goalscorers and opponent own goals.
+   Scorer contributions link to player profiles. Voting remains unchanged.
+3. Player profile: monthly appearances, wins/draws/losses and goals. The latest
+   four active months appear first; earlier months remain expandable. Selecting
+   a month opens the existing player-specific match history with that filter.
+4. Dashboard: redesigned top-scorer rows, clearer goal totals and relative bars,
+   existing avatars, correct tied ranks and no earned rank for zero goals.
+5. Arabic/English labels, keyboard focus and touch-sized controls. Preserved the
+   Safari table scroll fix and corrected wrapping of ranks 10 and above.
+
+Data and compatibility
+- Read-only derived statistics; no Firebase data, schema, rules or auth changes.
+- No production writes, migrations, test accounts or votes.
+- Goal-only additions remain goals, not another appearance or a different result.
+- Own goals are not credited as personal normal goals.
+- No changes to MOTM, monthly-award calculations, JSON export or admin access.
+- Existing styles, navigation, tables, player links and full statistics remain.
+- Cache and asset versions bumped to 500417; new module precached.
+
+Verification
+- 315 web/data/UI unit tests passed, including 10 new detailed-statistics tests.
+- 10 native source/config tests passed: 325 passing tests in total.
+- JavaScript syntax and git diff whitespace checks passed.
+- Native web assets built and copied locally; native source/asset checks passed.
+- JavaScript bundle: 656394 bytes (9085 bytes above 500416, approximately 1.4%).
+- Arabic table presets, monthly profile and match statistics checked at widths
+  320, 360, 390, 430 and 1280; English table presets at 320–430.
+- Additional English 320px checks: scorer cards, monthly profile, match details,
+  comparison and leaderboard. No document-level horizontal overflow observed.
+- Search, empty results, sorting, month filtering and team/stats toggle checked.
+- Safari on iPhone Simulator iOS 26.4.1: compact/full tables retained names while
+  vertically scrolling; two-digit ranks stayed on one line.
+- No JavaScript console errors observed in the inspected preview session.
+- Public admin sections remained hidden. Admin login/saves and push delivery
+  were deliberately not exercised; database security rules were not changed.
+
+Release status
+- Local source and preview only. Nothing pushed to GitHub or deployed.
+- Native web assets are prepared, but no new signed iOS binary was compiled,
+  installed on a physical phone, uploaded or submitted to Apple.
+- App version/build numbers are unchanged. Apple submission remains deferred.
+- ZIP is the complete versioned source, including native project and tests;
+  dependency folders, generated native assets, signing material and credentials
+  are excluded. Use the existing native README build steps after extraction.

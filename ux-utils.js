@@ -161,6 +161,12 @@ export function parseAppRoute(hash = "") {
   const raw = String(hash || "").replace(/^#\/?/, "");
   const [route = "", first = "", third = "", fourth = "", fifth = ""] = raw.split("/");
   try {
+    if (route === 'history' && first === 'match') {
+      const key = decodeURIComponent(third).trim();
+      return raw.split('/').length === 3 && matchRouteFor(key) !== '#history'
+        ? {screen:'history',playerId:'',historyMatchKey:key}
+        : {screen:'dashboard',playerId:''};
+    }
     if (route === "history" && first === "player" && third) {
       return { screen: "history", playerId: "", historyPlayerId: decodeURIComponent(third).trim() };
     }
@@ -203,6 +209,14 @@ export function compareRouteFor(playerAId = "", playerBId = "", scope = "all") {
   if (!aId) return "#players";
   const route = `#player/${encodeURIComponent(aId)}/compare`;
   return bId && aId !== bId ? `${route}/${encodeURIComponent(bId)}${scope === 'recent' ? '/recent' : ''}` : route;
+}
+
+export function matchRouteFor(matchKey = '') {
+  const key = String(matchKey ?? '').trim();
+  // A route selects one record only; never an action or another path segment.
+  if (!key || key.length > 1500 || /[\u0000-\u001f\u007f/]/.test(key)) return '#history';
+  try { return `#history/match/${encodeURIComponent(key)}`; }
+  catch { return '#history'; }
 }
 
 export function publicAppUrl(currentUrl, hash) {

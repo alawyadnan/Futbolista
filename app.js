@@ -27,22 +27,24 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   isGoalAddition, goalAdditionSide, prepareGoalAddition, validateGoalAdditionSave
-} from "./data-engine.js?v=500416";
+} from "./data-engine.js?v=500420";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500416";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500416";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500416";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500416";
-import { resolvePublicPlayers } from "./community-engine.js?v=500416";
-import { createCommunity } from "./community.js?v=500416";
-import { createHighlights } from "./highlights.js?v=500416";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500416";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500416";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500416";
-import { observeConnectivity } from "./connectivity.js?v=500416";
+import { countText, directionFor, translate } from "./i18n.js?v=500420";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500420";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500420";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500420";
+import { resolvePublicPlayers } from "./community-engine.js?v=500420";
+import { createCommunity } from "./community.js?v=500420";
+import { createHighlights } from "./highlights.js?v=500420";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500420";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500420";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500420";
+import { observeConnectivity } from "./connectivity.js?v=500420";
+import { TABLE_VIEWS, applyTableColumns, renderMonthlyPerformance, renderScoringLeaders, toggleComparisonPick, renderComparisonPicker, renderParticipationWindow, renderDuelRecord, matchSharePayload } from './detail-ui.js?v=500420';
 
 import {
   appRouteFor,
+  matchRouteFor,
   PROFILE_TABS,
   normalizeProfileTab,
   buildHistoryPeriods,
@@ -64,7 +66,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500416";
+} from "./ux-utils.js?v=500420";
 
 
 /* =========================================================
@@ -155,6 +157,7 @@ let addLogBusy = false;
 let addGoalsBusy = false;
 let goalAdditionRequest = null;
 let exportBusy = false;
+let shareBusy = false;
 
 const pendingPlayerNames = new Set();
 
@@ -178,6 +181,7 @@ try { pinnedPlayerId = readPinnedPlayer(localStorage); } catch {}
 
 let playerDirectoryScrollY = 0;
 let playerDirectoryScope = "all";
+const directoryComparison = { active:false, ids:[] };
 
 let profileReturnScreen = "playerstats";
 
@@ -194,6 +198,7 @@ const HISTORY_PAGE_SIZE = 10;
 
 let historyVisibleCount = HISTORY_PAGE_SIZE;
 let historyPlayerId = '';
+let historyMatchKey = '';
 let historyExactDate = '';
 let comparisonScope = 'all';
 
@@ -326,9 +331,11 @@ function toggleLanguage() {
 
 
 async function shareContent({ title, text, hash }) {
-  const url = sharedAppUrl(window.location.href, hash, isNativeApp());
+  if (shareBusy) return;
+  shareBusy = true;
   const previousFocus = document.activeElement;
   try {
+    const url = sharedAppUrl(window.location.href, hash, isNativeApp());
     if (await shareNativeContent({ title, text, url })) return;
     if (typeof navigator.share === "function") {
       try {
@@ -345,10 +352,17 @@ async function shareContent({ title, text, hash }) {
     console.error("Sharing failed:", error);
     notify(t("shareFailed"), "error");
   } finally {
+    shareBusy = false;
     if (previousFocus?.isConnected && !previousFocus.closest?.(".hidden, [inert]")) {
       previousFocus.focus?.({ preventScroll: true });
     }
   }
+}
+
+function shareMatch(matchKey) {
+  const match = model.matchSummaries.get(String(matchKey));
+  const payload = matchSharePayload(match, language, formatMatchDate);
+  if (payload) return shareContent(payload);
 }
 
 
@@ -605,6 +619,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const target = btn.dataset.nav;
       if (btn.dataset.admin === "1" && !isAdmin) return;
       historyReturnContext = null;
+      if (target === 'history' && historyMatchKey) { historyPlayerId = ''; resetHistoryControls(); }
       showScreen(target);
       setActiveNav(target);
     });
@@ -619,7 +634,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("playerCards")?.addEventListener("click", event => {
     const card = event.target.closest("[data-player-id]");
-    if (card) openProfile(card.getAttribute("data-player-id"));
+    if (!card) return;
+    const id = card.getAttribute('data-player-id');
+    if (!directoryComparison.active) return openProfile(id);
+    const next = toggleComparisonPick(directoryComparison.ids, id, players);
+    if (next.length === 2 && directoryComparison.ids.length === 2 && !directoryComparison.ids.includes(id)) {
+      notify(t('comparePickLimit'), 'warning');
+      return;
+    }
+    directoryComparison.ids = next;
+    updateDirectoryComparison();
+  });
+  $('btnDirectoryCompare')?.addEventListener('click', () => {
+    directoryComparison.active = !directoryComparison.active;
+    if (!directoryComparison.active) directoryComparison.ids = [];
+    updateDirectoryComparison();
+  });
+  $('directoryComparePicker')?.addEventListener('click', event => {
+    const remove = event.target.closest('[data-remove-compare]');
+    if (remove) {
+      directoryComparison.ids = directoryComparison.ids.filter(id => id !== remove.dataset.removeCompare);
+      updateDirectoryComparison();
+      $('btnDirectoryCompare')?.focus({preventScroll:true});
+      return;
+    }
+    if (!event.target.closest('[data-compare-picked]') || directoryComparison.ids.length !== 2) return;
+    const [a,b] = directoryComparison.ids;
+    if (![a,b].every(id => players.some(player => String(player.id) === id))) return;
+    openProfile(a);
+    comparisonPlayerId = b;
+    comparisonOpen = true;
+    comparisonMeetingsMode = 'against';
+    comparisonMeetingsLimit = 5;
+    renderProfileComparison();
+    updateLocationForScreen('playerprofile', {replace:true});
+    $('profileComparison')?.scrollIntoView({block:'start',behavior:'auto'});
+    $('comparisonHeading')?.focus({preventScroll:true});
   });
 
   document.addEventListener("click", event => {
@@ -719,10 +769,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("btnShareProfile")?.addEventListener("click", sharePlayerProfile);
   $("btnHistoryReturn")?.addEventListener("click", returnFromMatchHistory);
+  $('btnBrowseMatches')?.addEventListener('click', () => {
+    historyReturnContext = null;
+    historyPlayerId = '';
+    resetHistoryControls();
+    showScreen('history');
+    $('historyTitle')?.focus({preventScroll:true});
+  });
   $("btnPlayerHistory")?.addEventListener("click", () => {
     if (!currentProfileId) return;
     historyPlayerId = String(currentProfileId);
     resetHistoryControls();
+    showScreen('history'); setActiveNav('history');
+  });
+  $('profileMonthlyPerformance')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-player-month]');
+    if (!button || !currentProfileId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(button.dataset.playerMonth)) return;
+    historyPlayerId = String(currentProfileId);
+    resetHistoryControls();
+    renderHistoryOptions();
+    $('historyPeriod').value = `month:${button.dataset.playerMonth}`;
     showScreen('history'); setActiveNav('history');
   });
   $("btnShareComparison")?.addEventListener("click", shareComparison);
@@ -768,13 +834,15 @@ document.addEventListener("DOMContentLoaded", () => {
     $("historySearch")?.focus({ preventScroll: true });
   });
   $("matchHistoryList")?.addEventListener("click", event => {
+    const shareButton = event.target.closest('[data-share-match]');
+    if (shareButton) { shareMatch(shareButton.dataset.shareMatch); return; }
     if (event.target.closest("[data-history-more]")) {
       historyVisibleCount += HISTORY_PAGE_SIZE;
       renderMatchHistory();
       return;
     }
     const button = event.target.closest("[data-match-toggle]");
-    if (!button) return;
+    if (!button || historyMatchKey) return;
     const key = button.dataset.matchToggle;
     const expanded = !expandedMatchKeys.has(key);
     expanded ? expandedMatchKeys.add(key) : expandedMatchKeys.delete(key);
@@ -816,6 +884,17 @@ document.addEventListener("DOMContentLoaded", () => {
   $("lbSort")?.addEventListener("change", renderLeaderboard);
   $("leaderboardSearch")?.addEventListener("input", renderLeaderboard);
   $("tableSearch")?.addEventListener("input", renderTable);
+  $('tableViews')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-table-view]');
+    const wrap = $('tableBody')?.closest('.tablewrap');
+    if (!button || !wrap) return;
+    const view = button.dataset.tableView;
+    if (view !== 'all' && !Object.prototype.hasOwnProperty.call(TABLE_VIEWS, view)) return;
+    wrap.dataset.columnView = view;
+    if (view !== 'all') $('tableSort').value = {results:'winPct',attack:'goals',awards:'votingPoints'}[view];
+    renderTable();
+    restoreTableScrollPosition(wrap, directionFor(language));
+  });
   for (const [id, selectId, render] of [['leaderboardShortcuts', 'lbSort', renderLeaderboard], ['tableShortcuts', 'tableSort', renderTable]]) {
     $(id)?.addEventListener('click', event => {
       const button = event.target.closest('[data-ranking-sort]');
@@ -889,7 +968,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500416").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500420").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1497,8 +1576,9 @@ function syncScreenFromLocation() {
   comparisonScope = route.comparisonScope === 'recent' ? 'recent' : 'all';
   if (route.screen === 'playerprofile') renderProfilePanels();
   if (route.screen === 'history') {
-    if (historyPlayerId !== (route.historyPlayerId || '')) resetHistoryControls();
+    if (historyPlayerId !== (route.historyPlayerId || '') || historyMatchKey !== (route.historyMatchKey || '')) resetHistoryControls();
     historyPlayerId = route.historyPlayerId || '';
+    historyMatchKey = route.historyMatchKey || '';
   }
   showScreen(route.screen, { scroll: false, updateRoute: false });
   setActiveNav(route.screen === "playerprofile" ? "playerstats" : route.screen);
@@ -1508,6 +1588,7 @@ function syncScreenFromLocation() {
 
   const canonical = route.screen === "playerprofile" && comparisonOpen
     ? currentComparisonRoute()
+    : route.screen === 'history' && historyMatchKey ? matchRouteFor(historyMatchKey)
     : appRouteFor(route.screen, route.screen === 'history' ? historyPlayerId : route.playerId, currentProfileTab);
   if (window.location.hash !== canonical) window.history.replaceState(null, "", canonical);
   for (let index = profileTrail.length - 1; index >= 0; index--) {
@@ -1529,6 +1610,7 @@ function updateLocationForScreen(name, { replace = false } = {}) {
   if (!section || section.dataset.admin === "1") return;
   const nextHash = name === "playerprofile" && comparisonOpen
     ? currentComparisonRoute()
+    : name === 'history' && historyMatchKey ? matchRouteFor(historyMatchKey)
     : appRouteFor(name, name === "playerprofile" ? currentProfileId : name === 'history' ? historyPlayerId : "", currentProfileTab);
   if (window.location.hash === nextHash) return;
   window.history[replace ? "replaceState" : "pushState"](null, "", nextHash);
@@ -1591,7 +1673,7 @@ function updatePageContext(screen, customLabel = "") {
     leaderboard: "leaderboard",
     table: "statsTable",
     playerstats: "playerStats",
-    history: "history",
+    history: historyMatchKey ? 'matchDetails' : 'history',
     players: "managePlayers",
     matches: "matchEntry",
     settings: "settings",
@@ -2817,27 +2899,7 @@ function renderDashboard() {
     $("dashTopScorers").innerHTML =
       topGoals.length
         ?
-        topGoals
-          .map(
-            (
-              x,
-              i
-            ) =>
-
-              dashItem(
-
-                `${medal(i)} <bdi dir="auto">${esc(x.p.name)}</bdi>`,
-
-                `${esc(countText(language, x.s.goals, "goal"))} · ${esc(t("gpm"))} ${fmt2(x.s.gpm)} · ${esc(t("winPct"))} ${fmtPct(x.s.winPct)}`,
-
-                x.p.id,
-
-                x.p.name
-
-              )
-
-          )
-          .join("")
+        renderScoringLeaders(topGoals, language)
 
         :
 
@@ -3222,6 +3284,7 @@ function renderTable() {
   table?.querySelectorAll("thead th[aria-sort]").forEach(header => header.removeAttribute("aria-sort"));
   const activeHeader = table?.querySelector(`thead th[data-sort-key="${sortBy}"]`);
   activeHeader?.setAttribute("aria-sort", sortBy === "name" ? "ascending" : "descending");
+  applyTableColumns(table, sortBy, communityEnabled, language);
   restoreTableScrollPosition(wrap, directionFor(language), scrollPosition);
 
 }
@@ -3255,10 +3318,12 @@ function renderPlayerCardsNameOnly() {
   box.classList.remove("note");
   if (!players.length) {
     box.innerHTML = emptyState("◉", t("noPlayers"), t("noPlayersLead"));
+    updateDirectoryComparison();
     return;
   }
   if (!directory.rows.length) {
     box.innerHTML = emptyState("⌕", t("noDirectoryPlayers"), t("noDirectoryPlayersLead"));
+    updateDirectoryComparison();
     return;
   }
   const goalsFirst = sort === 'goals';
@@ -3275,6 +3340,33 @@ function renderPlayerCardsNameOnly() {
       <span class="sr-only">${esc(t('openProfileAction'))}</span>
     </button>`;
   }).join('');
+  updateDirectoryComparison();
+}
+
+function updateDirectoryComparison() {
+  const picker = $('directoryComparePicker'), toggle = $('btnDirectoryCompare');
+  if (!picker || !toggle) return;
+  directoryComparison.ids = [...new Set(directoryComparison.ids)].filter(id => players.some(player => String(player.id) === id)).slice(0,2);
+  toggle.setAttribute('aria-pressed', String(directoryComparison.active));
+  toggle.textContent = t(directoryComparison.active ? 'cancelComparePick' : 'chooseComparison');
+  toggle.disabled = players.length < 2;
+  picker.hidden = !directoryComparison.active;
+  picker.innerHTML = directoryComparison.active ? renderComparisonPicker(directoryComparison.ids, players, language) : '';
+  $('playerCards')?.querySelectorAll('[data-player-id]').forEach(card => {
+    const index = directoryComparison.ids.indexOf(card.dataset.playerId);
+    if (directoryComparison.active) card.setAttribute('aria-pressed', String(index >= 0));
+    else card.removeAttribute('aria-pressed');
+    card.classList.toggle('picking', directoryComparison.active);
+    card.classList.toggle('picked', directoryComparison.active && index >= 0);
+    let marker = card.querySelector('.directory-choice');
+    if (directoryComparison.active && !marker) {
+      marker = document.createElement('span'); marker.className = 'directory-choice'; marker.setAttribute('aria-hidden','true');
+      card.querySelector('.directory-avatar')?.append(marker);
+    }
+    if (marker) { marker.hidden = !directoryComparison.active; marker.textContent = index >= 0 ? index + 1 : ''; }
+    const action = card.querySelector('.sr-only:last-child');
+    if (action) action.textContent = t(directoryComparison.active ? 'chooseComparison' : 'openProfileAction');
+  });
 }
 
 
@@ -3491,6 +3583,7 @@ function renderPlayerProfile(
 
 
 function renderProfileMatches(pid) {
+  if ($('profileMonthlyPerformance')) $('profileMonthlyPerformance').innerHTML = renderMonthlyPerformance(model, pid, language, formatMonthLabel);
   const box = $("profileMatches");
   if (!box) return;
   const matches = (model.byPlayer.get(pid) || []).slice(-5).reverse();
@@ -3559,6 +3652,7 @@ function renderProfileInsights(pid) {
   const best = records.bestScoringMatch;
   const recordTile = (value, label, detail, key = null) => `<${key ? "button type=\"button\"" : "div"} class="personal-record" ${key ? `data-open-match="${esc(key)}"` : ""}><span>${esc(t(label))}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small>${key ? `<span class="sr-only">${esc(t("details"))}</span>` : ""}</${key ? "button" : "div"}>`;
   box.innerHTML = `
+    ${renderParticipationWindow(model,pid,language,formatMatchDate)}
     <article class="card goals-card"><div class="card-heading"><h2>${esc(t("goalTimeline"))}</h2><span class="status-pill">${esc(appearanceWindowLabel(progress.recentMatches.length))}</span></div>
       <div class="goals-chart" dir="ltr">${chart}</div><div class="chart-axis" dir="ltr"><span>${esc(t("oldest"))}</span><span>${esc(t("newest"))}</span></div>
       <div class="chart-legend">${["win", "draw", "loss"].map(result => `<span class="${result}"><i aria-hidden="true"></i>${esc(t(result))}</span>`).join("")}</div>
@@ -3584,6 +3678,7 @@ function openHistoryMatch(matchKey) {
     showAllTeammates, partnershipSort, trail:profileTrail.slice()
   } : null;
   historyPlayerId = '';
+  historyMatchKey = String(matchKey);
   historyExactDate = '';
   if ($("historySearch")) $("historySearch").value = "";
   if ($("historyPeriod")) $("historyPeriod").value = "all";
@@ -3663,6 +3758,13 @@ function renderTeammates(pid) {
 function renderMatchHistory() {
   const box = $("matchHistoryList");
   if (!box) return;
+  const focused = !!historyMatchKey;
+  $('screen-history')?.classList.toggle('is-single-match', focused);
+  $('btnBrowseMatches')?.classList.toggle('hidden', !focused);
+  if ($('historyTitle')) {
+    $('historyTitle').dataset.i18n = focused ? 'matchDetails' : 'history';
+    $('historyTitle').textContent = t(focused ? 'matchDetails' : 'history');
+  }
   const back = $('btnHistoryReturn');
   $('screen-history')?.classList.toggle('has-context-return', !!historyReturnContext);
   if (back) {
@@ -3674,16 +3776,16 @@ function renderMatchHistory() {
   renderHistoryDateRail(allMatches);
   const matches = getFilteredMatches(allMatches);
   renderHistorySelection(matches);
-  if (!allMatches.length) {
+  if (!allMatches.length && !focused) {
     box.innerHTML = emptyState("◷", t("noMatches"), t("noMatchesLead"));
     return;
   }
-  if (!historyInitialized) {
+  if (!historyInitialized && allMatches.length) {
     expandedMatchKeys.add(String(allMatches[0].matchKey));
     historyInitialized = true;
   }
   if (!matches.length) {
-    box.innerHTML = emptyState("⌕", t("noFilteredMatches"), t("noFilteredMatchesLead"));
+    box.innerHTML = emptyState("⌕", t(focused ? 'matchLinkMissing' : 'noFilteredMatches'), t(focused ? 'matchLinkMissingLead' : 'noFilteredMatchesLead'));
     return;
   }
 
@@ -3691,21 +3793,21 @@ function renderMatchHistory() {
 
   box.innerHTML = page.visible.map((match, index) => {
     const key = String(match.matchKey);
-    const expanded = expandedMatchKeys.has(key);
+    const expanded = focused || expandedMatchKeys.has(key);
     const outcomeA = match.scoreA > match.scoreB ? "winners" : match.scoreA < match.scoreB ? "losers" : "draw";
     const outcomeB = match.scoreB > match.scoreA ? "winners" : match.scoreB < match.scoreA ? "losers" : "draw";
     const labelForOutcome = outcome => t(outcome === "draw" ? "tie" : outcome);
     const detailsId = `match-details-${index}`;
     const participation = historyPlayerId ? match.parts.find(part => part.playerId === historyPlayerId) : null;
     const month = match.date.slice(0, 7);
-    const monthHeading = index === 0 || page.visible[index - 1].date.slice(0, 7) !== month;
+    const monthHeading = !focused && (index === 0 || page.visible[index - 1].date.slice(0, 7) !== month);
     return `
       ${monthHeading ? `<h2 class="history-month-heading">${esc(formatMonthLabel(month))}</h2>` : ''}
-      <article class="matchCard ${expanded ? "expanded" : "collapsed"}">
-        <button type="button" class="matchTop match-summary" data-match-toggle="${esc(key)}" aria-expanded="${expanded}" aria-controls="${detailsId}">
+      <article class="matchCard ${expanded ? "expanded" : "collapsed"}" data-match-key="${esc(key)}">
+        <${focused ? 'div tabindex="-1"' : 'button type="button"'} class="matchTop match-summary" data-match-toggle="${esc(key)}" ${focused ? '' : `aria-expanded="${expanded}" aria-controls="${detailsId}"`}>
           <span class="matchDate"><span>${esc(formatMatchWeekday(match.date))}</span><time datetime="${esc(match.date)}">${esc(formatMatchDate(match.date))}</time></span>
           <span class="match-summary-end"><span class="matchScore labeled-score" dir="ltr" aria-label="${esc(t('matchScoreAria',{a:match.scoreA,b:match.scoreB}))}"><span class="${outcomeA}" aria-hidden="true"><small dir="auto">${esc(t('teamA'))}</small><b>${match.scoreA}</b></span><span class="score-divider" aria-hidden="true">:</span><span class="${outcomeB}" aria-hidden="true"><small dir="auto">${esc(t('teamB'))}</small><b>${match.scoreB}</b></span></span><span class="match-chevron" aria-hidden="true">⌄</span></span>
-        </button>
+        </${focused ? 'div' : 'button'}>
         ${participation ? `<div class="history-appearance"><span class="result-badge ${participation.result}">${esc(t(participation.result))}</span><span>${esc(teamLabel(participation.side))}</span><strong>${esc(countText(language,participation.normalGoals,'goal'))}</strong>${participation.ownGoals ? `<span class="own-goal-tag">${esc(t('ownGoals'))} · ${participation.ownGoals}</span>` : ''}</div>` : ''}
         <div id="${detailsId}" class="match-details" ${expanded ? "" : "hidden"}>
           <div class="matchGrid">
@@ -3719,6 +3821,7 @@ function renderMatchHistory() {
             </section>
           </div>
           ${community?.historyMarkup(key) || ''}
+          <div class="match-detail-actions"><button type="button" class="btn btn-quiet match-share" data-share-match="${esc(key)}" aria-label="${esc(t('shareMatch'))}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M5 11v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9"/></svg><span>${esc(t('shareMatch'))}</span></button></div>
         </div>
       </article>`;
   }).join("") + (page.remaining ? `
@@ -3741,6 +3844,7 @@ function getSortedMatches() {
 
 
 function getFilteredMatches(sortedMatches = getSortedMatches()) {
+  if (historyMatchKey) return sortedMatches.filter(match => String(match.matchKey) === historyMatchKey);
   return filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all", historyPlayerId, historyExactDate);
 }
 
@@ -3765,6 +3869,7 @@ function renderHistoryDateRail(allMatches) {
 }
 
 function resetHistoryControls() {
+  historyMatchKey = '';
   historyExactDate = '';
   if ($('historySearch')) $('historySearch').value = '';
   if ($('historyPeriod')) $('historyPeriod').value = 'all';
@@ -4291,12 +4396,7 @@ function renderCompare() {
     </div>
     <div class="card compare-head-to-head">
       <h2 class="card-title">${esc(t("headToHead"))}</h2>
-      <span class="compare-scope-caption">${esc(t('allTime'))}</span>
-      <div class="compareRows">
-        ${compareCenterValueRow(t("againstEachOther"), h2h.againstMatches)}
-        ${compareCompactDualRow(t("wins"), h2h.aWinsAgainst, h2h.bWinsAgainst)}
-        ${compareCenterValueRow(t("draws"), h2h.drawsAgainst)}
-      </div>
+      ${renderDuelRecord(model,aPlayer,bPlayer,h2h,language)}
     </div>
     <div class="card compare-together">
       <h2 class="card-title">${esc(t("teammatesRecord"))}</h2>

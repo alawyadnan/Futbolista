@@ -2,6 +2,14 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    matchDetails: "Match details", shareMatch: "Share match", browseMatches: "All matches", matchLinkMissing: "Match not found", matchLinkMissingLead: "This match is not available. You can browse the match history.",
+    chooseComparison: "Compare two players", cancelComparePick: "Cancel selection", compareNow: "Compare",
+    pickFirstPlayer: "First player", pickSecondPlayer: "Second player", comparePickedCount: "{count} of 2 players selected",
+    removeComparePlayer: "Remove {name} from comparison", comparePickLimit: "Remove one of the two selected players first.",
+    groupParticipation: "Group participation", groupMatchWindow: "Last {count} group matches",
+    participated: "Played", didNotPlay: "Did not play", duelPersonalGoals: "Personal goals in these meetings",
+    tableViewLabel: "Table view", tableResults: "Results", tableAll: "All", tableWinsShort: "Wins",
+    monthByMonth: "Month by month", earlierMonths: "Earlier months",
     additionalGoals: "Additional goals", goalsOnly: "Goals only", recordedMatch: "Recorded match", chooseRecordedMatch: "Choose a recorded match", chooseGoalTeam: "Choose the team for these goals",
     additionalGoalTeam: "Team at the time of the goal", additionalGoalCount: "Goals to add", saveAdditionalGoals: "Add goals",
     additionalGoalsHint: "Add goals to an existing appearance, including goals scored for the other team. The player's recorded result stays unchanged.",
@@ -172,6 +180,14 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    matchDetails: "تفاصيل المباراة", shareMatch: "مشاركة المباراة", browseMatches: "كل المباريات", matchLinkMissing: "المباراة غير موجودة", matchLinkMissingLead: "هذه المباراة غير متاحة. يمكنك تصفح سجل المباريات.",
+    chooseComparison: "مقارنة لاعبين", cancelComparePick: "إلغاء الاختيار", compareNow: "قارن",
+    pickFirstPlayer: "اللاعب الأول", pickSecondPlayer: "اللاعب الثاني", comparePickedCount: "تم اختيار {count} من لاعبين",
+    removeComparePlayer: "إزالة {name} من المقارنة", comparePickLimit: "أزل أحد اللاعبين المختارين أولًا.",
+    groupParticipation: "المشاركة مع المجموعة", groupMatchWindow: "آخر {count} مباراة للمجموعة",
+    participated: "شارك", didNotPlay: "لم يشارك", duelPersonalGoals: "أهداف اللاعب في هذه المواجهات",
+    tableViewLabel: "عرض الجدول", tableResults: "النتائج", tableAll: "الكل", tableWinsShort: "فوز",
+    monthByMonth: "السجل الشهري", earlierMonths: "الشهور السابقة",
     additionalGoals: "إضافة أهداف", goalsOnly: "أهداف فقط", recordedMatch: "المباراة المسجّلة", chooseRecordedMatch: "اختر مباراة مسجّلة", chooseGoalTeam: "اختر الفريق لهذه الأهداف",
     additionalGoalTeam: "الفريق عند تسجيل الهدف", additionalGoalCount: "عدد الأهداف الإضافية", saveAdditionalGoals: "إضافة الأهداف",
     additionalGoalsHint: "أضف أهدافًا لمشاركة موجودة، حتى لو سجّلها مع الفريق الآخر. نتيجة اللاعب المسجّلة لا تتغيّر.",
