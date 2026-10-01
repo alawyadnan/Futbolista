@@ -198,7 +198,11 @@ h2,.card-title{font-size:18px;line-height:1.2;letter-spacing:-.02em}
 .empty-icon{display:grid;place-items:center;width:42px;height:42px;margin-bottom:10px;border-radius:14px;background:var(--green-soft);color:var(--green);font-size:20px;font-weight:900}
 
 .table-card{padding:18px}
-.tablewrap{max-width:100%;overflow:auto;border:1px solid var(--line);border-radius:16px;background:#09120e;overscroll-behavior-inline:contain;scrollbar-color:var(--surface-3) transparent}
+/* WebKit can lose sticky cells during vertical page scrolling inside an RTL
+   scroller. Keep the scroll coordinates LTR, but preserve the Arabic table order.
+   renderTable restores the appropriate starting edge after layout changes. */
+.tablewrap{direction:ltr;max-width:100%;overflow:auto;border:1px solid var(--line);border-radius:16px;background:#09120e;overscroll-behavior-inline:contain;scrollbar-color:var(--surface-3) transparent}
+[dir="rtl"] .table{direction:rtl}
 .table{width:100%;min-width:900px;border-collapse:separate;border-spacing:0}
 .table th,.table td{padding:13px 14px;border-bottom:1px solid rgba(226,255,237,.065);font-size:12px;white-space:nowrap}
 .table th{position:sticky;top:0;z-index:2;background:#0d1913;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:left}

@@ -280,3 +280,21 @@ export function createRenderScheduler(render, {
     if (requestFrame) ticket.frame = requestFrame(run);
   };
 }
+
+// The stats scroller uses LTR coordinates even when its table is Arabic (RTL).
+// Preserve the distance from the name column when filtering or live data changes.
+export function captureTableScrollPosition(wrap) {
+  if (!wrap?.clientWidth || !wrap.dataset.tableDirection) return null;
+  const max = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  const left = Math.min(max, Math.max(0, wrap.scrollLeft));
+  return { direction: wrap.dataset.tableDirection,
+    offset: wrap.dataset.tableDirection === 'rtl' ? max - left : left };
+}
+
+export function restoreTableScrollPosition(wrap, direction, previous = null) {
+  if (!wrap?.clientWidth) return; // Do not initialize a hidden screen.
+  const max = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  const offset = previous?.direction === direction ? Math.min(max, Math.max(0, previous.offset)) : 0;
+  wrap.scrollLeft = direction === 'rtl' ? max - offset : offset;
+  wrap.dataset.tableDirection = direction;
+}

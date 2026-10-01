@@ -27,19 +27,19 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   isGoalAddition, goalAdditionSide, prepareGoalAddition, validateGoalAdditionSave
-} from "./data-engine.js?v=500415";
+} from "./data-engine.js?v=500416";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500415";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500415";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500415";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500415";
-import { resolvePublicPlayers } from "./community-engine.js?v=500415";
-import { createCommunity } from "./community.js?v=500415";
-import { createHighlights } from "./highlights.js?v=500415";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500415";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500415";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500415";
-import { observeConnectivity } from "./connectivity.js?v=500415";
+import { countText, directionFor, translate } from "./i18n.js?v=500416";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500416";
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500416";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500416";
+import { resolvePublicPlayers } from "./community-engine.js?v=500416";
+import { createCommunity } from "./community.js?v=500416";
+import { createHighlights } from "./highlights.js?v=500416";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500416";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500416";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500416";
+import { observeConnectivity } from "./connectivity.js?v=500416";
 
 import {
   appRouteFor,
@@ -53,6 +53,8 @@ import {
   compareMetricValues,
   compareRouteFor,
   createRenderScheduler,
+  captureTableScrollPosition,
+  restoreTableScrollPosition,
   filterRankingRows,
   filterMatches,
   isResetConfirmation,
@@ -62,7 +64,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500415";
+} from "./ux-utils.js?v=500416";
 
 
 /* =========================================================
@@ -823,7 +825,7 @@ document.addEventListener("DOMContentLoaded", () => {
       render();
       $(id)?.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
       const wrap = $('tableBody')?.closest('.tablewrap');
-      if (id === 'tableShortcuts' && wrap) wrap.scrollLeft = 0;
+      if (id === 'tableShortcuts') restoreTableScrollPosition(wrap, directionFor(language));
     });
   }
   $("btnLeaderboardDetails")?.addEventListener("click", () => {
@@ -834,7 +836,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("tableSort")?.addEventListener("change", () => {
     renderTable();
     const wrap = $('tableBody')?.closest('.tablewrap');
-    if (wrap) wrap.scrollLeft = 0;
+    restoreTableScrollPosition(wrap, directionFor(language));
   });
   document.addEventListener('click', event => {
     const trigger = event.target.closest?.('[data-award-table]');
@@ -887,7 +889,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500415").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500416").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -3156,6 +3158,8 @@ function renderTable() {
 
 
   if ($('tableScope')) $('tableScope').textContent = t(awardSort ? 'allPlayersRanking' : 'allEligible');
+  const wrap = body.closest('.tablewrap');
+  const scrollPosition = captureTableScrollPosition(wrap);
   // On narrow screens, bring the requested award metric beside the player name.
   body.closest('table')?.classList.toggle('award-sorted', awardSort);
   body.innerHTML = pending ? `<tr><td colspan="12">${rankingStatus(error)}</td></tr>` :
@@ -3218,6 +3222,7 @@ function renderTable() {
   table?.querySelectorAll("thead th[aria-sort]").forEach(header => header.removeAttribute("aria-sort"));
   const activeHeader = table?.querySelector(`thead th[data-sort-key="${sortBy}"]`);
   activeHeader?.setAttribute("aria-sort", sortBy === "name" ? "ascending" : "descending");
+  restoreTableScrollPosition(wrap, directionFor(language), scrollPosition);
 
 }
 
