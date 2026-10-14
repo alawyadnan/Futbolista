@@ -1,4 +1,4 @@
-import { appRouteFor, compareRouteFor, matchRouteFor, parseAppRoute, publicAppUrl } from './ux-utils.js?v=500420';
+import { appRouteFor, compareRouteFor, matchRouteFor, parseAppRoute, publicAppUrl } from './ux-utils.js?v=500424';
 
 export const PUBLIC_APP_ORIGIN = 'https://ftbll.live/';
 

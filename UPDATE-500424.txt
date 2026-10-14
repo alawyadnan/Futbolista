@@ -1,0 +1,45 @@
+Futbolista 500424 — approved football identity
+2026-10-08, Asia/Riyadh. Local Apple target 1.0.4 (12).
+LOCAL PREPARATION ONLY — NOT ARCHIVED, UPLOADED OR PUBLISHED.
+
+Owner chose the first concept: white football, three mint motion lines and an
+emerald background. No F monogram or curved sweep. The shared icon.svg exactly
+matches the approved proposal; the design itself was not changed for "quality".
+
+Prepared
+- One scalable SVG master instead of different web/native football drawings.
+- Double-density vector rendering with downsampling for crisp raster assets.
+- Apple app icon: 1024x1024 RGB, opaque; system corner masking is preserved.
+- Web/PWA: 192px, 512px, 512px maskable; Apple touch icon: 180px.
+- Rounded launch tile and all three existing 2732px opaque launch variants.
+- Header image clipping retains rounded corners at existing responsive sizes.
+- Shared release 500424, versioned icon URLs, updated manifest/service-worker cache.
+- Xcode Debug/Release identity is unchanged; only version/build moved to 1.0.4 (12).
+- Existing Python icon-generator entry point forwards to the shared SVG renderer,
+  preventing the old separate drawing from returning on future regeneration.
+
+Verified
+- 347 web tests + 22 native tests passed (369 total).
+- Four new tests cover the approved geometry, shared rendering, correct opaque
+  dimensions, maskable foreground safe area and consistent launch variants.
+- Shared web bundle built and synced locally: 18 packaged assets match native/www,
+  no external native JavaScript, unchanged Firebase SDK and app/bundle identity.
+- SVG master byte-for-byte matches the owner's chosen v2 proposal.
+- Native icon inspected visually; source and asset package checks passed.
+
+Limits / next release
+- No new Xcode compilation, signed archive, physical-device installation or
+  delivery test was performed for this logo-only update. Perform normal native
+  archive validation when the owner authorizes the next Apple submission.
+- Do not mistake the existing 1.0.3 archive for this 1.0.4 update.
+- No GitHub push, website/Apple publication, production Firestore/rules/Auth
+  changes, data writes or notification sends. Accounts/statistics are unchanged.
+- Existing released 1.0.3 archive and source ZIP remain preserved.
+
+2026-10-14 publication follow-up (supersedes the local-only status above)
+- Owner authorized publishing this tested website release and approved logo.
+- Apple 1.0.4 (12) was already submitted separately; no Apple action in this step.
+- Publication source: preserved 1.0.3 (11) / 500423 snapshot plus approved 500424
+  logo, generated assets, cache identifiers, renderer and tests.
+- Newer unvalidated local 500425/500426 features remain outside this release.
+- No production Firestore writes, rules/Auth changes or notification sends.

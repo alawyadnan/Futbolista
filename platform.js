@@ -1,4 +1,4 @@
-import { nativeLinkRoute, shareWasCancelled } from './platform-utils.js?v=500420';
+import { nativeLinkRoute, shareWasCancelled } from './platform-utils.js?v=500424';
 
 export function isNativeApp() {
   return globalThis.Capacitor?.isNativePlatform?.() === true;
@@ -22,13 +22,14 @@ export async function exportNativeJSON(json, filename) {
   return true;
 }
 
-export async function initializeNativeApp({ onResume, onRoute, onFailure = () => {} }) {
+export async function initializeNativeApp({ onResume, onRoute, notificationIntro, onFailure = () => {} }) {
   if (!isNativeApp()) return;
   document.documentElement.classList.add('native-app');
   try {
     const bridge = await nativeBridge();
     await bridge.connect({
       onResume,
+      notificationIntro,
       onURL: value => { const route = nativeLinkRoute(value); if (route) onRoute(route); }
     });
     let lastFeedback = 0;

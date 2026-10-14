@@ -27,20 +27,21 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   isGoalAddition, goalAdditionSide, prepareGoalAddition, validateGoalAdditionSave
-} from "./data-engine.js?v=500420";
+} from "./data-engine.js?v=500424";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500420";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches } from "./insights-engine.js?v=500420";
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500420";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500420";
-import { resolvePublicPlayers } from "./community-engine.js?v=500420";
-import { createCommunity } from "./community.js?v=500420";
-import { createHighlights } from "./highlights.js?v=500420";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500420";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500420";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500420";
-import { observeConnectivity } from "./connectivity.js?v=500420";
-import { TABLE_VIEWS, applyTableColumns, renderMonthlyPerformance, renderScoringLeaders, toggleComparisonPick, renderComparisonPicker, renderParticipationWindow, renderDuelRecord, matchSharePayload } from './detail-ui.js?v=500420';
+import { countText, directionFor, translate } from "./i18n.js?v=500424";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches, PLAYER_MATCH_FILTERS, filterPlayerMatchPerformance } from "./insights-engine.js?v=500424";
+import { renderRankingPodium, renderAwardComparison } from './sports-ui.js?v=500424';
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500424";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500424";
+import { resolvePublicPlayers } from "./community-engine.js?v=500424";
+import { createCommunity } from "./community.js?v=500424";
+import { createHighlights } from "./highlights.js?v=500424";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500424";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500424";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500424";
+import { observeConnectivity } from "./connectivity.js?v=500424";
+import { TABLE_VIEWS, applyTableColumns, renderMonthlyPerformance, renderScoringLeaders, toggleComparisonPick, renderComparisonPicker, renderParticipationWindow, renderDuelRecord, matchSharePayload } from './detail-ui.js?v=500424';
 
 import {
   appRouteFor,
@@ -66,7 +67,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500420";
+} from "./ux-utils.js?v=500424";
 
 
 /* =========================================================
@@ -200,6 +201,7 @@ let historyVisibleCount = HISTORY_PAGE_SIZE;
 let historyPlayerId = '';
 let historyMatchKey = '';
 let historyExactDate = '';
+let historyPerformanceFilter = 'all';
 let comparisonScope = 'all';
 
 let sortedHistoryModel = null;
@@ -209,6 +211,7 @@ let sortedHistoryMatches = [];
 const expandedMatchKeys = new Set();
 
 let activeModal = null;
+let modalCloseCallback = null;
 
 let modalReturnFocus = null;
 
@@ -507,11 +510,12 @@ async function handleLoginSubmit(event) {
 }
 
 
-function openModal(id, focusId) {
+function openModal(id, focusId, onClose = null) {
   const modal = $(id);
   if (!modal) return;
   modalReturnFocus = document.activeElement;
   activeModal = modal;
+  modalCloseCallback = onClose;
   modal.classList.remove("hidden");
   document.body.classList.add("modal-open");
   document.querySelectorAll(".topbar, .app, .bottomnav").forEach(element => {
@@ -538,9 +542,12 @@ function closeModal() {
     if ($("loginError")) $("loginError").hidden = true;
   }
   const previous = modalReturnFocus;
+  const callback = modalCloseCallback;
+  modalCloseCallback = null;
   activeModal = null;
   modalReturnFocus = null;
   previous?.focus?.();
+  callback?.();
 }
 
 
@@ -578,6 +585,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (banner) banner.hidden = !offline;
   }});
   initializeNativeApp({
+    notificationIntro: {
+      canPresent: () => !activeModal && !document.querySelector('.screen:not(.hidden)[data-admin="1"]')
+        && ![...document.querySelectorAll('.screen:not(.hidden) form')].some(form => form.getClientRects().length),
+      present: onClose => openModal('nativeNotificationIntro','nativeNotificationEnable',onClose),
+      close: () => { if (activeModal?.id === 'nativeNotificationIntro') closeModal(); },
+      feedback: (message, type) => notify(message, type)
+    },
     onResume: () => { community?.resume(); highlights?.render(); },
     onRoute: hash => {
       if (activeModal || addPlayerBusy || addLogBusy) return;
@@ -606,6 +620,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Refresh only the active rankings when a closed result arrives.
         if (!$("screen-table")?.classList.contains('hidden') && hasDataModel) renderTable();
         if (!$("screen-leaderboard")?.classList.contains('hidden') && hasDataModel) renderLeaderboard();
+        if (comparisonOpen && !$("screen-playerprofile")?.classList.contains('hidden') && hasDataModel) renderCompare();
       },
       showAccount: () => { showScreen('account'); setActiveNav('playerstats'); },
       onProfilesChanged: profiles => { publicProfiles = profiles; players = resolvePublicPlayers(rawPlayers, profiles); scheduleRender(); }
@@ -677,6 +692,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (trigger) openProfile(trigger.getAttribute("data-open-player"));
     const match = event.target.closest?.("[data-open-match]");
     if (match) openHistoryMatch(match.getAttribute("data-open-match"));
+    const performance = event.target.closest?.('[data-player-performance]');
+    if (performance && currentProfileId && PLAYER_MATCH_FILTERS.includes(performance.dataset.playerPerformance)) {
+      historyPlayerId = String(currentProfileId);
+      resetHistoryControls();
+      historyPerformanceFilter = performance.dataset.playerPerformance;
+      showScreen('history'); setActiveNav('history');
+      $('historyTitle')?.focus({preventScroll:true});
+    }
+    const ranking = event.target.closest?.('[data-ranking-open]');
+    if (ranking && ['goals','curStreak','winPct'].includes(ranking.dataset.rankingOpen)) {
+      $('lbSort').value = ranking.dataset.rankingOpen;
+      $('leaderboardSearch').value = '';
+      showScreen('leaderboard'); setActiveNav('leaderboard');
+    }
   });
 
   $("btnPinPlayer")?.addEventListener("click", () => {
@@ -819,6 +848,15 @@ document.addEventListener("DOMContentLoaded", () => {
     historyExactDate = '';
     historyVisibleCount = HISTORY_PAGE_SIZE;
     renderMatchHistory();
+  });
+  $('historyPlayerFilters')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-player-match-filter]');
+    if (!button || !historyPlayerId || !PLAYER_MATCH_FILTERS.includes(button.dataset.playerMatchFilter)) return;
+    historyPerformanceFilter = button.dataset.playerMatchFilter;
+    historyExactDate = '';
+    historyVisibleCount = HISTORY_PAGE_SIZE;
+    renderMatchHistory();
+    $('historyPlayerFilters')?.querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
   });
   $("historyDateRail")?.addEventListener("click", event => {
     const button = event.target.closest('[data-history-date]');
@@ -968,7 +1006,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500420").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500424").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -3131,6 +3169,12 @@ function renderLeaderboard() {
 
   const { rows: allRows, awardSort, complete, pending, error } = rankingRows(sortBy);
   const rows = filterRankingRows(allRows, $("leaderboardSearch")?.value || "", awardSort);
+  const podium = $('leaderboardPodium');
+  if (podium) {
+    const html = pending || $('leaderboardSearch')?.value.trim() ? '' : renderRankingPodium(rows, sortBy, language);
+    podium.hidden = !html;
+    podium.innerHTML = html;
+  }
   if ($("leaderboardSearchCount")) $("leaderboardSearchCount").textContent = pending ? "" : t('searchResultsCount', { count: rows.length, total: allRows.length });
 
 
@@ -3540,7 +3584,7 @@ function renderPlayerProfile(
       <div class="record-track" role="img" aria-label="${esc(recordLabel)}">
         ${resultTotal ? `<span class="record-segment win" style="flex-grow:${s.wins}"></span><span class="record-segment draw" style="flex-grow:${s.draws}"></span><span class="record-segment loss" style="flex-grow:${s.losses}"></span>` : `<span class="record-segment empty"></span>`}
       </div>
-      <div class="record-legend" aria-hidden="true"><span class="win">${esc(t("shortWin"))} ${s.wins}</span><span class="draw">${esc(t("shortDraw"))} ${s.draws}</span><span class="loss">${esc(t("shortLoss"))} ${s.losses}</span></div>`;
+      <div class="record-legend interactive-record">${[['win',s.wins],['draw',s.draws],['loss',s.losses]].map(([result,total]) => `<button type="button" class="${result}" data-player-performance="${result}" aria-label="${esc(countText(language,total,result) + ' · ' + t('showTheseMatches'))}">${esc(t({win:'shortWin',draw:'shortDraw',loss:'shortLoss'}[result]))} ${total}</button>`).join('')}</div>`;
   }
 
 
@@ -3642,7 +3686,7 @@ function renderProfileInsights(pid) {
     const label = `${formatMatchDate(match.date)} · ${t(match.result)} · ${countText(language, match.goals, "goal")}`;
     return `<button type="button" class="goal-column ${match.result}" data-open-match="${esc(match.matchKey)}" aria-label="${esc(label + ". " + t("details"))}" title="${esc(label)}">
       <span class="goal-stem"><span class="goal-value">${match.goals}</span><span class="goal-bar" style="height:${Math.max(3, match.goals / maxGoals * 92)}px"></span></span>
-      <span class="goal-result">${esc(shortResultLabel(match.result))}</span></button>`;
+      <span class="goal-result">${esc(shortResultLabel(match.result))}</span><time class="goal-date" datetime="${esc(match.date)}"><bdi>${esc(match.date.slice(8)+'/'+match.date.slice(5,7))}</bdi></time></button>`;
   }).join("");
   const progressRow = (label, key, format = String, deltaKey = key) => {
     const delta = progress.deltas?.[deltaKey] || 0;
@@ -3650,7 +3694,7 @@ function renderProfileInsights(pid) {
     return `<tr><th scope="row">${esc(t(label))}</th><td>${esc(format(progress.current[key]))}</td><td>${esc(format(progress.previous[key]))}</td><td class="progress-delta ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}">${change}</td></tr>`;
   };
   const best = records.bestScoringMatch;
-  const recordTile = (value, label, detail, key = null) => `<${key ? "button type=\"button\"" : "div"} class="personal-record" ${key ? `data-open-match="${esc(key)}"` : ""}><span>${esc(t(label))}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small>${key ? `<span class="sr-only">${esc(t("details"))}</span>` : ""}</${key ? "button" : "div"}>`;
+  const recordTile = (value, label, detail, key = null, filter = null) => `<${key || filter ? 'button type="button"' : 'div'} class="personal-record" ${key ? `data-open-match="${esc(key)}"` : filter ? `data-player-performance="${filter}"` : ''}><span>${esc(t(label))}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small>${key || filter ? `<span class="sr-only">${esc(t(key ? 'details' : 'showTheseMatches'))}</span>` : ''}</${key || filter ? 'button' : 'div'}>`;
   box.innerHTML = `
     ${renderParticipationWindow(model,pid,language,formatMatchDate)}
     <article class="card goals-card"><div class="card-heading"><h2>${esc(t("goalTimeline"))}</h2><span class="status-pill">${esc(appearanceWindowLabel(progress.recentMatches.length))}</span></div>
@@ -3662,8 +3706,8 @@ function renderProfileInsights(pid) {
     </article>
     <article class="card records-card"><div class="card-heading"><h2>${esc(t("personalRecords"))}</h2></div><div class="personal-records">
       ${recordTile(best?.goals || 0, "bestScoringMatch", best ? formatMatchDate(best.date) : "—", best?.latestMatchKey)}
-      ${recordTile(records.hatTricks, "hatTricks", t("hatTrickThreshold"))}
-      ${recordTile(fmtPct(records.scoringRate), "scoredIn", countText(language, records.scoringMatches, "match"))}
+      ${recordTile(records.hatTricks, "hatTricks", t("hatTrickThreshold"), null, 'hatTrick')}
+      ${recordTile(fmtPct(records.scoringRate), "scoredIn", countText(language, records.scoringMatches, "match"), null, 'scored')}
       ${recordTile(records.unbeatenBest, "unbeatenBest", t("unbeatenNow", { count: records.unbeatenCurrent }))}
     </div></article>`;
 }
@@ -3845,7 +3889,7 @@ function getSortedMatches() {
 
 function getFilteredMatches(sortedMatches = getSortedMatches()) {
   if (historyMatchKey) return sortedMatches.filter(match => String(match.matchKey) === historyMatchKey);
-  return filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all", historyPlayerId, historyExactDate);
+  return filterPlayerMatchPerformance(filterMatches(sortedMatches, playerName, $("historySearch")?.value || "", $("historyPeriod")?.value || "all", historyPlayerId, historyExactDate), historyPlayerId, historyPerformanceFilter);
 }
 
 function formatMatchWeekday(date) {
@@ -3856,7 +3900,7 @@ function formatMatchWeekday(date) {
 function renderHistoryDateRail(allMatches) {
   const box = $('historyDateRail');
   if (!box) return;
-  const matches = filterMatches(allMatches, playerName, $('historySearch')?.value || '', $('historyPeriod')?.value || 'all', historyPlayerId);
+  const matches = filterPlayerMatchPerformance(filterMatches(allMatches, playerName, $('historySearch')?.value || '', $('historyPeriod')?.value || 'all', historyPlayerId), historyPlayerId, historyPerformanceFilter);
   const dates = buildMatchDates(matches);
   if (!dates.includes(historyExactDate)) historyExactDate = '';
   box.classList.toggle('hidden', !dates.length);
@@ -3871,12 +3915,25 @@ function renderHistoryDateRail(allMatches) {
 function resetHistoryControls() {
   historyMatchKey = '';
   historyExactDate = '';
+  historyPerformanceFilter = 'all';
   if ($('historySearch')) $('historySearch').value = '';
   if ($('historyPeriod')) $('historyPeriod').value = 'all';
   historyVisibleCount = HISTORY_PAGE_SIZE;
 }
 
 function renderHistorySelection(matches) {
+  const filters = $('historyPlayerFilters');
+  if (filters) {
+    filters.classList.toggle('hidden', !historyPlayerId);
+    // Retain nodes while selecting a filter, including their keyboard focus.
+    const signature = `${language}:${historyPlayerId}`;
+    if (filters.dataset.signature !== signature) {
+      const labels = {all:'allMatches',win:'wins',draw:'draws',loss:'losses',scored:'scoredMatches',hatTrick:'hatTrickMatches'};
+      filters.innerHTML = PLAYER_MATCH_FILTERS.map(key => `<button type="button" data-player-match-filter="${key}" aria-controls="matchHistoryList" aria-pressed="false">${esc(t(labels[key]))}</button>`).join('');
+      filters.dataset.signature = signature;
+    }
+    filters.querySelectorAll('[data-player-match-filter]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.playerMatchFilter === historyPerformanceFilter)));
+  }
   const active = !!(historyExactDate || historyPlayerId || $('historySearch')?.value.trim() || $('historyPeriod')?.value !== 'all');
   $('historySearch')?.closest('.field')?.classList.toggle('hidden', !!historyPlayerId);
   document.querySelector('#screen-history .screen-intro .eyebrow')?.classList.toggle('hidden', !!historyPlayerId);
@@ -4394,6 +4451,7 @@ function renderCompare() {
         ${compareFormStatLine(t("form"), renderFormDots(aForm.formResults || []), renderFormDots(bForm.formResults || []), aForm.formPoints, bForm.formPoints)}
       </div>
     </div>
+    ${communityEnabled ? renderAwardComparison(highlights?.getStatistics(), aId, bId, language) : ''}
     <div class="card compare-head-to-head">
       <h2 class="card-title">${esc(t("headToHead"))}</h2>
       ${renderDuelRecord(model,aPlayer,bPlayer,h2h,language)}

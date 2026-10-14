@@ -1,9 +1,9 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500420';
-import { renderWithFormDraft } from './ux-utils.js?v=500420';
-import { accountJourney, authFeedbackKey } from './account-ux.js?v=500420';
-import { awardPodium, motmWinners } from './highlights-engine.js?v=500420';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500424';
+import { renderWithFormDraft } from './ux-utils.js?v=500424';
+import { accountJourney, authFeedbackKey, setAccountButtonLabel } from './account-ux.js?v=500424';
+import { awardPodium, motmWinners } from './highlights-engine.js?v=500424';
 
 export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onResultsChanged = () => {} }) {
   const $ = id => document.getElementById(id);
@@ -76,7 +76,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   function renderAccountContent() {
     const box = $('accountContent');
     if (!box) return;
-    $('btnAccount').textContent = t(link ? 'myProfile' : 'account');
+    setAccountButtonLabel($('btnAccount'), t(link ? 'myProfile' : 'account'));
     if (!user) {
       box.innerHTML = `<article class="card account-card"><div class="account-mark" aria-hidden="true">◉</div><h2>${esc(t(authMode === 'signup' ? 'createAccount' : 'signIn'))}</h2>
         <div class="account-modes">${button('signin-mode','signIn',`aria-pressed="${authMode === 'signin'}"`)}${button('signup-mode','createAccount',`aria-pressed="${authMode === 'signup'}"`)}</div>

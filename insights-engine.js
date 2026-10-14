@@ -2,6 +2,22 @@ function playerParticipations(model, playerId) {
   return model?.byPlayer?.get(String(playerId ?? "").trim()) || [];
 }
 
+export const PLAYER_MATCH_FILTERS = Object.freeze(['all', 'win', 'draw', 'loss', 'scored', 'hatTrick']);
+
+// Apply after the date/name filters, before pagination. Read the canonical
+// appearance: another player's goals and own goals never qualify this player.
+export function filterPlayerMatchPerformance(matches, playerId, filter = 'all') {
+  const id = String(playerId || '');
+  if (!id || !PLAYER_MATCH_FILTERS.includes(filter) || filter === 'all') return matches;
+  return matches.filter(match => {
+    const part = match.parts?.find(row => String(row.playerId) === id);
+    if (!part) return false;
+    if (filter === 'scored') return part.normalGoals > 0;
+    if (filter === 'hatTrick') return part.normalGoals >= 3;
+    return part.result === filter;
+  });
+}
+
 function summarizeWindow(participations) {
   const summary = { matches: participations.length, wins: 0, draws: 0, losses: 0, goals: 0, winPct: 0, gpm: 0 };
   for (const participation of participations) {

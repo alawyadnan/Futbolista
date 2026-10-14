@@ -2,6 +2,9 @@ export const DEFAULT_LANGUAGE = "en";
 
 const messages = {
   en: {
+    rankingHighlights: "Ranking highlights", playerMatchFilter: "Player match filter",
+    scoredMatches: "Scored", hatTrickMatches: "Hat-tricks", showTheseMatches: "View these matches",
+    viewRanking: "View ranking",
     matchDetails: "Match details", shareMatch: "Share match", browseMatches: "All matches", matchLinkMissing: "Match not found", matchLinkMissingLead: "This match is not available. You can browse the match history.",
     chooseComparison: "Compare two players", cancelComparePick: "Cancel selection", compareNow: "Compare",
     pickFirstPlayer: "First player", pickSecondPlayer: "Second player", comparePickedCount: "{count} of 2 players selected",
@@ -180,6 +183,9 @@ const messages = {
     navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
   },
   ar: {
+    rankingHighlights: "أبرز الترتيب", playerMatchFilter: "تصفية مباريات اللاعب",
+    scoredMatches: "سجّل فيها", hatTrickMatches: "هاتريك", showTheseMatches: "عرض هذه المباريات",
+    viewRanking: "عرض الترتيب",
     matchDetails: "تفاصيل المباراة", shareMatch: "مشاركة المباراة", browseMatches: "كل المباريات", matchLinkMissing: "المباراة غير موجودة", matchLinkMissingLead: "هذه المباراة غير متاحة. يمكنك تصفح سجل المباريات.",
     chooseComparison: "مقارنة لاعبين", cancelComparePick: "إلغاء الاختيار", compareNow: "قارن",
     pickFirstPlayer: "اللاعب الأول", pickSecondPlayer: "اللاعب الثاني", comparePickedCount: "تم اختيار {count} من لاعبين",

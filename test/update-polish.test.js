@@ -71,8 +71,8 @@ test('ranking searches are labeled and version bump preserves bundle identity an
     assert.ok(html.includes(`aria-describedby="${id}Count"`));
   }
   const project = read('native/ios/App/App.xcodeproj/project.pbxproj');
-  assert.equal((project.match(/MARKETING_VERSION = 1\.0\.2;/g)||[]).length,2);
-  assert.equal((project.match(/CURRENT_PROJECT_VERSION = 10;/g)||[]).length,2);
-  assert.equal(JSON.parse(read('native/package.json')).version,'1.0.2');
+  assert.equal((project.match(/MARKETING_VERSION = 1\.0\.4;/g)||[]).length,2);
+  assert.equal((project.match(/CURRENT_PROJECT_VERSION = 12;/g)||[]).length,2);
+  assert.equal(JSON.parse(read('native/package.json')).version,'1.0.4');
   assert.match(project,/PRODUCT_BUNDLE_IDENTIFIER = live\.ftbll\.futbolista/);
 });

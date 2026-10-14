@@ -10,14 +10,14 @@ const Push = registerPlugin('FutbolistaPush');
 export const shareContent = payload => Share.share(payload);
 export const selectionFeedback = () => Haptics.selectionChanged();
 
-export async function connect({ onResume, onURL }) {
+export async function connect({ onResume, onURL, notificationIntro }) {
   await App.addListener('resume', onResume);
   await App.addListener('appUrlOpen', event => onURL(event.url));
   const launch = await App.getLaunchUrl();
   if (launch?.url) onURL(launch.url);
   // Styling failure must not disable navigation, login or sharing.
   await StatusBar.setStyle({style:Style.Dark}).catch(() => {});
-  await installPushControls(Push, {onURL, onResume, app:App}).catch(() => {});
+  await installPushControls(Push, {onURL, notificationIntro, app:App}).catch(() => {});
 }
 
 export async function shareJSON(json, filename) {

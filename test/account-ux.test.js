@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { accountJourney, authFeedbackKey } from '../account-ux.js';
+import { accountJourney, authFeedbackKey, setAccountButtonLabel } from '../account-ux.js';
 import { translate } from '../i18n.js';
 
 test('unverified accounts always start at verification, even with a stale link', () => {
@@ -45,4 +45,25 @@ test('account journey and actionable errors are translated in both languages', (
     'weak-password', 'user-disabled', 'requires-recent-login', 'invalid-credential'
   ].map(code => authFeedbackKey({ code: `auth/${code}` }))];
   for (const language of ['ar','en']) for (const key of keys) assert.notEqual(translate(language,key),key);
+});
+
+test('account label changes preserve the SVG and update the accessible name in both languages', () => {
+  const child = { textContent: '' };
+  const button = { textContent: 'SVG sentinel', querySelector: () => child,
+    setAttribute(key, value) { this[key] = value; } };
+  for (const language of ['ar', 'en']) for (const key of ['account', 'myProfile']) {
+    const label = translate(language, key);
+    setAccountButtonLabel(button, label);
+    assert.equal(child.textContent, label);
+    assert.equal(button['aria-label'], label);
+    assert.equal(button.textContent, 'SVG sentinel');
+  }
+});
+test('account label remains compatible with older text-only cached markup and absent controls', () => {
+  const button = { textContent: '', querySelector: () => null,
+    setAttribute(key, value) { this[key] = value; } };
+  setAccountButtonLabel(button, 'Account');
+  assert.equal(button.textContent, 'Account');
+  assert.equal(button['aria-label'], 'Account');
+  assert.doesNotThrow(() => setAccountButtonLabel(null, 'Account'));
 });

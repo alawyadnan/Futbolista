@@ -22,22 +22,22 @@
       document.documentElement.dir = savedLanguage === "ar" ? "rtl" : "ltr";
     } catch {}
   </script>
-  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500420" />
-  <link rel="manifest" href="./manifest.json?v=500420" />
-  <link rel="stylesheet" href="./styles.css?v=500420" />
+  <link rel="icon" href="./icon.svg?v=500424" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500424" />
+  <link rel="manifest" href="./manifest.json?v=500424" />
+  <link rel="stylesheet" href="./styles.css?v=500424" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
 
 <header class="topbar" id="topbar">
   <a class="brand" href="#mainContent" aria-label="Futbolista home" data-i18n-aria="homeAria">
-    <span class="appicon" aria-hidden="true"><img src="./icon.svg" alt="" /></span>
+    <span class="appicon" aria-hidden="true"><img src="./icon.svg?v=500424" alt="" /></span>
     <span class="brandtxt"><span class="title">Futbolista</span></span>
   </a>
   <div class="topbar-actions">
     <button id="btnLanguage" type="button" class="btn btn-quiet btn-compact language-btn" aria-label="Switch language to Arabic" data-i18n-aria="languageAria"><span aria-hidden="true">文</span><span data-i18n="language">العربية</span></button>
-    <button id="btnAccount" type="button" class="btn btn-quiet btn-compact hidden" data-i18n="account">Account</button>
+    <button id="btnAccount" type="button" class="btn btn-quiet btn-compact account-button hidden" aria-label="Account" data-i18n-aria="account"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><span class="account-button-label" data-i18n="account">Account</span></button>
     <button id="btnAdminLogin" type="button" class="btn btn-quiet btn-compact"><span aria-hidden="true">⌁</span><span data-i18n="adminLogin">Admin Login</span></button>
     <button id="btnExportTop" type="button" class="btn btn-quiet btn-compact" data-admin="1"><span aria-hidden="true">↓</span><span data-i18n="export">Export</span></button>
   </div>
@@ -51,9 +51,11 @@
       <div><h1 id="dashboardTitle" data-i18n="dashboardTitle">Pickup Stats</h1></div>
       <div class="season-strip" aria-label="Season summary" data-i18n-aria="seasonSummary"><div><strong id="seasonMatches">—</strong><span data-i18n="matches">Matches</span></div><div><strong id="seasonPlayers">—</strong><span data-i18n="players">Players</span></div></div>
     </header>
+    <div class="dashboard-award-grid">
     <article id="dashboardMotm" class="card motm-spotlight hidden"></article>
     <article id="dashboardVoting" class="card mvp-voting hidden"></article>
     <article id="dashboardAwardRanking" class="card award-ranking hidden"></article>
+    </div>
     <section id="dashboardTrends" class="headline-trends hidden"></section>
     <div id="pinnedPlayer" class="pinned-player hidden"></div>
     <div class="dashboard-grid dashboard-feature-grid">
@@ -61,9 +63,9 @@
       <article class="card feature-card potm-card"><div class="card-icon crown" aria-hidden="true">★</div><div class="card-heading"><div><div class="eyebrow" data-i18n="monthlyAward">Monthly award</div><h2 data-i18n="playerMonth">Player of the Month</h2></div><span id="playerOfMonthMonth" class="status-pill">—</span></div><div id="playerOfMonthList" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMonthly">Loading monthly rankings…</div></article>
     </div>
     <div class="dashboard-grid dashboard-metric-grid">
-      <article class="card metric-card scorers-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="finishing">Finishing</div><h2 data-i18n="topScorers">Top Scorers</h2></div><span class="metric-symbol" aria-hidden="true">⚽</span></div><div id="dashTopScorers" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingScorers">Loading scorers…</div></article>
-      <article class="card metric-card streak-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="momentum">Momentum</div><h2 data-i18n="bestStreak">Best Current Streak</h2></div><span class="metric-symbol" aria-hidden="true">⚡</span></div><div id="dashTopStreaks" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingStreaks">Loading streaks…</div></article>
-      <article class="card metric-card win-card"><div class="card-heading"><div><div class="eyebrow" data-i18n="consistency">Consistency</div><h2 data-i18n="bestWinPct">Best Win %</h2></div><span class="metric-symbol" aria-hidden="true">◎</span></div><div id="dashTopWinPct" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPct">Loading percentages…</div></article>
+      <article class="card metric-card scorers-card"><div class="card-heading"><h2 data-i18n="topScorers">Top Scorers</h2><span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m12 8 4 3-1.5 5h-5L8 11Zm0-5v5m4 3 4-2m-5.5 7 2.5 4m-7.5-4L7 20m1-9L4 9"/></svg></span></div><div id="dashTopScorers" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingScorers">Loading scorers…</div><button class="dashboard-ranking-link" type="button" data-ranking-open="goals" data-i18n="viewRanking">View ranking</button></article>
+      <article class="card metric-card streak-card"><div class="card-heading"><h2 data-i18n="bestStreak">Best Current Streak</h2><span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19v-4M12 19v-8M19 19V5M4 8l5-4 5 3 6-5"/></svg></span></div><div id="dashTopStreaks" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingStreaks">Loading streaks…</div><button class="dashboard-ranking-link" type="button" data-ranking-open="curStreak" data-i18n="viewRanking">View ranking</button></article>
+      <article class="card metric-card win-card"><div class="card-heading"><h2 data-i18n="bestWinPct">Best Win %</h2><span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9h-9Zm4 0v5h5a7 7 0 0 0-5-5Z"/></svg></span></div><div id="dashTopWinPct" class="list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingPct">Loading percentages…</div><button class="dashboard-ranking-link" type="button" data-ranking-open="winPct" data-i18n="viewRanking">View ranking</button></article>
     </div>
   </section>
 
@@ -71,6 +73,7 @@
     <header class="screen-intro"><div><div class="eyebrow" data-i18n="competitive">Competitive ranking</div><h1 id="leaderboardTitle" data-i18n="leaderboard">Leaderboard</h1></div></header>
     <div class="ranking-search"><label class="field" for="leaderboardSearch"><span data-i18n="searchPlayers">Find a player</span><input id="leaderboardSearch" class="input" type="search" autocomplete="off" spellcheck="false" enterkeyhint="search" data-i18n-placeholder="searchPlayers" aria-describedby="leaderboardSearchCount" /></label><span id="leaderboardSearchCount" class="search-count" role="status" aria-live="polite"></span></div>
     <div id="leaderboardShortcuts" class="ranking-shortcuts" role="group" aria-label="Sort by" data-i18n-aria="sortBy"></div>
+    <div id="leaderboardPodium" class="leaderboard-podium" hidden></div>
     <article class="card standings-card">
       <div class="standings-toolbar"><label class="field-inline" for="lbSort"><span data-i18n="sortBy">Sort by</span><select id="lbSort" class="select"><option value="form" selected data-i18n="form">Form</option><option value="winPct" data-i18n="winPct">Win %</option><option value="goals" data-i18n="goals">Goals</option><option value="gpm" data-i18n="gpm">Goals per Match</option><option value="wins" data-i18n="wins">Wins</option><option value="matches" data-i18n="matches">Matches</option><option value="curStreak" data-i18n="currentStreak">Current Win Streak</option><option value="bestStreak" data-i18n="bestWinStreak">Best Win Streak</option><option value="votingPoints" data-i18n="votingPoints">Voting points</option><option value="motmAwards" data-i18n="motmAwards">MOTM awards</option><option value="monthAwards" data-i18n="monthAwards">Monthly awards</option></select></label>
         <button id="btnLeaderboardDetails" class="btn btn-quiet ranking-details-toggle" type="button" aria-pressed="false" aria-controls="leaderboardList" data-i18n="rankingDetails">All statistics</button>
@@ -142,6 +145,7 @@
     <article id="historyPlayerSummary" class="card history-player-summary hidden"></article>
     <article class="card history-tools"><div class="history-toolbar"><label class="field grow" for="historySearch"><span data-i18n="searchHistory">Search player</span><input id="historySearch" class="input search-input" type="search" autocomplete="off" placeholder="Find a player in matches…" data-i18n-placeholder="historyPlaceholder" /></label><label class="field history-period-field" for="historyPeriod"><span data-i18n="date">Date</span><select id="historyPeriod" class="select"><option value="all" data-i18n="allDates">All dates</option></select></label><div class="history-actions"><button id="btnExpandAll" type="button" class="btn btn-quiet" data-i18n="expandAll">Expand all</button><button id="btnCollapseAll" type="button" class="btn btn-quiet" data-i18n="collapseAll">Collapse all</button></div></div></article>
     <div id="historyDateRail" class="history-date-rail hidden" role="group" aria-label="Match dates" data-i18n-aria="matchDates"></div>
+    <div id="historyPlayerFilters" class="history-player-filters hidden" role="group" aria-label="Player match filter" data-i18n-aria="playerMatchFilter"></div>
     <div class="history-result-toolbar"><p id="historyCount" role="status"></p><button id="btnClearHistory" type="button" class="btn btn-quiet hidden" data-i18n="clearHistoryFilters">Clear filters</button></div>
     <div id="matchHistoryList" class="match-list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMatches">Loading matches…</div>
   </section>
@@ -212,6 +216,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500420"></script>
+<script type="module" src="./app.js?v=500424"></script>
 </body>
 </html>

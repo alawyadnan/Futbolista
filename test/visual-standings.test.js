@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {buildRankingMetric,buildPlayerAvatar,filterRankingRows} from '../ux-utils.js';
 import {translate} from '../i18n.js';
+import {renderRankingPodium} from '../sports-ui.js';
 
 const row={id:'player-1',name:'Ali <script>',formPoints:3.5,winPct:.625,goals:12,gpm:1.5,wins:5,matches:8,curStreak:2,bestStreak:4,votingPoints:13,motmAwards:2,monthAwards:1,rank:1,formResults:['win']};
 const expected={form:['form','3.5'],winPct:['winPct','63%'],goals:['goals','12'],gpm:['gpm','1.50'],wins:['wins','5'],matches:['matches','8'],curStreak:['currentStreak','2'],bestStreak:['bestWinStreak','4'],votingPoints:['votingPoints','13'],motmAwards:['motmAwards','2'],monthAwards:['monthAwards','1']};
@@ -20,7 +21,8 @@ test('actual compact renderer preserves all detailed statistics and safe player 
   const render=source.slice(source.indexOf('function renderLeaderboard('),source.indexOf('function renderTable('));
   for(const key of Object.keys(expected)){
     const list={innerHTML:''};
-    runInNewContext(render+'\nrenderLeaderboard();',{$:id=>id==='lbSort'?{value:key}:list,rankingRows:()=>({rows:[row],awardSort:['votingPoints','motmAwards','monthAwards'].includes(key),complete:true}),
+    runInNewContext(render+'\nrenderLeaderboard();',{$:id=>id==='lbSort'?{value:key}:id==='leaderboardSearch'?{value:''}:id==='leaderboardPodium'?null:list,rankingRows:()=>({rows:[row],awardSort:['votingPoints','motmAwards','monthAwards'].includes(key),complete:true}),
+      renderRankingPodium,language:'en',
       renderRankingShortcuts(){},buildRankingMetric,buildPlayerAvatar,filterRankingRows,communityEnabled:true,t:k=>translate('en',k),esc:v=>String(v).replaceAll('<','&lt;').replaceAll('>','&gt;'),formatFormPoints:()=>3.5,renderFormDots:()=>'<span class="result-dots">W</span>',fmtPct:()=> '63%',fmt2:()=> '1.50'});
     assert.match(list.innerHTML,new RegExp(`data-primary-metric="${key}"`));
     assert.ok(list.innerHTML.includes(`>${expected[key][1]}</strong>`));

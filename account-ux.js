@@ -1,4 +1,12 @@
 // Presentation only. Firebase and Firestore remain the authority for access.
+export function setAccountButtonLabel(button, label) {
+  if (!button) return;
+  // Preserve the decorative SVG; older cached markup still supports text-only.
+  const target = button.querySelector('.account-button-label') || button;
+  target.textContent = label;
+  button.setAttribute('aria-label', label);
+}
+
 export function accountJourney({ emailVerified = false, linked = false, requestStatus = '' } = {}) {
   const current = !emailVerified ? 0 : linked ? 3 : requestStatus === 'pending' ? 2 : 1;
   return ['verifyStep', 'choosePlayerStep', 'approvalStep'].map((label, index) => ({

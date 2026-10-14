@@ -1,0 +1,53 @@
+Futbolista 500421 — sports UI and meaningful statistic drilldowns
+2026-10-07, Asia/Riyadh. LOCAL UPDATE; NOT PUBLISHED OR SUBMITTED.
+
+Baseline: GitHub main verified at cb009c869854c0230fb07eb25592e66cea6d6912.
+
+Changes
+- Cooler dark surfaces with emerald accents, clearer borders, lighter shadows,
+  consistent SVG dashboard icons and no fixed decorative background layer.
+- Desktop dashboard places the latest MOTM beside voting leaders; mobile retains
+  the existing reading order. Scorers, streak and win-rate cards open the ranking.
+- A responsive podium highlights the selected leaderboard metric. It preserves
+  existing ranks, includes every earned award tie through rank 3, hides during
+  search/loading and does not manufacture awards from zero totals.
+- Compare now includes all-time voting points, MOTM and monthly awards, with
+  player names and paired bars. Pending/failed vote results show dashes and the
+  existing loading/error messages; completed monthly awards remain independent.
+- Profile result buttons, scoring rate and hat-trick records open matching player
+  histories. Histories can filter wins, draws, losses, scoring or hat-tricks.
+  Filters intersect date selection before pagination and use canonical appearances.
+- Personal goal charts now show match dates beneath the bars.
+
+Validation
+- 343 web tests passed, including new filtering, duplicate/own-goal exclusion,
+  podium tie handling, safe names and incomplete award snapshot tests.
+- 10 native package/push tests passed.
+- 70 responsive checks: Dashboard, Leaderboard, Table, Players, Player Profile,
+  Compare and History in AR/EN at 320/360/390/430/1280px. No page overflow or
+  offscreen controls outside intentionally scrolling rails/tables.
+- Read-only live-data preview: Mustafa's hat-trick filter returned 12 matches;
+  his scoring filter returned 26. Comparison showed canonical award totals.
+- Public admin controls remained hidden. No captured browser JavaScript errors.
+- Native assets built/copied and all 18 copied files verified; 668048 JS bytes
+  (about 0.8% above the previous published package). No external native JavaScript.
+- git diff --check passed. Firebase data engine, rules, auth/config and exports
+  remain unchanged. No production writes, votes or notification sends performed.
+
+Limits and next release
+- Xcode iOS device Build succeeded on 2026-10-07. All 18 web assets in the compiled
+  Debug-iphoneos App.app matched native/www byte-for-byte. Screenshot:
+  outputs/update-500421/xcode-build-succeeded.png in the parent workspace.
+- Physical iPhone, native runtime scrolling/paint and a new signed Release archive
+  were not retested. This is a verified local build, not a new App Store binary.
+- Owner requested on 2026-10-07: collect meaningful app improvements into a larger
+  future update; no Apple submission today.
+- 1.0.2 (10) was already submitted on October 1; do not reuse that build number.
+- These local changes do not replace the already-submitted 1.0.2 package.
+- Preview: http://127.0.0.1:4182/?qa=sports-500421#dashboard
+- Screenshots and source ZIP: outputs/update-500421 in the parent workspace.
+- Original release ZIPs and existing Apple archives are preserved.
+
+Inspiration: readable statistic emphasis and side-by-side player comparison in
+FotMob and Sofascore. No proprietary scoring formula, synthetic tracking data,
+match momentum, xG, heatmaps, advertising or new rating scale was introduced.

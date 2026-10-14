@@ -1,0 +1,53 @@
+Futbolista 500422 — first-opening notification choice
+2026-10-07, Asia/Riyadh. LOCAL UPDATE; NOT PUBLISHED OR SUBMITTED.
+Includes the preceding local 500421 improvements without changing production data.
+
+Changes
+- On the first opening of the updated iPhone app, users with undecided iOS
+  permission see an Arabic/English invitation: Enable notifications / Not now.
+  No sign-in or visit to Account is required.
+- Only Enable requests iOS notification permission and subsequently registers
+  the device if permission is granted. Not now, backdrop dismissal and Escape
+  save only a local presentation preference. The invitation does not repeat.
+- Existing enabled/blocked permissions are respected. Account retains manual
+  preferences; previously blocked permission must be changed in iPhone Settings.
+- The invitation waits for login dialogs or entry forms to close. It uses the
+  existing focus trap, inert background, focus restoration and reduced-motion
+  support, with 48px buttons and a compact RTL-safe sports surface.
+- Permission failures receive visible feedback. The Firebase sending shortcut,
+  topic, APNs configuration and independent-of-account device delivery remain.
+
+Validation
+- 343 web tests and 18 native package/push tests passed (361 total).
+- Native tests cover first opening, no-login/no-registration presentation,
+  repeated taps, persisted deferral, Escape, form/dialog delay, stale native
+  decisions, errors and local-only Swift dismissal.
+- Isolated browser harness uses real markup, CSS, notification controls and the
+  production modal functions, but mock push only. Ten AR/EN layout checks at
+  320/360/390/430/1280px passed without horizontal overflow or clipped copy.
+- Browser checks: focus wrapping, Not now + restart, explicit Enable exactly
+  once, Escape restoring background interaction, denied-permission suppression.
+  No captured JavaScript warning/error messages. No live device was registered.
+- Native bundle built/copied: 18 assets, 672574 JavaScript bytes, no external
+  JavaScript. All 18 files in the compiled Debug-iphoneos App.app match native/www.
+- Xcode App device build succeeded at 2026-10-07 11:17 AST. Build activity log
+  C687ABD8-C093-46F3-9B7D-12B870748A31 confirms success with zero errors and five
+  existing warnings: two Capacitor dependency warnings, two Firebase Messaging
+  deprecated API warnings, and an unused AppIntents metadata notice. These are
+  not introduced by the notification invitation. Native UI proof capture timed
+  out; the build log and compiled assets provide the build evidence instead.
+- git diff --check passed. No Firebase configuration, Auth, rules, data engine,
+  collections, production writes, votes, notification sends or exports changed.
+
+Release limits
+- This is a local build and mock UI validation, not a physical-iPhone permission
+  or APNs delivery test. Test the actual iOS permission prompt and device delivery
+  during the next owner-approved release preparation.
+- No new archive, upload, GitHub push or Apple submission was made. Native assets
+  are packaged, so the new flow requires the future App Store update; website
+  changes alone cannot add it to the currently installed application.
+- Keep bundle identity live.ftbll.futbolista, existing signing configuration,
+  free/unlisted Saudi distribution and accounts. Assign a fresh unused Apple
+  version/build only when preparing the owner-approved next submission.
+- Screenshots, responsive checks, isolated preview and source ZIP are in
+  outputs/update-500422 in the parent workspace. Previous ZIPs remain untouched.

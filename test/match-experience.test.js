@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {buildDataModel, emptyModel, computeHeadToHead} from '../data-engine.js';
-import {computeComparisonWindow} from '../insights-engine.js';
+import {computeComparisonWindow,filterPlayerMatchPerformance} from '../insights-engine.js';
 import {buildMatchDates, filterMatches, buildPlayerAvatar, compareMetricValues, isValidISODate, compareRouteFor, parseAppRoute} from '../ux-utils.js';
 import {nativeLinkRoute} from '../platform-utils.js';
 import {translate, countText} from '../i18n.js';
@@ -67,7 +67,7 @@ test('actual comparison renderer exposes the selected scope with honest partial 
     const box={innerHTML:''};
     const nodes={cmpPlayerB:{value:'b'},compareResult:box};
     runInNewContext(render+'\nrenderCompare();',{$:id=>nodes[id],currentProfileId:'a',players,model,comparisonScope:scope,
-      computeComparisonWindow,computeFootballHeadToHead:computeHeadToHead,renderDuelRecord,language:lang,emptyStats:()=>({}),updatePageContext(){},
+      computeComparisonWindow,computeFootballHeadToHead:computeHeadToHead,renderDuelRecord,language:lang,communityEnabled:false,emptyStats:()=>({}),updatePageContext(){},
       t:key=>translate(lang,key),esc,buildPlayerAvatar,renderFormDots:()=>'',fmtPct:v=>Math.round(v*100)+'%',fmt2:v=>v.toFixed(2),compareMetricValues});
     assert.match(box.innerHTML,new RegExp(`data-compare-scope="${scope}" aria-pressed="true"`));
     assert.match(box.innerHTML,/Ali &lt;script&gt;/);
@@ -120,7 +120,7 @@ test('date selection resets when a search excludes the selected day', () => {
   const code=source.slice(source.indexOf('function renderHistoryDateRail('),source.indexOf('function resetHistoryControls('));
   const box={dataset:{},classList:{toggle(){}},querySelectorAll:()=>[]};
   const nodes={historyDateRail:box,historySearch:{value:'Bader'},historyPeriod:{value:'all'}};
-  const context={$:id=>nodes[id],historyExactDate:'2026-09-08',historyPlayerId:'',language:'en',filterMatches,buildMatchDates,
+  const context={$:id=>nodes[id],historyExactDate:'2026-09-08',historyPlayerId:'',historyPerformanceFilter:'all',filterPlayerMatchPerformance,language:'en',filterMatches,buildMatchDates,
     playerName:id=>players.find(p=>p.id===id)?.name,esc,t:key=>translate('en',key),formatMatchWeekday:()=> 'Monday',formatMatchDate:d=>d,formatMonthLabel:d=>d};
   runInNewContext(code+'\nrenderHistoryDateRail(matches);',{...context,matches:[...model.matchSummaries.values()]});
   assert.match(box.innerHTML,/data-history-date="2026-09-03"/);

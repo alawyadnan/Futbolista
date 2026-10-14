@@ -1,0 +1,56 @@
+Futbolista 500423 — mobile matchday visual polish + notification introduction
+2026-10-07, Asia/Riyadh. Apple target 1.0.3 (11).
+Owner authorized Apple submission; no GitHub/website publication performed.
+
+Changes since 500422
+- Cleaner dark blue-green surfaces, emerald accents and calmer borders/shadows.
+- A compact mobile season summary, clearer MOTM identity, and a readable voting
+  countdown panel; all existing award ties, participants and voting actions remain.
+- Refined podium sizing, statistic badges, table contrast, profile tabs/tiles,
+  comparison surfaces and match scoreboards. Touch controls remain usable at 320px.
+- Account uses a compact accessible SVG control on mobile. Its localized label
+  changes without destroying the icon; older text-only cached markup still works.
+- No changes to table sticky positioning/compositing; the iPhone disappearing-
+  names repair remains intact. No leaderboard arrows or redundant match counts.
+- Includes 500421 sports UI/drilldowns and 500422 first-opening notification
+  invitation. Notification opt-in needs no account. Not now is remembered locally.
+
+Validation
+- 347 web tests + 18 native tests passed (365 total). New tests cover account
+  icon preservation, accessible names, linked-account labels and cached markup.
+- 70 responsive layout checks: Dashboard, Leaderboard, Table, Players, Profile,
+  Compare and History; AR/EN at 320/360/390/430/1280px. No page overflow,
+  offscreen controls outside internal scroll rails, or visible public admin tools.
+- Ten extra account-control checks confirmed the icon survives language changes,
+  its accessible label is localized and its mobile touch height is 44px.
+- No captured browser JavaScript warnings/errors. Preview used actual read-only
+  statistics: 31 matches, 65 players. No test player/account/match/vote was created.
+- Native bundle rebuilt/copied: 18 assets, 672693 JavaScript bytes, no external
+  JavaScript. Package checks passed. git diff --check passed.
+- Production Firestore, schema, rules, authentication/configuration, signing
+  identity, notifications topic, data engine and raw JSON export remain unchanged.
+  No group notification was sent. No owner-device registration was performed.
+
+Apple status / limits
+- App Store Connect and the Saudi App Store confirmed released 1.0.2 on Oct 7.
+- New source/project version is 1.0.3 (11). Xcode upload was confirmed on Oct 7
+  at 12:48 AST. App Store Connect confirmed Waiting for Review after submission
+  at 12:55 AST, ID a6cd057a-7594-43a0-8214-c7ece4b46edc. Approval and distribution
+  are still pending; manual release remains selected.
+- CLI archive attempts stopped before compilation: SwiftPM nested sandbox_apply
+  is prohibited in this environment. Xcode native automation timed out. The owner
+  was initially asked to archive. A subsequent native automation reset resolved
+  UI control; the agent performed Archive and App Store Connect upload directly.
+- Archive 1.0.3 (11), live.ftbll.futbolista, team PWC93S9KK8: all 18 packaged assets
+  match native/www, and the compiled notification-introduction plugin is present.
+  Xcode reports successful preparation/upload with zero errors or warnings. The
+  sandboxed codesign check could not establish trust; no trust settings were changed.
+- App Store Connect 1.0.3 was created; Arabic What's New and updated review notes
+  were saved, with existing credentials and manual release retained. Build 11 was
+  selected after processing, saved and submitted under the owner's authorization.
+- New physical-iPhone permission/delivery and a new simulator run were not tested
+  this turn. The preceding 500422 Swift device build passed, but that is not a
+  replacement for validating this release archive.
+- Screenshots/checks/source ZIP: outputs/update-500423 in the parent workspace.
+  These screenshots are browser UI evidence, not new Apple listing screenshots.
+- Previous ZIPs, archives and released version are preserved.

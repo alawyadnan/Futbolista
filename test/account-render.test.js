@@ -90,6 +90,19 @@ test('linked profile and admin account preserve their separate screens', () => {
   assert.doesNotMatch(h.html(),/id="profileEditForm"|id="linkPlayerForm"/);
   assert.equal(h.writes(),0);
 });
+
+test('actual account renderer retains the compact icon when login and player-link state change', () => {
+  const h = harness();
+  const button = h.node('btnAccount'), label = { textContent: '' };
+  button.textContent = 'SVG sentinel'; button.querySelector = () => label;
+  h.app.onAuth(null, false);
+  assert.equal(label.textContent, translate('ar', 'account'));
+  h.login({ linked: true });
+  assert.equal(label.textContent, translate('ar', 'myProfile'));
+  assert.equal(button['aria-label'], translate('ar', 'myProfile'));
+  assert.equal(button.textContent, 'SVG sentinel');
+  assert.equal(h.writes(), 0);
+});
 test('password visibility is accessible and resets when changing authentication mode', () => {
   const h = harness('en'); h.app.onAuth(null,false);
   const trigger = h.click('toggle-password');

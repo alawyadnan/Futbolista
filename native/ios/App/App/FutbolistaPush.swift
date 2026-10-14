@@ -10,6 +10,7 @@ final class FutbolistaPush: NSObject, UNUserNotificationCenterDelegate, Messagin
     static let changed = Notification.Name("FutbolistaPushChanged")
     static let opened = Notification.Name("FutbolistaPushOpened")
     private let preference = "futbolista.notifications.enabled"
+    private let introductionPreference = "futbolista.notifications.introductionSeen"
     private let topic = "futbolista_updates"
     private(set) var ready = false
     private(set) var failed = false
@@ -54,6 +55,7 @@ final class FutbolistaPush: NSObject, UNUserNotificationCenterDelegate, Messagin
     }
     func enable(_ completion: @escaping (Bool) -> Void) {
         guard configured else { completion(false); return }
+        dismissIntroduction()
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             DispatchQueue.main.async {
                 if granted && error == nil {
@@ -66,6 +68,7 @@ final class FutbolistaPush: NSObject, UNUserNotificationCenterDelegate, Messagin
         }
     }
     func disable() {
+        dismissIntroduction()
         UserDefaults.standard.set(false, forKey: preference)
         ready = false
         failed = false
@@ -118,12 +121,19 @@ final class FutbolistaPush: NSObject, UNUserNotificationCenterDelegate, Messagin
                 switch settings.authorizationStatus {
                 case .authorized, .provisional, .ephemeral: permission = "granted"
                 case .denied: permission = "denied"
-                default: permission = "prompt"
+                case .notDetermined: permission = "prompt"
+                @unknown default: permission = "unknown"
                 }
                 completion(["configured": self.configured, "permission": permission,
-                            "enabled": self.enabled, "ready": self.ready, "failed": self.failed])
+                            "enabled": self.enabled, "ready": self.ready, "failed": self.failed,
+                            "introductionSeen": UserDefaults.standard.bool(forKey: self.introductionPreference)])
             }
         }
+    }
+    func dismissIntroduction() {
+        // Presentation preference only. Deferring never registers a device,
+        // initializes Firebase, or requests notification authorization.
+        UserDefaults.standard.set(true, forKey: introductionPreference)
     }
     func consumeRoute() -> String? {
         defer { pendingRoute = nil }
@@ -154,6 +164,7 @@ public class FutbolistaPushPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "getStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "enable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disable", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "dismissIntroduction", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "consumeRoute", returnType: CAPPluginReturnPromise)
     ]
@@ -175,6 +186,9 @@ public class FutbolistaPushPlugin: CAPPlugin, CAPBridgedPlugin {
     }
     @objc func disable(_ call: CAPPluginCall) {
         DispatchQueue.main.async { FutbolistaPush.shared.disable(); FutbolistaPush.shared.status { call.resolve($0) } }
+    }
+    @objc func dismissIntroduction(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { FutbolistaPush.shared.dismissIntroduction(); call.resolve() }
     }
     @objc func openSettings(_ call: CAPPluginCall) {
         DispatchQueue.main.async {

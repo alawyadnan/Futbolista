@@ -7,9 +7,14 @@ web Firebase configuration and email accounts must remain unchanged.
 
 ## Sending after release
 
-1. Users install the updated iPhone app, open **Account → Group notifications**,
-   choose Enable and accept the iOS permission. The administrator's preference
-   and sending-dashboard shortcut are under **Settings**.
+1. Users install the updated iPhone app. On the first opening, an optional
+   invitation offers **Enable notifications** or **Not now**, with no sign-in
+   required. Only choosing Enable requests iOS permission. Not now is remembered
+   locally, without registering the device. Users can later change their choice
+   under **Account → Group notifications**. Existing enabled/blocked permissions
+   are respected; blocked iOS permission can only be changed in iPhone Settings.
+   The administrator's preference and sending-dashboard shortcut are under
+   **Settings**. The invitation waits while another dialog or entry form is open.
 2. Open Firebase Console for `el-futbolistas` → Messaging → New campaign →
    Notifications. Enter an appropriate short title and message.
 3. Target the topic **`futbolista_updates`**. It appears after an opted-in device

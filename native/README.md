@@ -1,11 +1,30 @@
 # Futbolista for iPhone
 
 Historical first submission: App Store version 1.0 (build 2), release 500408.
-App Store Connect confirmed 1.0.1 (9) is distributed on 2026-10-01.
-Current local web bundle: **release 500420**, including 500417/500418 improvements and the simplified match history.
-Current submission candidate: **1.0.2 (10)**. The owner authorized web publication
-and Apple submission on 2026-10-01; upload/review status must be verified separately.
-See `../UPDATE-500420.txt` for the latest change and remaining release gates.
+App Store Connect and the Saudi App Store confirmed **1.0.2** is distributed
+on 2026-10-07. The previous submitted binary is build 10.
+Current update target: **1.0.3 (11), release 500423**, with first-opening
+notification opt-in, mobile visual polish, ranking highlights, award comparisons,
+player match filters and a refreshed sports theme.
+The bundle has been built and copied into the iOS project for the next update.
+The preceding 500422 iOS device Build succeeded on 2026-10-07; it is not proof
+that the newly changed 500423 bundle has been compiled or signed. The 500423
+source/package tests passed and all 18 generated assets were copied into iOS.
+After resetting native automation, Xcode archived **1.0.3 (11)** successfully on
+2026-10-07 and uploaded it at 12:48 AST. All 18 archive assets match native/www;
+the notification-introduction plugin is present. Xcode's distribution record
+reports preparation/upload success with zero errors or warnings. The sandboxed
+CLI cannot independently validate the signing trust chain; Xcode handled signing
+and App Store validation without changing trust settings. App Store Connect
+confirmed **Waiting for Review** for 1.0.3 (11), submitted October 7 at 12:55 AST.
+Submission ID: a6cd057a-7594-43a0-8214-c7ece4b46edc. Manual release after approval
+remains selected; this is not yet an approved or distributed update.
+See `../UPDATE-500423.txt` for the latest changes and validation,
+`../UPDATE-500422.txt` for the notification introduction,
+and `../UPDATE-500421.txt` for the preceding sports UI improvements.
+The latest owner request on 2026-10-07 authorizes improving the interface and
+then submitting the update to Apple. This supersedes the earlier local-only hold.
+Preserve existing price/distribution/regions and the manual release selection.
 See `../UPDATE-500414.md` for the already-published goal adjustments and
 `store/PUSH-NOTIFICATIONS.md` for the new optional native notifications.
 Historical submission evidence lives in `store/SUBMISSION-STATUS-500408.md`.
@@ -22,8 +41,10 @@ existing account identity, app storage and upgrade continuity depend on them.
 Email/password, verified-email linking and administrator approval are unchanged.
 Google/SMS login remain unimplemented. Optional native group notifications use
 Firebase Messaging 12.19.2, added independently from the unchanged web Auth SDK.
-Users opt in under Account; administrators have preferences and a Firebase
-Notifications composer shortcut under Settings. No paid sending backend is used.
+Users can opt in on the first opening without signing in, or later under Account.
+The optional invitation remembers Not now locally and respects existing iOS
+permissions. Administrators have preferences and a Firebase Notifications composer
+shortcut under Settings. No paid sending backend is used.
 In-app account-deletion requests are implemented; the owner processes them within
 seven days using `store/ACCOUNT-DELETION-RUNBOOK.md`. No client-side deletion
 cascade runs. Existing match data remains authoritative.

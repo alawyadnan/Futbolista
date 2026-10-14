@@ -1,15 +1,15 @@
 {
-  "release": "500420",
+  "release": "500424",
   "firebaseSDK": "10.12.2",
   "appId": "live.ftbll.futbolista",
   "remoteJavaScript": false,
   "outputs": [
     {
       "path": "www/app.bundle.js",
-      "bytes": 634572,
+      "bytes": 640377,
       "imports": [
         {
-          "path": "www/chunks/bridge-MYQDMQPH.js",
+          "path": "www/chunks/bridge-AJFVA55U.js",
           "kind": "dynamic-import"
         }
       ]
@@ -63,8 +63,8 @@
       ]
     },
     {
-      "path": "www/chunks/bridge-MYQDMQPH.js",
-      "bytes": 8794,
+      "path": "www/chunks/bridge-AJFVA55U.js",
+      "bytes": 12893,
       "imports": [
         {
           "path": "www/chunks/chunk-E2NU2U6K.js",

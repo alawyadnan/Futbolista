@@ -1,6 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Futbolista">
-  <defs><linearGradient id="g" x1="8" y1="4" x2="56" y2="60"><stop stop-color="#76f2a6"/><stop offset="1" stop-color="#18b968"/></linearGradient></defs>
-  <rect width="64" height="64" rx="18" fill="#07110d"/>
-  <path d="M32 9a23 23 0 1 0 0 46 23 23 0 0 0 0-46Z" fill="none" stroke="url(#g)" stroke-width="3"/>
-  <path d="m32 19 8 6-3 10H27l-3-10 8-6Zm-8 6-8 3 2 10 9-3m10 0 9 3 2-10-8-3M18 38l6 8 8-3 8 3 6-8M32 43v8" fill="none" stroke="#eefaf3" stroke-width="2.4" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Futbolista football mark</title>
+  <desc id="desc">A bold white football with dark pentagonal panels and three mint motion lines on a deep emerald background.</desc>
+  <defs>
+    <linearGradient id="pitch" x1="80" y1="0" x2="940" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#096747"/>
+      <stop offset="1" stop-color="#043527"/>
+    </linearGradient>
+    <clipPath id="ball"><circle cx="566" cy="512" r="280"/></clipPath>
+  </defs>
+  <path fill="url(#pitch)" d="M0 0h1024v1024H0z"/>
+  <g fill="none" stroke="#79f1b0" stroke-width="30" stroke-linecap="round">
+    <path d="M188 424h42"/>
+    <path d="M158 512h66"/>
+    <path d="M188 600h42"/>
+  </g>
+  <circle cx="566" cy="512" r="280" fill="#f3fff8"/>
+  <g clip-path="url(#ball)">
+    <g fill="none" stroke="#043527" stroke-width="13" stroke-linejoin="round">
+      <path d="M566 397V315M675 477l66-23M634 605l56 76M498 605l-56 76M457 477l-66-23"/>
+    </g>
+    <g fill="#043527">
+      <path d="m566 397 109 80-41 128H498l-41-128Z"/>
+      <path d="M487 220h158l-14 77-65 31-65-31Z"/>
+      <path d="m791 347 68 111-69 44-64-43 9-66Z"/>
+      <path d="m830 681-126 113-41-63 24-67 70-22Z"/>
+      <path d="m302 681 126 113 41-63-24-67-70-22Z"/>
+      <path d="m341 347-68 111 69 44 64-43-9-66Z"/>
+    </g>
+  </g>
 </svg>
