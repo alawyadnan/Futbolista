@@ -180,7 +180,23 @@ const messages = {
     enterName: "Enter a player name.", duplicatePlayer: "A player with this name already exists.", adding: "Adding…", playerAdded: "{name} was added to the squad.", playerAddFailed: "Could not add the player. Please try again.",
     choosePlayer: "Choose a player first.", dataStillLoading: "Wait for the latest data to finish loading.", invalidGoals: "Goals must be a whole number from 0 to 99.", invalidDate: "Enter a valid match date.", invalidSelection: "Choose a valid result and team.", alreadySaving: "This entry is already being saved.", duplicateEntry: "{type} entry already exists for this player in this match.", metadataMismatch: "Team and result must match this player's existing match entry.", saving: "Saving…", saved: "Match entry saved successfully.", saveFailed: "Could not save the entry. Please try again.",
     loadFailed: "Could not load the latest data. Check your connection and try again.", backupDone: "Backup downloaded successfully.", resetDone: "All data was reset.", resetting: "Resetting…", resetFailed: "Reset failed before any data was deleted.", resetPartial: "Reset stopped after deleting {logs} logs and {players} players. Restore your backup before continuing.",
-    navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown"
+    navHint: "Swipe for more sections", latestResult: "{team} · {score}", versus: "vs", unknown: "Unknown",
+    playerPhoto: "Profile photo", setPhoto: "Add photo", changePhoto: "Change photo", removePhoto: "Remove photo",
+    photoHint: "Choose a photo. It is resized on your device before saving.", photoSaved: "Photo updated.", photoRemoved: "Photo removed.",
+    photoFailed: "Could not update the photo. Try again.", photoTypeError: "Choose an image file (PNG, JPEG or WebP).", photoSizeError: "That image could not be processed. Try a smaller one.",
+    photoAlt: "Photo of {name}", playerPhotoCardLead: "Your photo appears next to your name across the app.",
+    registeredAccounts: "Registered accounts", accountsLead: "Every account request and its linked player. Names and statistics stay unchanged unless you edit them.",
+    noAccounts: "No accounts yet.", accountStatusPending: "Pending", accountStatusApproved: "Approved", accountStatusRejected: "Rejected",
+    unlinkAccount: "Unlink", unlinkConfirm: "Unlink this account from its player? The player's statistics stay the same, and the account can request a link again.",
+    accountUnlinked: "Account unlinked. The player can be linked again.", accountUnlinkFailed: "Could not unlink the account. Try again.",
+    linkStatus: "Link", noLink: "Not linked", accountCreated: "Registered",
+    editEntry: "Edit", deleteEntry: "Delete", editEntryTitle: "Edit match entry", editAdditionalTitle: "Edit added goals",
+    entryEditorLead: "Change the recorded values, then save. Statistics update immediately.",
+    editAdditionalLead: "Only the goals, scoring team and own-goal flag can change. Player, date and result stay fixed.",
+    saveChanges: "Save changes", deleteEntryTitle: "Delete match entry", deleteEntryLead: "This permanently removes the entry and recalculates statistics. This cannot be undone.",
+    confirmDeleteEntry: "Delete entry", entryUpdated: "Entry updated.", entryDeleted: "Entry deleted.",
+    entryUpdateFailed: "Could not update the entry. Try again.", entryDeleteFailed: "Could not delete the entry. Try again.",
+    fixedForAddedGoals: "Fixed for added goals."
   },
   ar: {
     rankingHighlights: "أبرز الترتيب", playerMatchFilter: "تصفية مباريات اللاعب",
@@ -361,7 +377,23 @@ const messages = {
     enterName: "أدخل اسم اللاعب.", duplicatePlayer: "يوجد لاعب بهذا الاسم بالفعل.", adding: "جارٍ الإضافة…", playerAdded: "تمت إضافة {name} إلى الفريق.", playerAddFailed: "تعذرت إضافة اللاعب. حاول مرة أخرى.",
     choosePlayer: "اختر لاعبًا أولًا.", dataStillLoading: "انتظر حتى يكتمل تحميل أحدث البيانات.", invalidGoals: "أدخل عددًا صحيحًا للأهداف من 0 إلى 99.", invalidDate: "أدخل تاريخًا صحيحًا للمباراة.", invalidSelection: "اختر النتيجة والفريق.", alreadySaving: "جارٍ حفظ هذه المشاركة بالفعل.", duplicateEntry: "سبق تسجيل {type} لهذا اللاعب في هذه المباراة.", metadataMismatch: "يجب أن يتطابق الفريق والنتيجة مع مشاركة اللاعب المسجلة.", saving: "جارٍ الحفظ…", saved: "تم حفظ المشاركة بنجاح.", saveFailed: "تعذر حفظ المشاركة. حاول مرة أخرى.",
     loadFailed: "تعذر تحميل أحدث البيانات. تحقق من اتصالك وحاول مرة أخرى.", backupDone: "تم تنزيل النسخة الاحتياطية.", resetDone: "تم حذف جميع البيانات.", resetting: "جارٍ حذف البيانات…", resetFailed: "تعذر بدء الحذف ولم تُحذف أي بيانات.", resetPartial: "توقفت العملية بعد حذف {logs} سجل و{players} لاعب. استعد النسخة الاحتياطية قبل المتابعة.",
-    navHint: "حرّك الشريط لرؤية بقية الأقسام", latestResult: "{team} · {score}", versus: "ضد", unknown: "غير معروف"
+    navHint: "حرّك الشريط لرؤية بقية الأقسام", latestResult: "{team} · {score}", versus: "ضد", unknown: "غير معروف",
+    playerPhoto: "صورة الملف الشخصي", setPhoto: "إضافة صورة", changePhoto: "تغيير الصورة", removePhoto: "إزالة الصورة",
+    photoHint: "اختر صورة، ويتم تصغيرها على جهازك قبل الحفظ.", photoSaved: "تم تحديث الصورة.", photoRemoved: "تمت إزالة الصورة.",
+    photoFailed: "تعذّر تحديث الصورة. حاول مرة أخرى.", photoTypeError: "اختر ملف صورة (PNG أو JPEG أو WebP).", photoSizeError: "تعذّر معالجة الصورة. جرّب صورة أصغر.",
+    photoAlt: "صورة {name}", playerPhotoCardLead: "تظهر صورتك بجانب اسمك في كل التطبيق.",
+    registeredAccounts: "الحسابات المسجلة", accountsLead: "كل طلبات الحسابات واللاعب المرتبط بها. لا تتغير الأسماء أو الإحصاءات إلا إذا عدّلتها.",
+    noAccounts: "لا توجد حسابات بعد.", accountStatusPending: "قيد الانتظار", accountStatusApproved: "مقبول", accountStatusRejected: "مرفوض",
+    unlinkAccount: "إلغاء الربط", unlinkConfirm: "إلغاء ربط هذا الحساب بلاعبه؟ تبقى إحصاءات اللاعب كما هي، ويمكن للحساب طلب الربط مرة أخرى.",
+    accountUnlinked: "تم إلغاء ربط الحساب. يمكن ربط اللاعب مرة أخرى.", accountUnlinkFailed: "تعذّر إلغاء الربط. حاول مرة أخرى.",
+    linkStatus: "الربط", noLink: "غير مرتبط", accountCreated: "تاريخ التسجيل",
+    editEntry: "تعديل", deleteEntry: "حذف", editEntryTitle: "تعديل المشاركة", editAdditionalTitle: "تعديل الأهداف المضافة",
+    entryEditorLead: "عدّل القيم المسجلة ثم احفظ. تتحدث الإحصاءات فورًا.",
+    editAdditionalLead: "يمكن تغيير الأهداف وفريق التسجيل وصفة الهدف في مرماه فقط. يبقى اللاعب والتاريخ والنتيجة ثابتة.",
+    saveChanges: "حفظ التعديلات", deleteEntryTitle: "حذف المشاركة", deleteEntryLead: "يؤدي هذا إلى حذف المشاركة نهائيًا وإعادة حساب الإحصاءات. لا يمكن التراجع.",
+    confirmDeleteEntry: "حذف المشاركة", entryUpdated: "تم تحديث المشاركة.", entryDeleted: "تم حذف المشاركة.",
+    entryUpdateFailed: "تعذّر تحديث المشاركة. حاول مرة أخرى.", entryDeleteFailed: "تعذّر حذف المشاركة. حاول مرة أخرى.",
+    fixedForAddedGoals: "ثابت للأهداف المضافة."
   }
 };
 

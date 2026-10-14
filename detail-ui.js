@@ -1,6 +1,6 @@
-import { translate, countText } from './i18n.js?v=500424';
-import { buildPlayerAvatar, matchRouteFor } from './ux-utils.js?v=500424';
-import { computeMonthlyPerformance, computeParticipationWindow, computeDuelScoring } from './insights-engine.js?v=500424';
+import { translate, countText } from './i18n.js?v=500427';
+import { buildPlayerAvatar, matchRouteFor } from './ux-utils.js?v=500427';
+import { computeMonthlyPerformance, computeParticipationWindow, computeDuelScoring } from './insights-engine.js?v=500427';
 
 const esc = value => String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const percentage = (value, total) => total > 0 ? Math.min(100, Math.max(0, value / total * 100)) : 0;

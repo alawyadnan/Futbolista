@@ -1,13 +1,14 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, validateBallot, validateProfile, votingState } from './community-engine.js?v=500424';
-import { renderWithFormDraft } from './ux-utils.js?v=500424';
-import { accountJourney, authFeedbackKey, setAccountButtonLabel } from './account-ux.js?v=500424';
-import { awardPodium, motmWinners } from './highlights-engine.js?v=500424';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, timestampMillis, validateBallot, validateProfile, votingState } from './community-engine.js?v=500427';
+import { renderWithFormDraft } from './ux-utils.js?v=500427';
+import { accountJourney, authFeedbackKey, setAccountButtonLabel } from './account-ux.js?v=500427';
+import { awardPodium, motmWinners } from './highlights-engine.js?v=500427';
 
-export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onResultsChanged = () => {} }) {
+export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onLinkChanged = () => {}, onResultsChanged = () => {} }) {
   const $ = id => document.getElementById(id);
   let user = null, admin = false, link = null, linkRequest = null, accountReady = false;
+  let accounts = [], links = new Map(), accountsReady = false, lastLinkPlayerId = '__unset__', accountsStop = null, linksStop = null;
   let profiles = new Map(), sessions = [], requests = [], ownBallot = null, ballotKey = '', accountError = false;
   let ownStops = [], adminStop = null, ballotStop = null, busy = false, authMode = 'signin';
   let generation = 0, lastPhase = '', timer = null, expiryTimer = null, ballotDirty = false;
@@ -34,7 +35,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     const date = new Date(`${session.date}T12:00:00`);
     return Number.isNaN(date.getTime()) ? session.date : new Intl.DateTimeFormat(document.documentElement.lang === 'ar' ? 'ar-SA-u-ca-gregory' : 'en-GB',{day:'numeric',month:'long',year:'numeric'}).format(date);
   };
-  function render() { renderAccount(); renderRequests(); renderAdminVoting(); renderVoting(); }
+  function render() { renderAccount(); renderRequests(); renderAdminAccounts(); renderAdminVoting(); renderVoting(); }
   function renderAccount() {
     const view = `${generation}:${authMode}:${editingRequest}:${accountReady}:${accountError}:${deletionReady}:${deletionError}:${!!deletionRequest}:${link?.playerId || ''}:${linkRequest?.status || ''}`;
     renderWithFormDraft($('accountContent'), renderAccountContent, accountView === view);
@@ -119,6 +120,41 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     box.classList.toggle('hidden', !admin);
     if (!admin) { box.replaceChildren(); return; }
     box.innerHTML = `<div class="card-heading"><h2>${esc(t('accountRequests'))}</h2><span class="status-pill">${requests.length}</span></div>${requests.length ? requests.map(request => `<div class="account-request-row"><div><strong><bdi dir="auto">${esc(playerName(request.requestedPlayerId))}</bdi></strong><small><bdi dir="auto">${esc(request.email)}</bdi></small></div><div class="account-actions">${button('approve','approve',`data-uid="${esc(request.uid)}"`)}${button('reject','reject',`data-uid="${esc(request.uid)}"`)}</div></div>`).join('') : `<p class="note">${esc(t('noAccountRequests'))}</p>`}`;
+  }
+
+  function renderAdminAccounts() {
+    const box = $('adminAccounts');
+    if (!box) return;
+    box.classList.toggle('hidden', !admin);
+    if (!admin) { box.replaceChildren(); return; }
+    if (!accountsReady) { box.innerHTML = `<h2>${esc(t('registeredAccounts'))}</h2><p role="status">${esc(t('loadingAccount'))}</p>`; return; }
+    const statusLabel = status => status === 'approved' ? t('accountStatusApproved')
+      : status === 'rejected' ? t('accountStatusRejected') : t('accountStatusPending');
+    const rows = accounts.slice().sort((a, b) => (timestampMillis(b.createdAt) || 0) - (timestampMillis(a.createdAt) || 0));
+    box.innerHTML = `<h2>${esc(t('registeredAccounts'))}</h2><p class="note">${esc(t('accountsLead'))}</p>` + (rows.length ? `<div class="account-list">${rows.map(account => {
+      const linkedPlayer = links.get(account.uid);
+      const playerId = String(linkedPlayer?.playerId || '');
+      const status = String(account.status || 'pending');
+      const created = timestampMillis(account.createdAt);
+      return `<div class="account-row" data-status="${esc(status)}">
+        <div class="account-row-main">
+          <strong><bdi dir="auto">${esc(account.email || '')}</bdi></strong>
+          <small>${esc(t('linkStatus'))}: <bdi dir="auto">${playerId ? esc(playerName(playerId)) : esc(t('noLink'))}</bdi></small>
+          <small>${esc(statusLabel(status))}${created ? ` · ${esc(new Intl.DateTimeFormat(document.documentElement.lang, { dateStyle: 'medium' }).format(new Date(created)))}` : ''}</small>
+        </div>
+        <div class="account-actions">
+          ${status === 'pending' ? `${button('approve','approve',`data-uid="${esc(account.uid)}"`)}${button('reject','reject',`data-uid="${esc(account.uid)}"`)}` : ''}
+          ${playerId ? `<button type="button" class="btn btn-quiet" data-community-action="unlink" data-uid="${esc(account.uid)}" data-player-id="${esc(playerId)}">${esc(t('unlinkAccount'))}</button>` : ''}
+        </div>
+      </div>`;
+    }).join('')}</div>` : `<p class="note">${esc(t('noAccounts'))}</p>`);
+  }
+
+  function publishLink() {
+    const playerId = link?.playerId || null;
+    if (playerId === lastLinkPlayerId) return;
+    lastLinkPlayerId = playerId;
+    onLinkChanged(playerId);
   }
 
   function renderAdminVoting() {
@@ -286,7 +322,10 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     ballotStop?.(); ballotStop = null; ballotKey = ''; ownBallot = null; ballotDirty = false;
     selectedSessionId = '';
     user = nextUser; admin = isAdmin; link = null; linkRequest = null; requests = []; accountReady = false; accountError = false;
+    accounts = []; links = new Map(); accountsReady = false;
+    accountsStop?.(); accountsStop = null; linksStop?.(); linksStop = null;
     bindReceiptCounts();
+    publishLink();
     editingRequest = false; passwordVisible = false; accountFeedback = null;
     if (user) ownStops.push(onSnapshot(doc(db,'deletionRequests',user.uid),snap => {
       if (generation !== currentGeneration) return;
@@ -300,11 +339,26 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
       let userReady = false, requestReady = false;
       const loaded = () => { accountReady = userReady && requestReady; render(); };
       const fail = () => { if (generation !== currentGeneration) return; accountError = true; renderAccount(); };
-      ownStops.push(onSnapshot(doc(db,'users',user.uid),snap => { if (generation !== currentGeneration) return; link = snap.exists() ? snap.data() : null; userReady = true; ballotKey = ''; loaded(); },fail));
+      ownStops.push(onSnapshot(doc(db,'users',user.uid),snap => { if (generation !== currentGeneration) return; link = snap.exists() ? snap.data() : null; userReady = true; ballotKey = ''; publishLink(); loaded(); },fail));
       ownStops.push(onSnapshot(doc(db,'accountRequests',user.uid),snap => { if (generation !== currentGeneration) return; linkRequest = snap.exists() ? snap.data() : null; requestReady = true; loaded(); },fail));
     }
     if (admin) adminStop = onSnapshot(query(collection(db,'accountRequests'),where('status','==','pending')),snap => { if (generation !== currentGeneration) return; requests = snap.docs.map(item => ({...item.data(),uid:item.id})); renderRequests(); },error => notify(errorMessage(error),'error'));
+    if (admin) {
+      accountsStop = onSnapshot(collection(db,'accountRequests'),snap => { if (generation !== currentGeneration) return; accounts = snap.docs.map(item => ({...item.data(),uid:item.id})); accountsReady = true; renderAdminAccounts(); },error => notify(errorMessage(error),'error'));
+      linksStop = onSnapshot(collection(db,'users'),snap => { if (generation !== currentGeneration) return; links = new Map(snap.docs.map(item => [item.id,item.data()])); renderAdminAccounts(); },error => notify(errorMessage(error),'error'));
+    }
     render();
+  }
+
+  async function unlinkAccount(uid, playerId) {
+    if (!admin) throw new Error('communityDenied');
+    if (!uid || !playerId) throw new Error('invalidCandidate');
+    await runTransaction(db, async transaction => {
+      transaction.delete(doc(db,'users',uid));
+      transaction.delete(doc(db,'playerClaims',playerId));
+      transaction.delete(doc(db,'accountRequests',uid));
+    });
+    notify(t('accountUnlinked'));
   }
 
   async function approve(uid) {
@@ -377,6 +431,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
       }
       else if (name === 'approve') await approve(trigger.dataset.uid);
       else if (name === 'reject' && admin) await updateDoc(doc(db,'accountRequests',trigger.dataset.uid),{status:'rejected',updatedAt:serverTimestamp()});
+      else if (name === 'unlink' && admin) await unlinkAccount(trigger.dataset.uid, trigger.dataset.playerId);
     });
   });
   const markAccountDraft = event => {
@@ -443,5 +498,5 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   timer = setInterval(updateCountdown,15000);
   const onVisibility = () => { if (!document.hidden) resume(); };
   document.addEventListener('visibilitychange',onVisibility);
-  return { onAuth, render, resume, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; document.removeEventListener?.('visibilitychange',onVisibility); stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); deletionStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
+  return { onAuth, render, resume, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; document.removeEventListener?.('visibilitychange',onVisibility); stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); accountsStop?.(); linksStop?.(); deletionStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
 }

@@ -28,7 +28,22 @@ service cloud.firestore {
 
     // Existing football collections stay public-read / admin-write. No new
     // profile, ballot or account path grants authority over either collection.
-    match /players/{playerId} { allow read: if true; allow write: if admin(); }
+    match /players/{playerId} {
+      allow read: if true;
+      allow create, delete: if admin();
+      // A linked owner may only set or clear their own avatar photo. Every
+      // football field stays admin-only.
+      allow update: if admin() || (
+        ownsPlayer(playerId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo'])
+        && (!request.resource.data.keys().hasAny(['photo']) || (
+          request.resource.data.photo is string
+          && request.resource.data.photo.size() > 0
+          && request.resource.data.photo.size() <= 120000
+          && request.resource.data.photo.matches('^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$')
+        ))
+      );
+    }
     match /logs/{logId} { allow read: if true; allow write: if admin(); }
 
     // No existing document is modified by a deletion request. Only the owner
@@ -72,7 +87,12 @@ service cloud.firestore {
           && getAfter(claimPath(resource.data.requestedPlayerId)).data.uid == uid
         ))
       );
-      allow delete: if false;
+      allow delete: if admin() && (
+        !exists(userPath(uid)) || (
+          !existsAfter(userPath(uid))
+          && !existsAfter(claimPath(get(userPath(uid)).data.playerId))
+        )
+      );
     }
 
     // Two immutable locks in the SAME atomic approval transaction enforce both
@@ -87,7 +107,11 @@ service cloud.firestore {
         && getAfter(claimPath(request.resource.data.playerId)).data.uid == uid
         && getAfter(requestPath(uid)).data.status == 'approved'
         && getAfter(requestPath(uid)).data.requestedPlayerId == request.resource.data.playerId;
-      allow update, delete: if false;
+      // Unlinking is a trusted admin correction, never a client cascade.
+      allow delete: if admin()
+        && !existsAfter(claimPath(resource.data.playerId))
+        && !existsAfter(requestPath(uid));
+      allow update: if false;
     }
     match /playerClaims/{playerId} {
       allow read: if admin();
@@ -96,7 +120,10 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
         && request.resource.data.uid is string && request.resource.data.createdAt == request.time
         && getAfter(userPath(request.resource.data.uid)).data.playerId == playerId;
-      allow update, delete: if false;
+      allow delete: if admin()
+        && !existsAfter(userPath(resource.data.uid))
+        && !existsAfter(requestPath(resource.data.uid));
+      allow update: if false;
     }
     match /playerProfiles/{playerId} {
       allow read: if true;

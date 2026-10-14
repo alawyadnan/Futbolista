@@ -1277,3 +1277,489 @@ body::before{display:none}
   .leader-copy .name{font-size:13px}
   .profileName{font-size:25px}
 }
+
+/* ==========================================================================
+   500425 — "Matchday" visual refresh · MOBILE-FIRST (iPhone priority)
+   --------------------------------------------------------------------------
+   Refines the existing dark + green identity for phones first, then keeps
+   desktop consistent. This layer only touches presentation (colour, depth,
+   type, touch ergonomics, motion). Structural layout and the RTL/LTR table
+   scroller rules above are intentionally left intact.
+   ========================================================================== */
+
+/* --- 1. Canonical design tokens ------------------------------------------ */
+:root{
+  --ink-0:#070c0f;            /* page background            */
+  --ink-1:#0d191d;            /* card surface               */
+  --ink-2:#122127;            /* raised surface             */
+  --ink-3:#17292f;            /* hover / pressed surface    */
+  --hairline:rgba(198,224,229,.12);
+  --hairline-strong:rgba(198,224,229,.22);
+  --text:#f3f9f8;
+  --muted:#a7bbc0;            /* lifted for phone readability */
+  --muted-2:#788f95;
+  --green:#43df87;
+  --green-bright:#62f2a1;
+  --green-deep:#18a75c;
+  --green-ink:#04160d;
+  --green-glow:rgba(67,223,135,.24);
+  --gold:#f2cc60;
+  --sky:#69aefc;
+  --surface-grad:linear-gradient(158deg,#16262b 0%,#0f1c21 58%,#0b1519 100%);
+  --r-xs:10px;--r-sm:14px;--r-md:18px;--r-lg:22px;--r-xl:28px;--r-pill:999px;
+  --tap:48px;
+  --elev-1:0 1px 2px rgba(0,0,0,.35);
+  --elev-2:0 9px 26px rgba(0,0,0,.30);
+  --elev-3:0 20px 52px rgba(0,0,0,.44);
+  --ring:0 0 0 3px rgba(67,223,135,.30);
+  --dur:.16s;--dur-slow:.26s;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+
+/* --- 2. Base / canvas ---------------------------------------------------- */
+html{background:var(--ink-0)}
+body{
+  color:var(--text);
+  background:
+    radial-gradient(130% 58% at 50% -12%,rgba(67,223,135,.15),transparent 62%),
+    radial-gradient(90% 46% at 100% 0,rgba(105,174,252,.07),transparent 58%),
+    var(--ink-0);
+  background-attachment:scroll;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  text-rendering:optimizeLegibility;
+}
+::selection{background:rgba(67,223,135,.30);color:#eafff3}
+*{scrollbar-width:thin;scrollbar-color:rgba(154,183,177,.28) transparent}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-thumb{background:rgba(154,183,177,.24);border:2px solid transparent;border-radius:99px;background-clip:content-box}
+*::-webkit-scrollbar-thumb:hover{background:rgba(67,223,135,.5);background-clip:content-box}
+:focus-visible{outline:2px solid var(--green-bright);outline-offset:2px}
+h1,h2,.card-title,.profileName{text-wrap:balance}
+
+/* --- 3. Top bar ---------------------------------------------------------- */
+.topbar{
+  border-bottom:1px solid var(--hairline);
+  background:linear-gradient(180deg,rgba(9,15,18,.95),rgba(9,15,18,.80));
+  backdrop-filter:blur(20px) saturate(150%);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  box-shadow:0 1px 0 rgba(255,255,255,.035),0 12px 30px rgba(0,0,0,.34);
+}
+.brand .title{
+  background:linear-gradient(94deg,#f0fff6,#a8f2c7 55%,#62f2a1);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  font-weight:900;letter-spacing:-.045em;
+}
+.appicon{
+  border-radius:27%;
+  box-shadow:0 0 0 1px rgba(67,223,135,.22),0 8px 22px rgba(0,0,0,.45),0 0 26px rgba(67,223,135,.13);
+}
+
+/* --- 4. Surfaces / cards ------------------------------------------------- */
+.card{
+  background:var(--surface-grad);
+  border-color:var(--hairline);
+  border-radius:var(--r-lg);
+  box-shadow:var(--elev-2);
+}
+.card::after{background:linear-gradient(132deg,rgba(255,255,255,.045),transparent 44%)}
+@media(hover:hover){
+  .card{transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease)}
+  .card:hover{border-color:var(--hairline-strong);box-shadow:var(--elev-3)}
+}
+.matchCard{border-radius:var(--r-lg);background:var(--surface-grad);border-color:var(--hairline);box-shadow:var(--elev-2)}
+.empty-state{
+  border-color:var(--hairline-strong);
+  background:radial-gradient(120% 120% at 50% 0,rgba(67,223,135,.06),transparent 62%),rgba(255,255,255,.012);
+}
+.eyebrow{color:var(--green-bright);letter-spacing:.15em}
+
+/* --- 5. Buttons / controls ---------------------------------------------- */
+.btn{
+  border-radius:var(--r-sm);
+  border-color:var(--hairline-strong);
+  background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.028));
+  touch-action:manipulation;
+}
+@media(hover:hover){
+  .btn:hover{border-color:rgba(198,224,229,.34);background:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.05))}
+}
+.btn:active{transform:translateY(1px) scale(.995)}
+.btn-primary{
+  background:linear-gradient(180deg,var(--green-bright),var(--green-deep));
+  border-color:transparent;color:var(--green-ink);
+  box-shadow:0 8px 20px rgba(24,167,92,.34),inset 0 1px 0 rgba(255,255,255,.28);
+}
+@media(hover:hover){
+  .btn-primary:hover{background:linear-gradient(180deg,#79f7b1,#20bd6a);border-color:transparent}
+}
+.btn-quiet{background:rgba(255,255,255,.03)}
+.input,.select{
+  border-radius:var(--r-sm);background:#0b1519;border-color:var(--hairline-strong);
+  transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),background var(--dur) var(--ease);
+}
+@media(hover:hover){.input:hover,.select:hover{border-color:rgba(198,224,229,.36)}}
+.input:focus-visible,.select:focus-visible{border-color:var(--green);box-shadow:var(--ring);background:#0d1a1e}
+.status-pill,.admin-badge{border-color:var(--hairline);background:rgba(255,255,255,.04)}
+.status-pill.live>span:first-child{box-shadow:0 0 0 4px rgba(67,223,135,.12),0 0 12px rgba(67,223,135,.5)}
+
+/* --- 6. Dashboard -------------------------------------------------------- */
+.dashboard-intro h1::after{
+  content:"";display:block;width:46px;height:3px;margin-top:12px;border-radius:var(--r-pill);
+  background:linear-gradient(90deg,var(--green-bright),transparent);
+  box-shadow:0 0 18px var(--green-glow);
+}
+.season-strip{
+  border-color:var(--hairline);
+  background:linear-gradient(158deg,rgba(23,42,46,.92),rgba(12,22,26,.94));
+}
+.season-strip strong{color:var(--green-bright);font-weight:800}
+.season-strip span{color:var(--muted)}
+.feature-card::before,.metric-card::before{height:2px}
+.metric-symbol{border-color:var(--hairline);background:rgba(255,255,255,.04)}
+.metric-card .card-heading h2{line-height:1.45}
+.dashboard-ranking-link{
+  border-radius:var(--r-sm);
+  background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));
+  color:var(--muted);font-weight:700;
+}
+@media(hover:hover){
+  .dashboard-ranking-link:hover{background:linear-gradient(180deg,rgba(67,223,135,.14),rgba(67,223,135,.05));border-color:rgba(67,223,135,.35);color:var(--green-bright)}
+}
+.item{background:rgba(255,255,255,.022);border-color:var(--hairline)}
+@media(hover:hover){.item:hover{border-color:rgba(67,223,135,.22)}}
+
+/* --- 7. Leaderboard / podium -------------------------------------------- */
+.podium-player{
+  background:linear-gradient(160deg,#18292f,#111e23);
+  border-color:var(--hairline);border-radius:var(--r-lg);
+}
+.podium-featured{
+  background:radial-gradient(ellipse at top,rgba(67,223,135,.16),transparent 82%),#14272a;
+  border-color:rgba(67,223,135,.45);
+  box-shadow:0 0 0 1px rgba(67,223,135,.10),0 18px 42px rgba(67,223,135,.13);
+}
+.podium-name{font-weight:750;letter-spacing:-.01em}
+.podium-value{font-weight:850;letter-spacing:-.02em}
+.leader-row{padding-block:17px}
+@media(hover:hover){
+  .leader-row{transition:background var(--dur) var(--ease)}
+  .leader-row:hover{background:linear-gradient(90deg,rgba(67,223,135,.06),transparent 70%)}
+}
+.leader-score{border-radius:var(--r-sm);background:linear-gradient(180deg,rgba(67,223,135,.08),rgba(67,223,135,.03));border-color:rgba(67,223,135,.16)}
+.leader-avatar{border-color:rgba(67,223,135,.2)}
+
+/* --- 8. Stats table ------------------------------------------------------ */
+.tablewrap{border-color:var(--hairline);background:#0b1519}
+.table th{background:linear-gradient(180deg,#152530,#122028)}
+.table th:nth-child(2){background:#152530}
+.table td:nth-child(2){background:#0f1d21}
+.table th.is-sort-key{background:#1b3a31;color:var(--green-bright)}
+.table td:nth-child(2).is-sort-key{background:#16332b}
+.table tbody tr:nth-child(even){background:rgba(255,255,255,.015)}
+.table tbody tr:hover{background:rgba(67,223,135,.07)}
+.segmented-control,.award-switch,.profile-tabs,.segment-control{background:#0b161a;border-color:var(--hairline)}
+.segmented-control button[aria-pressed="true"],
+.segment-control button[aria-pressed="true"]{background:#1d3a31;border-color:rgba(67,223,135,.30);color:#dcfcea}
+.profile-tabs button[aria-selected="true"]{background:var(--green-bright);border-color:var(--green-bright);color:var(--green-ink)}
+.ranking-shortcuts button[aria-pressed="true"]{background:linear-gradient(180deg,rgba(67,223,135,.22),rgba(67,223,135,.10));border-color:rgba(67,223,135,.5);color:var(--green-bright)}
+.date-chip[aria-pressed="true"]{background:linear-gradient(150deg,#245738,#122a1e);border-color:var(--green-bright);box-shadow:inset 0 -3px var(--green-bright)}
+
+/* --- 9. Player directory & profile -------------------------------------- */
+.pCard{background:linear-gradient(150deg,rgba(67,223,135,.05),rgba(255,255,255,.012));border-radius:var(--r-md)}
+@media(hover:hover){.pCard:hover{transform:translateY(-2px);border-color:rgba(67,223,135,.4)}}
+.directory-player.picked{box-shadow:inset 3px 0 var(--green-bright),0 10px 24px rgba(67,223,135,.14)}
+.profile-hero{
+  border-color:rgba(67,223,135,.22);
+  background:radial-gradient(120% 90% at 100% 0,rgba(67,223,135,.16),transparent 62%),linear-gradient(150deg,#172a2d,#101c21);
+}
+.profileAvatar{box-shadow:0 0 0 6px rgba(67,223,135,.05),0 14px 30px rgba(0,0,0,.35)}
+#profileStatsGrid .statTile{background:#0e1b20;border-color:var(--hairline);border-radius:var(--r-sm)}
+#profileStatsGrid .statTile.highlight{background:linear-gradient(158deg,#17332c,#122722);border-color:rgba(67,223,135,.26)}
+.statTile.highlight .stValue{color:var(--green-bright)}
+.stValue{letter-spacing:-.01em}
+.pinned-link{border-color:rgba(67,223,135,.3);background:linear-gradient(112deg,rgba(67,223,135,.12),rgba(67,223,135,.02))}
+
+/* --- 10. Match history --------------------------------------------------- */
+.matchCard.expanded{background:linear-gradient(150deg,#172c2f,#101d22);border-color:rgba(67,223,135,.26)}
+.matchCard .labeled-score{background:#0b161a;border-color:var(--hairline)}
+.matchCard .teamBox{background:rgba(5,12,15,.34);border-color:var(--hairline)}
+.matchCard .teamBox.winners{border-color:rgba(67,223,135,.26)}
+.matchCard .teamLine{min-height:52px}
+
+/* --- 11. Modals, toasts, feedback --------------------------------------- */
+.modal{border-radius:var(--r-xl);box-shadow:var(--elev-3);background:linear-gradient(150deg,#16272b,#0b1519)}
+.modal-backdrop{background:rgba(3,8,10,.74)}
+.toast{border-radius:var(--r-md);box-shadow:var(--elev-2);background:linear-gradient(150deg,#132227,#0c161a)}
+.empty-icon{background:linear-gradient(150deg,rgba(67,223,135,.22),rgba(67,223,135,.06));box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+.skeleton-list::before,.skeleton-list::after{
+  background:linear-gradient(90deg,rgba(255,255,255,.03) 25%,rgba(255,255,255,.085) 38%,rgba(255,255,255,.03) 55%);
+  background-size:220% 100%;
+}
+
+/* --- 12. iPhone (native app) shell -------------------------------------- */
+.native-app .bottomnav{background:linear-gradient(180deg,transparent,rgba(7,12,15,.82) 42%)}
+.native-app .bottomnav-inner{
+  background:linear-gradient(180deg,rgba(15,26,30,.92),rgba(9,16,19,.96));
+  border:1px solid var(--hairline);
+  border-bottom:0;
+  backdrop-filter:blur(22px) saturate(160%);
+  -webkit-backdrop-filter:blur(22px) saturate(160%);
+}
+.native-app .topbar{box-shadow:0 1px 0 rgba(255,255,255,.035),0 10px 26px rgba(0,0,0,.34)}
+
+/* --- 13. Floating nav (web / PWA) --------------------------------------- */
+.bottomnav-inner{
+  border-color:var(--hairline-strong);
+  background:linear-gradient(180deg,rgba(15,26,30,.93),rgba(9,16,19,.97));
+  box-shadow:0 20px 52px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);
+}
+.navbtn{border-radius:var(--r-sm);transition:background var(--dur) var(--ease),color var(--dur) var(--ease),border-color var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.navbtn:hover{background:rgba(255,255,255,.045)}
+.navbtn.active{
+  border-color:rgba(67,223,135,.38);
+  background:linear-gradient(180deg,rgba(67,223,135,.22),rgba(67,223,135,.08));
+  color:var(--green-bright);
+  box-shadow:inset 0 0 0 1px rgba(67,223,135,.12),0 6px 16px rgba(67,223,135,.16);
+}
+.navbtn.active .ico{filter:drop-shadow(0 0 7px rgba(67,223,135,.55))}
+
+/* --- 14. Phone layout & touch ergonomics (primary target) --------------- */
+@media (max-width:640px){
+  .app{padding:20px 14px calc(var(--nav-h) + 40px + env(safe-area-inset-bottom))}
+  .topbar{min-height:60px;gap:10px}
+  .brand{gap:10px}
+  .title{font-size:18px}
+  .card{padding:17px;border-radius:var(--r-lg)}
+  .feature-card{padding:18px}
+  .screen-intro{margin-block-end:16px}
+  .screen-intro h1{font-size:26px;line-height:1.28}
+  .eyebrow{font-size:10.5px}
+  /* iOS zooms a field when its font is below 16px — keep controls at 16px. */
+  .input,.select,.account-card input,.account-card select,#ballotForm select{font-size:16px}
+  .btn{min-height:var(--tap)}
+  .btn-compact{min-height:44px}
+  .segmented-control button,.profile-tabs button,.award-switch button{min-height:46px}
+  /* Floating nav: bigger, clearer labels and a stronger active state. */
+  .bottomnav{padding:0 10px;bottom:calc(8px + env(safe-area-inset-bottom))}
+  .bottomnav-inner{height:var(--nav-h);padding:6px;gap:4px;border-radius:20px}
+  body:not(.is-admin) .navbtn{flex:1 1 0;min-width:0;padding-inline:4px}
+  .navbtn .ico svg{width:21px;height:21px}
+  .navbtn .txt{font-size:clamp(10px,2.7vw,11.5px);font-weight:800;letter-spacing:0}
+  .navbtn.active::after{
+    content:"";position:absolute;inset-block-end:4px;inset-inline-start:50%;
+    width:5px;height:5px;border-radius:50%;transform:translateX(-50%);
+    background:var(--green-bright);box-shadow:0 0 8px var(--green-bright);
+  }
+  [dir="rtl"] .navbtn.active::after{transform:translateX(50%)}
+  .navbtn{position:relative}
+  .toast-region{top:calc(66px + env(safe-area-inset-top));right:12px;left:12px;max-width:none}
+  .toast{width:100%}
+  .modal{width:100%;max-height:calc(100dvh - 28px)}
+  .policy-links{gap:20px}
+}
+
+/* iPhone 12/13/14/15-class widths: give the hero + numbers a little more air. */
+@media (max-width:430px){
+  .app{padding-inline:12px}
+  .card{padding:16px}
+  .screen-intro h1{font-size:25px}
+  .dashboard-intro h1::after{width:40px}
+  .motm-spotlight{padding:16px}
+  .podium-player{min-height:156px}
+  .podium-value{font-size:25px}
+  .profileName{font-size:26px}
+}
+
+/* Small iPhones (SE / mini): protect names and keep rows comfortable. */
+@media (max-width:375px){
+  .app{padding-inline:11px}
+  .title{font-size:16px}
+  .screen-intro h1{font-size:23px}
+  .card{padding:15px;border-radius:var(--r-md)}
+  .bottomnav{padding:0 8px}
+  .navbtn .txt{font-size:10px}
+  .navbtn .ico svg{width:20px;height:20px}
+  .leader-overview{gap:8px}
+  .podium-name{font-size:11.5px}
+}
+
+/* Installed PWA / iOS standalone: keep the notch and the home indicator calm. */
+@media (display-mode:standalone){
+  body{background-attachment:scroll}
+  .topbar{padding-top:max(12px,env(safe-area-inset-top))}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .card,.btn,.navbtn,.leader-row,.pCard,.dashboard-ranking-link{transition:none!important}
+  .navbtn.active::after{box-shadow:none}
+}
+
+/* --- 15. Phone refinements ---------------------------------------------- */
+/* Empty filter rails should not leave a padded gap above the content. */
+#leaderboardShortcuts:empty,
+#historyDateRail:empty,
+#historyPlayerFilters:empty{display:none}
+.ranking-search{margin-block-end:14px}
+
+/* Landscape notch: keep the fixed bars off the rounded corners. */
+@media (max-width:900px){
+  .bottomnav{padding-inline:max(10px,env(safe-area-inset-left)) max(10px,env(safe-area-inset-right))}
+  .topbar{padding-inline:max(14px,env(safe-area-inset-left)) max(14px,env(safe-area-inset-right))}
+}
+
+/* Long names and long Arabic strings wrap instead of clipping. */
+.name,.leader-copy .name,.pName,.profileName,.spotlight-player strong,.podium-name{overflow-wrap:anywhere}
+
+/* Wordmark stays legible if background-clip:text is unavailable. */
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){
+  .brand .title{background:none;color:var(--text)}
+}
+
+/* Slightly roomier, easier-to-scan meta text on phones. */
+@media (max-width:640px){
+  .meta,.pCardMeta,.subnote,.leader-score>span,.teamLine{line-height:1.6}
+}
+
+/* ==========================================================================
+   500425 — player photos, admin accounts and entry editing
+   ========================================================================== */
+
+/* Player photos are painted onto the existing avatar elements after render. */
+.has-photo{background-size:cover;background-position:center;background-repeat:no-repeat;color:transparent!important;text-shadow:none}
+.has-photo::before{opacity:0}
+.photo-preview.has-photo,.admin-player-avatar.has-photo{border-color:rgba(226,255,237,.28)}
+.profileAvatar.has-photo{box-shadow:0 0 0 6px rgba(67,223,135,.05),0 14px 30px rgba(0,0,0,.35)}
+
+/* Account photo card */
+.photo-field{display:flex;align-items:center;gap:16px;margin-top:18px;flex-wrap:wrap}
+.photo-preview{display:grid;place-items:center;width:84px;height:84px;flex:0 0 84px;border-radius:50%;border:1px solid rgba(67,223,135,.3);background:linear-gradient(150deg,rgba(67,223,135,.2),rgba(67,223,135,.05));color:var(--green-bright);font-size:28px;font-weight:850}
+.photo-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Admin player rows */
+.admin-player-name{display:flex;align-items:center;gap:10px}
+.admin-player-avatar{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:50%;border:1px solid rgba(67,223,135,.2);background:rgba(67,223,135,.08);color:var(--green);font-size:12px;font-weight:850}
+.admin-player-actions{margin-top:12px}
+
+/* Entry edit/delete actions */
+.entry-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.entry-actions .btn{min-height:40px}
+.entry-delete{color:var(--red);border-color:rgba(255,123,120,.3)}
+@media(hover:hover){.entry-delete:hover{border-color:rgba(255,123,120,.5);background:rgba(255,123,120,.1)}}
+
+/* Admin accounts */
+.account-list{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.account-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px;border:1px solid var(--hairline);border-inline-start:3px solid var(--muted-2);border-radius:var(--r-sm);background:rgba(255,255,255,.02)}
+.account-row[data-status="pending"]{border-inline-start-color:var(--gold)}
+.account-row[data-status="approved"]{border-inline-start-color:var(--green)}
+.account-row[data-status="rejected"]{border-inline-start-color:var(--red)}
+.account-row-main{display:grid;gap:5px;min-width:0}
+.account-row-main strong{font-size:13px;overflow-wrap:anywhere}
+.account-row-main small{font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.account-row .account-actions{flex-shrink:0}
+
+@media (max-width:520px){
+  .account-row{flex-direction:column}
+  .account-row .account-actions{width:100%}
+  .account-row .account-actions .btn{flex:1}
+  .photo-preview{width:72px;height:72px;flex-basis:72px;font-size:24px}
+}
+
+/* ==========================================================================
+   500426 — Visual language pass (inspired by SofaScore / FotMob)
+   Look-and-feel only: flatter dark surfaces, SofaScore-style numeric badges,
+   FotMob-style solid accent pills and W/D/L form squares. Append-only, no
+   layout, data or behaviour changes.
+   ========================================================================== */
+
+:root{
+  --base:#0d1014;
+  --card-flat:#171b21;
+  --card-alt:#1d222a;
+  --hair:rgba(255,255,255,.07);
+  --hair-2:rgba(255,255,255,.12);
+  --accent:#3ddc84;
+  --accent-ink:#04160d;
+}
+
+/* 1. Flatter, cleaner surfaces */
+body{background:radial-gradient(120% 55% at 50% -10%,rgba(61,220,132,.09),transparent 60%),var(--base)}
+.card{background:var(--card-flat);border-color:var(--hair);box-shadow:none;border-radius:18px}
+.card::after{display:none}
+.matchCard{background:var(--card-flat);border-color:var(--hair);box-shadow:none}
+.item{background:var(--card-flat);border-color:var(--hair);border-radius:14px}
+@media(hover:hover){.item:hover{background:var(--card-alt)}}
+.empty-state{background:var(--card-flat);border-color:var(--hair-2)}
+.modal{background:var(--card-flat)}
+.toast{background:var(--card-alt)}
+/* Keep a little hierarchy on the few "hero" surfaces. */
+.profile-hero{background:linear-gradient(160deg,rgba(61,220,132,.1),var(--card-flat) 62%)}
+.history-player-summary{background:linear-gradient(150deg,rgba(61,220,132,.1),var(--card-flat) 70%)}
+.matchCard.expanded{background:var(--card-alt);border-color:rgba(61,220,132,.24)}
+
+/* 2. Big, bold, tabular figures */
+.stValue,.podium-value,.trend-number,.leader-score strong,.motm-score strong,
+.award-leader-score strong,.participation-total>b,.duel-side>strong,
+.history-player-totals dd,.season-strip strong,.scoring-leader-total strong{
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;font-weight:800
+}
+
+/* 3. SofaScore-style numeric badge for the primary metric */
+.leader-score{min-width:78px;padding:8px 10px;border-radius:14px;background:#101419;border:1px solid var(--hair-2);text-align:center}
+.leader-score strong{display:block;font-size:1.75rem;line-height:1.1;color:#eafff3}
+.leader-score>span{display:block;margin-top:4px;font-size:.6875rem;letter-spacing:.02em;color:var(--muted);text-transform:uppercase;max-width:none}
+.leader-row .rank-badge{color:#c6d2d6;font-weight:800}
+.leader-row .rank-badge.top{color:var(--accent);background:rgba(61,220,132,.14);box-shadow:inset 0 0 0 1px rgba(61,220,132,.22)}
+
+/* 4. W/D/L form as rounded squares */
+.result-dot{width:20px;height:20px;border-radius:6px;font-size:10px;font-weight:850}
+.result-dots{gap:4px}
+.result-dots.large .result-dot{width:32px;height:32px;border-radius:9px;font-size:13px}
+.profile-recent-form .result-dot{width:22px;height:22px;border-radius:7px;font-size:10px}
+
+/* 5. FotMob-style solid accent pills/tabs */
+.segmented-control button[aria-pressed="true"],
+.segment-control button[aria-pressed="true"],
+.award-switch button[aria-pressed="true"],
+.profile-tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);box-shadow:none}
+.ranking-shortcuts button[aria-pressed="true"]{background:rgba(61,220,132,.16);border-color:rgba(61,220,132,.5);color:#9df0bd}
+.date-chip[aria-pressed="true"]{background:rgba(61,220,132,.14);border-color:var(--accent);box-shadow:inset 0 -3px var(--accent)}
+
+/* 6. Chips and stat tiles */
+.metric-chip{background:var(--card-alt);border:1px solid var(--hair);border-radius:9px;color:var(--muted)}
+.metric-chip strong{color:#eafff3}
+.metric-chip.is-sort-key{background:rgba(61,220,132,.14);border-color:rgba(61,220,132,.3);color:#9df0bd}
+.metric-chip.is-sort-key strong{color:#c8ffdd}
+.statTile,#profileStatsGrid .statTile{background:var(--card-alt);border-color:var(--hair);border-radius:14px}
+.stLabel,#profileStatsGrid .stLabel{text-transform:uppercase;letter-spacing:.05em;font-size:.6875rem;color:var(--muted)}
+#profileStatsGrid .statTile.highlight,.statTile.highlight{background:rgba(61,220,132,.1);border-color:rgba(61,220,132,.28)}
+.statTile.highlight .stValue,#profileStatsGrid .statTile.highlight .stValue{color:var(--accent)}
+.season-strip{background:var(--card-alt);border-color:var(--hair)}
+.season-strip strong{color:var(--accent)}
+.season-strip span{text-transform:uppercase;letter-spacing:.04em;font-size:.6875rem}
+
+/* 7. Podium & top-three: crisp, low-glow */
+.podium-player{background:var(--card-flat);border-color:var(--hair)}
+.podium-featured{background:linear-gradient(160deg,rgba(61,220,132,.12),var(--card-flat) 70%);border-color:rgba(61,220,132,.42);box-shadow:none}
+.podium-rank{background:#0f1317;border:1px solid var(--hair-2);color:#b9c6ca}
+.award-leader-score strong,.motm-score strong{color:var(--accent)}
+
+/* 8. Circular avatars with a hairline ring */
+.leader-avatar,.podium-avatar,.directory-avatar,.admin-player-avatar{border-color:var(--hair-2)}
+
+/* 9. SofaScore-style dark square score */
+.matchScore{border-radius:12px;background:#101419;border-color:var(--hair-2)}
+.matchCard .labeled-score{background:#101419;border-color:var(--hair-2)}
+.matchCard .teamBox{background:rgba(0,0,0,.16)}
+
+/* 10. Trend cards and micro-labels */
+.headline-trends .trend-card{background:var(--card-flat);border-color:var(--hair)}
+.trend-number{color:var(--accent)}
+.eyebrow{letter-spacing:.14em}
+
+/* 11. Calmer iPhone tuning */
+@media (max-width:640px){
+  .card{border-radius:16px}
+  .leader-score{min-width:70px;padding:7px 8px}
+  .leader-score strong{font-size:1.6rem}
+}

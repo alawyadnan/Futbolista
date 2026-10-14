@@ -1,5 +1,5 @@
-import { translate } from './i18n.js?v=500424';
-import { buildPlayerAvatar, buildRankingMetric } from './ux-utils.js?v=500424';
+import { translate } from './i18n.js?v=500427';
+import { buildPlayerAvatar, buildRankingMetric } from './ux-utils.js?v=500427';
 
 const esc = value => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const metricFields = {form:'formPoints', winPct:'winPct', goals:'goals', gpm:'gpm', wins:'wins', matches:'matches', curStreak:'curStreak', bestStreak:'bestStreak', votingPoints:'votingPoints', motmAwards:'motmAwards', monthAwards:'monthAwards'};

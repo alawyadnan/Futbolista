@@ -6,6 +6,8 @@ import {
   addDoc,
   getDocs,
   deleteDoc,
+  updateDoc,
+  deleteField,
   doc,
   onSnapshot,
   runTransaction,
@@ -27,21 +29,21 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   isGoalAddition, goalAdditionSide, prepareGoalAddition, validateGoalAdditionSave
-} from "./data-engine.js?v=500424";
+} from "./data-engine.js?v=500427";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500424";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches, PLAYER_MATCH_FILTERS, filterPlayerMatchPerformance } from "./insights-engine.js?v=500424";
-import { renderRankingPodium, renderAwardComparison } from './sports-ui.js?v=500424';
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500424";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500424";
-import { resolvePublicPlayers } from "./community-engine.js?v=500424";
-import { createCommunity } from "./community.js?v=500424";
-import { createHighlights } from "./highlights.js?v=500424";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500424";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500424";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500424";
-import { observeConnectivity } from "./connectivity.js?v=500424";
-import { TABLE_VIEWS, applyTableColumns, renderMonthlyPerformance, renderScoringLeaders, toggleComparisonPick, renderComparisonPicker, renderParticipationWindow, renderDuelRecord, matchSharePayload } from './detail-ui.js?v=500424';
+import { countText, directionFor, translate } from "./i18n.js?v=500427";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches, PLAYER_MATCH_FILTERS, filterPlayerMatchPerformance } from "./insights-engine.js?v=500427";
+import { renderRankingPodium, renderAwardComparison } from './sports-ui.js?v=500427';
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500427";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500427";
+import { resolvePublicPlayers } from "./community-engine.js?v=500427";
+import { createCommunity } from "./community.js?v=500427";
+import { createHighlights } from "./highlights.js?v=500427";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500427";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500427";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500427";
+import { observeConnectivity } from "./connectivity.js?v=500427";
+import { TABLE_VIEWS, applyTableColumns, renderMonthlyPerformance, renderScoringLeaders, toggleComparisonPick, renderComparisonPicker, renderParticipationWindow, renderDuelRecord, matchSharePayload } from './detail-ui.js?v=500427';
 
 import {
   appRouteFor,
@@ -67,7 +69,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500424";
+} from "./ux-utils.js?v=500427";
 
 
 /* =========================================================
@@ -145,6 +147,11 @@ let unsubscribePlayers = null;
 let unsubscribeLogs = null;
 
 let isAdmin = false;
+
+let linkedPlayerId = null;
+let photoTargetPlayerId = "";
+let editingEntryId = "";
+let deletingEntryId = "";
 
 let currentProfileId = null;
 let currentProfileTab = 'overview';
@@ -467,6 +474,15 @@ function setupModals() {
     await resetAllData();
     setButtonBusy(button, false, t("confirmReset"));
   });
+  $("entryEditForm")?.addEventListener("submit", saveEntryEdit);
+  $("btnConfirmDeleteEntry")?.addEventListener("click", confirmDeleteEntry);
+  $("photoInput")?.addEventListener("change", handlePhotoInput);
+  $("logsList")?.addEventListener("click", event => {
+    const edit = event.target.closest?.("[data-edit-entry]");
+    if (edit) return openEntryEditor(edit.getAttribute("data-edit-entry"));
+    const remove = event.target.closest?.("[data-delete-entry]");
+    if (remove) return openDeleteEntry(remove.getAttribute("data-delete-entry"));
+  });
 }
 
 
@@ -623,7 +639,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (comparisonOpen && !$("screen-playerprofile")?.classList.contains('hidden') && hasDataModel) renderCompare();
       },
       showAccount: () => { showScreen('account'); setActiveNav('playerstats'); },
-      onProfilesChanged: profiles => { publicProfiles = profiles; players = resolvePublicPlayers(rawPlayers, profiles); scheduleRender(); }
+      onProfilesChanged: profiles => { publicProfiles = profiles; players = resolvePublicPlayers(rawPlayers, profiles); scheduleRender(); },
+      onLinkChanged: playerId => { linkedPlayerId = playerId || null; renderAccountPhoto(); applyPlayerPhotos(); }
     });
     $("btnAccount")?.addEventListener("click", () => { showScreen('account'); setActiveNav('playerstats'); });
   }
@@ -690,6 +707,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", event => {
     const trigger = event.target.closest?.("[data-open-player]");
     if (trigger) openProfile(trigger.getAttribute("data-open-player"));
+    const setPhoto = event.target.closest?.("[data-player-photo]");
+    if (setPhoto) openPhotoPicker(setPhoto.getAttribute("data-player-photo"));
+    const clearPhoto = event.target.closest?.("[data-player-photo-remove]");
+    if (clearPhoto) removePhotoFlow(clearPhoto.getAttribute("data-player-photo-remove"));
     const match = event.target.closest?.("[data-open-match]");
     if (match) openHistoryMatch(match.getAttribute("data-open-match"));
     const performance = event.target.closest?.('[data-player-performance]');
@@ -1006,7 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500424").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500427").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });
@@ -1694,6 +1715,8 @@ function showScreen(
 
   if (updateRoute) updateLocationForScreen(name, { replace: replaceRoute });
   community?.render();
+  renderAccountPhoto();
+  applyPlayerPhotos();
 
   if (scroll) {
     window.scrollTo({
@@ -2029,6 +2052,8 @@ function renderAll() {
 
   renderScreenContents(activeScreen);
   community?.render();
+  renderAccountPhoto();
+  applyPlayerPhotos();
 
 }
 
@@ -2069,6 +2094,7 @@ function renderScreenContents(screen) {
     element.removeAttribute("aria-busy");
   });
   highlights?.render();
+  applyPlayerPhotos();
 
 }
 
@@ -4189,9 +4215,7 @@ function renderPlayersAdmin() {
 
               <div>
 
-                <div class="name">
-                  ${esc(p.name || "")}
-                </div>
+                <div class="name admin-player-name"><span class="admin-player-avatar" data-player-photo-preview="${esc(p.id)}" aria-hidden="true">${esc(buildPlayerAvatar(p.name).initials)}</span><span>${esc(p.name || "")}</span></div>
 
                 <div class="meta">
 
@@ -4225,6 +4249,11 @@ function renderPlayersAdmin() {
 
                   (${esc(t("best"))} ${s.best})
 
+                </div>
+
+                <div class="entry-actions admin-player-actions">
+                  <button type="button" class="btn btn-quiet btn-compact" data-player-photo="${esc(p.id)}">${esc(t(p.photo ? 'changePhoto' : 'setPhoto'))}</button>
+                  ${p.photo ? `<button type="button" class="btn btn-quiet btn-compact" data-player-photo-remove="${esc(p.id)}">${esc(t('removePhoto'))}</button>` : ''}
                 </div>
 
               </div>
@@ -4377,6 +4406,8 @@ function renderLogs() {
 
                 </div>
 
+                ${isAdmin ? `<div class="entry-actions"><button type="button" class="btn btn-quiet btn-compact" data-edit-entry="${esc(l.id)}">${esc(t('editEntry'))}</button><button type="button" class="btn btn-quiet btn-compact entry-delete" data-delete-entry="${esc(l.id)}">${esc(t('deleteEntry'))}</button></div>` : ''}
+
               </div>
 
             </div>
@@ -4397,6 +4428,250 @@ function renderLogs() {
 /* =========================================================
    COMPARE
 ========================================================= */
+
+/* =========================================================
+   PLAYER PHOTOS (avatars)
+======================================================== */
+
+const AVATAR_SELECTOR = '.leader-avatar, .podium-avatar, .directory-avatar, .contribution-avatar, .profileAvatar, .compare-avatar, .pinned-avatar, .partner-avatar, .admin-player-avatar';
+
+function playerPhoto(playerId) {
+  const player = rawPlayers.find(item => String(item.id) === String(playerId));
+  const photo = player?.photo;
+  return typeof photo === "string" && photo.startsWith("data:image/") ? photo : "";
+}
+
+function canEditPhoto(playerId) {
+  return isAdmin || (!!linkedPlayerId && String(linkedPlayerId) === String(playerId));
+}
+
+function paintAvatar(element, playerId) {
+  if (!element) return;
+  const url = playerPhoto(playerId);
+  if (url) {
+    element.classList.add("has-photo");
+    element.style.backgroundImage = `url("${url}")`;
+  } else {
+    element.classList.remove("has-photo");
+    element.style.backgroundImage = "";
+  }
+}
+
+// Photos are painted after each render so the photo layer never touches the
+// pure renderers. Initials always stay in the DOM for assistive technology.
+function applyPlayerPhotos(root = document) {
+  root.querySelectorAll("[data-open-player], [data-player-id]").forEach(host => {
+    const playerId = host.getAttribute("data-open-player") || host.getAttribute("data-player-id");
+    if (!playerId) return;
+    host.querySelectorAll(AVATAR_SELECTOR).forEach(avatar => paintAvatar(avatar, playerId));
+  });
+  root.querySelectorAll("[data-player-photo-preview]").forEach(node => paintAvatar(node, node.getAttribute("data-player-photo-preview")));
+  paintAvatar($("profileInitial"), currentProfileId);
+}
+
+function readImageAsAvatar(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\/(png|jpe?g|webp)$/.test(file.type)) return reject(new Error("photoTypeError"));
+    if (file.size > 12 * 1024 * 1024) return reject(new Error("photoSizeError"));
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    const finish = (error, value) => { URL.revokeObjectURL(objectUrl); error ? reject(error) : resolve(value); };
+    image.onload = () => {
+      try {
+        const size = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = size; canvas.height = size;
+        const context = canvas.getContext("2d");
+        const scale = Math.max(size / image.width, size / image.height);
+        const width = image.width * scale, height = image.height * scale;
+        context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+        if (!dataUrl.startsWith("data:image/jpeg;base64,") || dataUrl.length > 120000) return finish(new Error("photoSizeError"));
+        finish(null, dataUrl);
+      } catch (error) { finish(error); }
+    };
+    image.onerror = () => finish(new Error("photoTypeError"));
+    image.src = objectUrl;
+  });
+}
+
+function savePlayerPhoto(playerId, dataUrl) {
+  return updateDoc(doc(db, "players", String(playerId)), { photo: dataUrl });
+}
+
+function removePlayerPhoto(playerId) {
+  return updateDoc(doc(db, "players", String(playerId)), { photo: deleteField() });
+}
+
+function openPhotoPicker(playerId) {
+  if (!canEditPhoto(playerId)) return;
+  photoTargetPlayerId = String(playerId);
+  const input = $("photoInput");
+  if (!input) return;
+  input.value = "";
+  input.click();
+}
+
+async function handlePhotoInput(event) {
+  const input = event.target;
+  const file = input.files?.[0];
+  input.value = "";
+  const playerId = photoTargetPlayerId;
+  photoTargetPlayerId = "";
+  if (!file || !playerId) return;
+  try {
+    const dataUrl = await readImageAsAvatar(file);
+    await savePlayerPhoto(playerId, dataUrl);
+    notify(t("photoSaved"));
+  } catch (error) {
+    console.error(error);
+    const message = error?.message === "photoTypeError" || error?.message === "photoSizeError" ? error.message : "photoFailed";
+    notify(t(message), "error");
+  }
+}
+
+async function removePhotoFlow(playerId) {
+  if (!canEditPhoto(playerId)) return;
+  try {
+    await removePlayerPhoto(playerId);
+    notify(t("photoRemoved"));
+  } catch (error) {
+    console.error(error);
+    notify(t("photoFailed"), "error");
+  }
+}
+
+function renderAccountPhoto() {
+  const box = $("accountPhoto");
+  if (!box) return;
+  const playerId = linkedPlayerId;
+  const visible = communityEnabled && !isAdmin && !!playerId;
+  box.classList.toggle("hidden", !visible);
+  if (!visible) { box.replaceChildren(); return; }
+  const id = String(playerId);
+  const name = playerName(id);
+  const photo = playerPhoto(id);
+  box.innerHTML = `<div class="card-heading"><div><div class="eyebrow">${esc(t('playerPhoto'))}</div><h2><bdi dir="auto">${esc(name)}</bdi></h2></div></div>
+    <div class="photo-field">
+      <span class="photo-preview${photo ? ' has-photo' : ''}" data-player-photo-preview="${esc(id)}" role="img" aria-label="${esc(t('photoAlt', { name }))}"${photo ? ` style="background-image:url(&quot;${esc(photo)}&quot;)"` : ''}>${photo ? '' : esc(buildPlayerAvatar(name).initials)}</span>
+      <div class="photo-actions">
+        <button type="button" class="btn btn-quiet" data-player-photo="${esc(id)}">${esc(t(photo ? 'changePhoto' : 'setPhoto'))}</button>
+        ${photo ? `<button type="button" class="btn btn-quiet" data-player-photo-remove="${esc(id)}">${esc(t('removePhoto'))}</button>` : ''}
+      </div>
+    </div>
+    <p class="subnote">${esc(t('playerPhotoCardLead'))}</p>`;
+}
+
+/* =========================================================
+   ADMIN ENTRY EDIT / DELETE
+======================================================== */
+
+function entryById(id) {
+  return rawLogs.find(log => String(log.id) === String(id)) || null;
+}
+
+function openEntryEditor(id) {
+  if (!isAdmin) return notify(t("adminRequired"), "warning");
+  const entry = entryById(id);
+  if (!entry) return;
+  editingEntryId = String(id);
+  const additional = isGoalAddition(entry);
+  const playerSelect = $("editPlayer");
+  if (playerSelect) {
+    playerSelect.innerHTML = players.slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+      .map(player => `<option value="${esc(player.id)}">${esc(player.name || "")}</option>`).join("");
+    playerSelect.value = String(entry.playerId || "");
+  }
+  if ($("editDate")) $("editDate").value = String(entry.date || "");
+  if ($("editGoals")) $("editGoals").value = String(Math.max(0, Math.min(99, Number(entry.goals) || 0)));
+  if ($("editResult")) $("editResult").value = normalizeResult(entry);
+  if ($("editSide")) $("editSide").value = additional ? (goalAdditionSide(entry) || "A") : normalizeSide(entry);
+  if ($("editGoalType")) $("editGoalType").value = isOwnGoal(entry) ? "own" : "normal";
+  if ($("entryEditTitle")) $("entryEditTitle").textContent = t(additional ? "editAdditionalTitle" : "editEntryTitle");
+  if ($("entryEditLead")) $("entryEditLead").textContent = t(additional ? "editAdditionalLead" : "entryEditorLead");
+  if ($("editLockedNote")) $("editLockedNote").hidden = !additional;
+  for (const fieldId of ["editDate", "editPlayer", "editResult"]) if ($(fieldId)) $(fieldId).disabled = additional;
+  if ($("entryEditError")) $("entryEditError").hidden = true;
+  openModal("entryEditModal", additional ? "editGoals" : "editDate");
+}
+
+async function saveEntryEdit(event) {
+  event.preventDefault();
+  if (!isAdmin) return;
+  const entry = entryById(editingEntryId);
+  if (!entry) return closeModal();
+  const errorBox = $("entryEditError");
+  const fail = message => {
+    if (errorBox) { errorBox.textContent = message; errorBox.hidden = false; }
+    else notify(message, "warning");
+  };
+  const additional = isGoalAddition(entry);
+  const goals = Number($("editGoals")?.value);
+  if (!Number.isInteger(goals) || goals < 0 || goals > 99) return fail(t("invalidGoals"));
+  const ownGoal = $("editGoalType")?.value === "own";
+  let payload;
+  if (additional) {
+    payload = { goals, ownGoal, createdAt: Date.now(), goalAddition: { side: $("editSide")?.value === "B" ? "B" : "A" } };
+  } else {
+    const playerId = String($("editPlayer")?.value || "");
+    const date = String($("editDate")?.value || "");
+    const result = $("editResult")?.value || "";
+    const side = $("editSide")?.value || "";
+    if (!players.some(player => String(player.id) === playerId)) return fail(t("choosePlayer"));
+    if (!isValidISODate(date)) return fail(t("invalidDate"));
+    if (!["win", "draw", "loss"].includes(result) || !["A", "B"].includes(side)) return fail(t("invalidSelection"));
+    const siblings = rawLogs.filter(log => String(log.id) !== String(entry.id) && !isGoalAddition(log)
+      && String(log.playerId) === playerId && String(log.date || "").trim() === date);
+    if (siblings.some(log => isOwnGoal(log) === ownGoal)) return fail(t("duplicateEntry", { type: t(ownGoal ? "ownGoal" : "normal") }));
+    if (siblings.length) {
+      const existing = siblings.slice().sort(compareRawLogsNewestFirst)[0];
+      if (normalizeResult(existing) !== result || normalizeSide(existing) !== side) return fail(t("metadataMismatch"));
+    }
+    payload = { playerId, date, goals, result, side, ownGoal, createdAt: Date.now() };
+  }
+  const button = $("btnSaveEntryEdit");
+  setButtonBusy(button, true, t("saving"));
+  try {
+    await updateDoc(doc(db, "logs", String(entry.id)), payload);
+    closeModal();
+    notify(t("entryUpdated"));
+  } catch (error) {
+    console.error("Entry update failed:", error);
+    fail(t("entryUpdateFailed"));
+  } finally {
+    setButtonBusy(button, false, t("saveChanges"));
+  }
+}
+
+function openDeleteEntry(id) {
+  if (!isAdmin) return notify(t("adminRequired"), "warning");
+  const entry = entryById(id);
+  if (!entry) return;
+  deletingEntryId = String(id);
+  if ($("entryDeleteSummary")) {
+    $("entryDeleteSummary").textContent = `${playerName(entry.playerId)} — ${String(entry.date || "")} — ${t(isGoalAddition(entry) ? "additionalGoals" : normalizeResult(entry))} · ${t("goals")}: ${Math.max(0, Number(entry.goals) || 0)}`;
+  }
+  openModal("entryDeleteModal", "btnConfirmDeleteEntry");
+}
+
+async function confirmDeleteEntry() {
+  const entry = entryById(deletingEntryId);
+  if (!entry) return closeModal();
+  const button = $("btnConfirmDeleteEntry");
+  setButtonBusy(button, true, t("deleteEntry"));
+  try {
+    await deleteDoc(doc(db, "logs", String(entry.id)));
+    deletingEntryId = "";
+    closeModal();
+    notify(t("entryDeleted"));
+  } catch (error) {
+    console.error("Entry delete failed:", error);
+    notify(t("entryDeleteFailed"), "error");
+  } finally {
+    setButtonBusy(button, false, t("confirmDeleteEntry"));
+  }
+}
+
 
 function renderCompare() {
   const aId = String(currentProfileId || "");

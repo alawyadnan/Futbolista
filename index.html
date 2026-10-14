@@ -22,17 +22,17 @@
       document.documentElement.dir = savedLanguage === "ar" ? "rtl" : "ltr";
     } catch {}
   </script>
-  <link rel="icon" href="./icon.svg?v=500424" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500424" />
-  <link rel="manifest" href="./manifest.json?v=500424" />
-  <link rel="stylesheet" href="./styles.css?v=500424" />
+  <link rel="icon" href="./icon.svg?v=500427" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500427" />
+  <link rel="manifest" href="./manifest.json?v=500427" />
+  <link rel="stylesheet" href="./styles.css?v=500427" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
 
 <header class="topbar" id="topbar">
   <a class="brand" href="#mainContent" aria-label="Futbolista home" data-i18n-aria="homeAria">
-    <span class="appicon" aria-hidden="true"><img src="./icon.svg?v=500424" alt="" /></span>
+    <span class="appicon" aria-hidden="true"><img src="./icon.svg?v=500427" alt="" /></span>
     <span class="brandtxt"><span class="title">Futbolista</span></span>
   </a>
   <div class="topbar-actions">
@@ -150,10 +150,11 @@
     <div id="matchHistoryList" class="match-list skeleton-list" aria-live="polite" aria-busy="true" data-i18n="loadingMatches">Loading matches…</div>
   </section>
 
-  <section id="screen-account" class="screen hidden" aria-labelledby="accountTitle"><header class="screen-intro"><h1 id="accountTitle" data-i18n="account">Account</h1></header><div id="accountContent"></div><article id="accountDeletion" class="card account-card hidden"></article><p class="policy-links"><a href="./privacy.html" data-i18n="privacyPolicy">Privacy policy</a> · <a href="./support.html" data-i18n="support">Support</a></p></section>
+  <section id="screen-account" class="screen hidden" aria-labelledby="accountTitle"><header class="screen-intro"><h1 id="accountTitle" data-i18n="account">Account</h1></header><div id="accountContent"></div><article id="accountPhoto" class="card account-card hidden"></article><article id="accountDeletion" class="card account-card hidden"></article><p class="policy-links"><a href="./privacy.html" data-i18n="privacyPolicy">Privacy policy</a> · <a href="./support.html" data-i18n="support">Support</a></p></section>
   <section id="screen-players" class="screen hidden" data-admin="1" aria-labelledby="adminPlayersTitle">
     <article id="accountRequests" class="card hidden" data-admin="1"></article>
     <article id="adminDeletionRequests" class="card hidden" data-admin="1"></article>
+    <article id="adminAccounts" class="card hidden" data-admin="1"></article>
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="adminPlayersTitle" data-i18n="managePlayers">Manage players</h1><p data-i18n="manageLead">Add squad members and review recorded totals.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
     <article class="card admin-action-card"><h2 data-i18n="addPlayer">Add player</h2><p class="subnote" data-i18n="uniqueNames">Names must be unique.</p><div class="action-row"><label class="field grow" for="playerName"><span data-i18n="playerName">Player name</span><input id="playerName" class="input" autocomplete="off" maxlength="60" placeholder="e.g. Ahmed" data-i18n-placeholder="playerPlaceholder" /></label><button id="btnAddPlayer" type="button" class="btn btn-primary" data-i18n="addPlayer">Add player</button></div></article>
     <article class="card"><h2 data-i18n="squadList">Squad list</h2><div id="playersList" class="list skeleton-list" aria-live="polite" data-i18n="loadingAdminPlayers">Loading players…</div></article>
@@ -214,8 +215,41 @@
   </section>
 </div>
 
+<input id="photoInput" type="file" accept="image/png,image/jpeg,image/webp,image/*" hidden />
+
+<div id="entryEditModal" class="modal-backdrop hidden" role="presentation">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="entryEditTitle" aria-describedby="entryEditLead">
+    <button class="modal-close" type="button" data-close-modal aria-label="Close dialog" data-i18n-aria="close">×</button>
+    <div class="modal-icon" aria-hidden="true">✎</div>
+    <h2 id="entryEditTitle" data-i18n="editEntryTitle">Edit match entry</h2>
+    <p id="entryEditLead" class="modal-lead" data-i18n="entryEditorLead">Change the recorded values, then save. Statistics update immediately.</p>
+    <form id="entryEditForm" novalidate>
+      <label class="field" for="editDate"><span data-i18n="date">Date</span><input id="editDate" class="input" type="date" required /></label>
+      <label class="field" for="editPlayer"><span data-i18n="player">Player</span><select id="editPlayer" class="select" required></select></label>
+      <label class="field" for="editGoals"><span data-i18n="goals">Goals</span><input id="editGoals" class="input" type="number" inputmode="numeric" min="0" max="99" value="0" required /></label>
+      <label class="field" for="editResult"><span data-i18n="result">Result</span><select id="editResult" class="select"><option value="win" data-i18n="win">Win</option><option value="draw" data-i18n="draw">Draw</option><option value="loss" data-i18n="loss">Loss</option></select></label>
+      <label class="field" for="editSide"><span data-i18n="team">Team</span><select id="editSide" class="select"><option value="A" data-i18n="teamA">Team A</option><option value="B" data-i18n="teamB">Team B</option></select></label>
+      <label class="field" for="editGoalType"><span data-i18n="goalType">Goal type</span><select id="editGoalType" class="select"><option value="normal" data-i18n="normal">Normal</option><option value="own" data-i18n="ownGoal">Own Goal</option></select></label>
+      <p id="editLockedNote" class="note" hidden data-i18n="fixedForAddedGoals">Fixed for added goals.</p>
+      <p id="entryEditError" class="form-error" role="alert" hidden></p>
+      <div class="modal-actions"><button type="button" class="btn btn-quiet" data-close-modal data-i18n="cancel">Cancel</button><button id="btnSaveEntryEdit" type="submit" class="btn btn-primary" data-i18n="saveChanges">Save changes</button></div>
+    </form>
+  </section>
+</div>
+
+<div id="entryDeleteModal" class="modal-backdrop hidden" role="presentation">
+  <section class="modal danger-modal" role="dialog" aria-modal="true" aria-labelledby="entryDeleteTitle" aria-describedby="entryDeleteLead">
+    <button class="modal-close" type="button" data-close-modal aria-label="Close dialog" data-i18n-aria="close">×</button>
+    <div class="modal-icon danger-icon" aria-hidden="true">!</div>
+    <h2 id="entryDeleteTitle" data-i18n="deleteEntryTitle">Delete match entry</h2>
+    <p id="entryDeleteLead" class="modal-lead" data-i18n="deleteEntryLead">This permanently removes the entry and recalculates statistics. This cannot be undone.</p>
+    <p id="entryDeleteSummary" class="note"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-quiet" data-close-modal data-i18n="cancel">Cancel</button><button id="btnConfirmDeleteEntry" type="button" class="btn dangerBtn" data-i18n="confirmDeleteEntry">Delete entry</button></div>
+  </section>
+</div>
+
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500424"></script>
+<script type="module" src="./app.js?v=500427"></script>
 </body>
 </html>
