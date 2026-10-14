@@ -2,7 +2,7 @@ import { after, before, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, deleteField, writeBatch, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 if (process.env.FUTBOLISTA_ALLOW_EMULATOR_WRITES !== '1') throw new Error('This suite writes disposable emulator data. Explicit approval and FUTBOLISTA_ALLOW_EMULATOR_WRITES=1 are required. Use npm test for no-write tests.');
 if (!/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) throw new Error('Rules tests require the loopback emulator. Production is forbidden.');
@@ -40,6 +40,91 @@ beforeEach(async()=>{await env.clearFirestore(); await seed(async db=>{for(const
 after(async()=>{await env?.cleanup();});
 
 const deletionData = uid => ({email:`${uid}@example.test`,status:'pending',createdAt:serverTimestamp()});
+
+test('linked verified owners can set and clear only their own bounded image photo',async()=>{
+  await seedLink(); const ref=doc(dbFor('alice'),'players','a');
+  for(const mime of ['png','jpeg','webp']) {
+    const photo=`data:image/${mime};base64,QUJDRA==`;
+    await assertSucceeds(updateDoc(ref,{photo}));
+    assert.equal((await getDoc(doc(guestDb(),'players','a'))).data().photo,photo);
+    assert.equal((await getDoc(ref)).data().name,'Player a');
+  }
+  await assertSucceeds(updateDoc(ref,{photo:deleteField()}));
+  assert.equal(Object.hasOwn((await getDoc(ref)).data(),'photo'),false);
+});
+test('photos cannot grant guests, foreign or unverified users any football write access',async()=>{
+  await seedLink(); const photo='data:image/jpeg;base64,QUJDRA==';
+  for(const db of [guestDb(),dbFor('bob'),dbFor('alice',false)]) {
+    await assertFails(updateDoc(doc(db,'players','a'),{photo}));
+  }
+  const db=dbFor('alice'),ref=doc(db,'players','a');
+  await assertFails(updateDoc(doc(db,'players','b'),{photo}));
+  for(const extra of [{name:'Forged'},{goals:100},{wins:100},{admin:true}]) {
+    await assertFails(updateDoc(ref,{photo,...extra}));
+  }
+  await assertFails(setDoc(doc(db,'players','new'),{name:'New',photo}));
+  await assertFails(deleteDoc(ref));
+});
+test('photo validation rejects SVG, URLs, malformed base64 and oversize payloads',async()=>{
+  await seedLink(); const ref=doc(dbFor('alice'),'players','a');
+  for(const photo of ['',null,12,'https://example.test/a.png','data:image/svg+xml;base64,QUJDRA==',
+    'data:image/jpeg;base64,','data:image/jpeg;base64,QUJDRA==\"bad',
+    'data:image/jpeg;base64,'+'A'.repeat(120000)]) {
+    await assertFails(updateDoc(ref,{photo}));
+  }
+});
+test('pending account deletion revokes photo editing without changing player data',async()=>{
+  await seedLink(); const db=dbFor('alice');
+  await setDoc(doc(db,'deletionRequests','alice'),deletionData('alice'));
+  await assertFails(updateDoc(doc(db,'players','a'),{photo:'data:image/jpeg;base64,QUJDRA=='}));
+  assert.deepEqual((await getDoc(doc(guestDb(),'players','a'))).data(),{name:'Player a'});
+});
+
+async function seedApprovedLink() {
+  await seedLink();
+  await seed(db=>setDoc(doc(db,'accountRequests','alice'),{...requestData('alice','a'),status:'approved'}));
+}
+function unlinkBatch(db) {
+  const batch=writeBatch(db);
+  batch.delete(doc(db,'users','alice')); batch.delete(doc(db,'playerClaims','a'));
+  batch.delete(doc(db,'accountRequests','alice'));
+  return batch;
+}
+test('unlink rejects non-admin callers and rejects partial removal of either uniqueness lock',async()=>{
+  await seedApprovedLink();
+  await assertFails(unlinkBatch(dbFor('alice')).commit());
+  await assertFails(unlinkBatch(guestDb()).commit());
+  for(const [collectionName,id] of [['users','alice'],['playerClaims','a'],['accountRequests','alice']]) {
+    await assertFails(deleteDoc(doc(adminDb(),collectionName,id)));
+  }
+  assert.equal((await getDoc(doc(adminDb(),'users','alice'))).data().playerId,'a');
+});
+test('atomic admin unlink preserves player names, profiles, match records and closed ballots',async()=>{
+  await seedApprovedLink(); await seedSession('closed',25*3600000);
+  await seed(async db=>{
+    await setDoc(doc(db,'logs','preserved'),{playerId:'a',date:'2026-09-06',goals:3,result:'win',side:'A'});
+    await setDoc(doc(db,'sessionVotes','closed','ballots','alice'),ballotData());
+  });
+  const db=adminDb(),before={};
+  for(const path of ['players/a','playerProfiles/a','logs/preserved','sessionVotes/closed/ballots/alice']) {
+    before[path]=(await getDoc(doc(db,path))).data();
+  }
+  await assertSucceeds(unlinkBatch(db).commit());
+  for(const path of ['users/alice','playerClaims/a','accountRequests/alice']) {
+    assert.equal((await getDoc(doc(db,path))).exists(),false);
+  }
+  for(const [path,data] of Object.entries(before)) assert.deepEqual((await getDoc(doc(db,path))).data(),data);
+  await assertFails(updateDoc(doc(dbFor('alice'),'players','a'),{photo:'data:image/jpeg;base64,QUJDRA=='}));
+  await assertSucceeds(setDoc(doc(dbFor('alice'),'accountRequests','alice'),requestData('alice','a')));
+});
+test('full account lists remain private to the administrator',async()=>{
+  await seedApprovedLink();
+  for(const name of ['accountRequests','users','playerClaims']) {
+    await assertSucceeds(getDocs(collection(adminDb(),name)));
+    await assertFails(getDocs(collection(dbFor('alice'),name)));
+    await assertFails(getDocs(collection(guestDb(),name)));
+  }
+});
 test('authenticated unverified account may request deletion but no one may forge, overwrite or complete it',async()=>{
   const db=dbFor('alice',false),ref=doc(db,'deletionRequests','alice');
   await assertFails(setDoc(doc(guestDb(),'deletionRequests','alice'),deletionData('alice')));
