@@ -1,9 +1,9 @@
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, orderBy, limit, runTransaction, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification, reload } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, timestampMillis, validateBallot, validateProfile, votingState } from './community-engine.js?v=500427';
-import { renderWithFormDraft } from './ux-utils.js?v=500427';
-import { accountJourney, authFeedbackKey, setAccountButtonLabel } from './account-ux.js?v=500427';
-import { awardPodium, motmWinners } from './highlights-engine.js?v=500427';
+import { ballotChoices, moveVoteChoiceUp, planEntryVoting, selectVotingSession, sessionDocumentId, tallyBallots, timestampMillis, validateBallot, validateProfile, votingState } from './community-engine.js?v=500428';
+import { renderWithFormDraft } from './ux-utils.js?v=500428';
+import { accountJourney, authFeedbackKey, setAccountButtonLabel } from './account-ux.js?v=500428';
+import { awardPodium, motmWinners } from './highlights-engine.js?v=500428';
 
 export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t, esc, notify, openProfile, onProfilesChanged, showAccount, onLinkChanged = () => {}, onResultsChanged = () => {} }) {
   const $ = id => document.getElementById(id);
@@ -24,6 +24,8 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   const ARCHIVE_FRESHNESS_MS = 5 * 60 * 1000;
   let receiptStops = [], receiptKey = '';
   const resultErrors = new Set(), receiptCounts = new Map();
+  let adminVoteSessionId = '', adminVoteStatus = 'idle', adminVoteRead = 0;
+  let adminVoteBallots = [];
   const playerName = id => getPlayers().find(player => String(player.id) === id)?.name || t('unknown');
   const errorMessage = error => t(authFeedbackKey(error) || (error?.code === 'permission-denied' ? 'communityDenied' : error?.message && ['playerAlreadyLinked','accountAlreadyLinked','invalidProfile','invalidDisplayName','invalidNumber','linkedRequired','votingClosed','chooseThree','uniqueChoices','noSelfVote','invalidCandidate','participantRequired','sessionTooLarge','sessionTooSmall','deletionActionsPaused'].includes(error.message) ? error.message : 'communityFailed'));
   const button = (action, label, extra = '') => `<button type="button" class="btn btn-quiet" data-community-action="${action}" ${extra}>${esc(t(label))}</button>`;
@@ -158,11 +160,75 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   }
 
   function renderAdminVoting() {
+    renderAdminVoteDetails();
     const box = $('adminVoting');
     if (!box) return;
     box.classList.toggle('hidden', !admin);
     if (!admin) { box.replaceChildren(); return; }
     box.innerHTML = `<h2>${esc(t('automaticVoting'))}</h2><p class="note">${esc(t('automaticVotingLead'))}</p>${sessions.filter(session => votingState(session).state === 'open').map(session => `<div class="vote-participation"><strong>${esc(sessionDate(session))}</strong><span>${esc(receiptCounts.has(session.id) ? t('confirmedVoters',{count:receiptCounts.get(session.id)}) : t('voterCountUnavailable'))}</span></div>`).join('')}<p class="note">${esc(t('receiptCountLead'))}</p>`;
+  }
+
+  // Website-only, read-only audit view. Open ballots are never queried here;
+  // Firestore independently enforces the same 24-hour closing boundary.
+  function canViewAdminVotes() {
+    return admin && !disposed && globalThis.Capacitor?.isNativePlatform?.() !== true;
+  }
+  function closedAdminSessions() {
+    return sessions.filter(session => votingState(session).state === 'closed')
+      .sort((a, b) => String(b.date).localeCompare(String(a.date))
+        || (timestampMillis(b.openedAt) || 0) - (timestampMillis(a.openedAt) || 0));
+  }
+  function clearAdminVotes() {
+    adminVoteRead++;
+    adminVoteSessionId = ''; adminVoteStatus = 'idle'; adminVoteBallots = [];
+  }
+  function renderAdminVoteDetails() {
+    const box = $('adminVoteDetails');
+    if (!box) return;
+    const allowed = canViewAdminVotes();
+    box.classList.toggle('hidden', !allowed);
+    if (!allowed) { clearAdminVotes(); box.replaceChildren(); return; }
+    const focusedControl = box.contains?.(document.activeElement) ? document.activeElement : null;
+    const focusedSession = focusedControl?.id === 'adminVoteSession';
+    const focusedRefresh = focusedControl?.dataset?.communityAction === 'refresh-admin-votes';
+    const closed = closedAdminSessions();
+    if (adminVoteSessionId && !closed.some(session => session.id === adminVoteSessionId)) clearAdminVotes();
+    const loading = adminVoteStatus === 'loading';
+    let content = `<p class="note">${esc(t('chooseClosedTraining'))}</p>`;
+    if (sessionsError) content = `<p role="alert">${esc(t('adminVotesLoadFailed'))}</p>${button('retry-results','retryData')}`;
+    else if (!sessionsReady || loading) content = `<p role="status">${esc(t('adminVotesLoading'))}</p>`;
+    else if (!closed.length) content = `<p class="note">${esc(t('noClosedVotes'))}</p>`;
+    else if (adminVoteStatus === 'error') content = `<p role="alert">${esc(t('adminVotesLoadFailed'))}</p>`;
+    else if (adminVoteStatus === 'ready') {
+      const rows = adminVoteBallots.slice().sort((a, b) => playerName(String(a.voterPlayerId || '')).localeCompare(playerName(String(b.voterPlayerId || '')), document.documentElement.lang)
+        || a.uid.localeCompare(b.uid));
+      content = rows.length ? `<p class="admin-vote-total" role="status">${esc(t('ballotCount', {count:rows.length}))}</p><div class="admin-ballot-list">${rows.map(ballot => `<article class="admin-ballot"><h3><span>${esc(t('voter'))}</span><bdi dir="auto">${esc(playerName(String(ballot.voterPlayerId || '')))}</bdi></h3><ol class="admin-ballot-choices">${ballotChoices(ballot).map((id, rank) => `<li><span class="admin-choice-label">${esc(t(['firstChoice','secondChoice','thirdChoice'][rank]))}</span><bdi dir="auto">${id ? esc(playerName(String(id))) : '—'}</bdi></li>`).join('')}</ol></article>`).join('')}</div>` : `<p class="note">${esc(t('noBallots'))}</p>`;
+    }
+    box.innerHTML = `<div class="card-heading"><h2 id="adminVoteDetailsTitle">${esc(t('adminVoteDetails'))}</h2><span class="admin-badge">${esc(t('adminOnly'))}</span></div>
+      ${closed.length ? `<div class="admin-vote-toolbar"><label class="field grow" for="adminVoteSession"><span>${esc(t('trainingDate'))}</span><select id="adminVoteSession" class="select" aria-controls="adminVoteDetailsBody">${option('',t('chooseTraining'),adminVoteSessionId)}${closed.map(session => option(session.id,sessionDate(session),adminVoteSessionId)).join('')}</select></label><button type="button" class="btn btn-quiet" data-community-action="refresh-admin-votes" aria-controls="adminVoteDetailsBody" ${!adminVoteSessionId || loading || sessionsError ? 'disabled' : ''}>${esc(t('refreshVotes'))}</button></div>` : ''}
+      <div id="adminVoteDetailsBody" aria-busy="${!sessionsReady || loading}">${content}</div>`;
+    if (focusedSession) $('adminVoteSession')?.focus?.();
+    else if (focusedRefresh) box.querySelector('[data-community-action="refresh-admin-votes"]')?.focus?.();
+  }
+  async function loadAdminVoteDetails() {
+    const session = sessions.find(item => item.id === adminVoteSessionId);
+    if (!canViewAdminVotes() || !session || votingState(session).state !== 'closed') {
+      clearAdminVotes(); renderAdminVoteDetails(); return;
+    }
+    const read = ++adminVoteRead, authGeneration = generation;
+    adminVoteStatus = 'loading'; adminVoteBallots = []; renderAdminVoteDetails();
+    const current = () => read === adminVoteRead && authGeneration === generation && canViewAdminVotes()
+      && adminVoteSessionId === session.id && votingState(session).state === 'closed';
+    try {
+      const snapshot = await getDocs(collection(db,'sessionVotes',session.id,'ballots'));
+      if (!current()) { if (read === adminVoteRead) renderAdminVoteDetails(); return; }
+      adminVoteBallots = snapshot.docs.map(ballot => ({...ballot.data(),uid:ballot.id}));
+      adminVoteStatus = 'ready';
+    } catch {
+      if (!current()) { if (read === adminVoteRead) renderAdminVoteDetails(); return; }
+      adminVoteStatus = 'error'; adminVoteBallots = [];
+    }
+    renderAdminVoteDetails();
   }
 
   function bindReceiptCounts() {
@@ -282,7 +348,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   function updateCountdown() {
     const session = activeSession();
     const phase = sessions.map(item => `${item.id}:${votingState(item).state}`).join('|');
-    if (lastPhase && phase !== lastPhase) { lastPhase = phase; bindReceiptCounts(); renderVoting(); refreshHistory(); refreshArchive(); publishResults(); return; }
+    if (lastPhase && phase !== lastPhase) { lastPhase = phase; bindReceiptCounts(); renderAdminVoting(); renderVoting(); refreshHistory(); refreshArchive(); publishResults(); return; }
     lastPhase = phase;
     if (!session) return;
     const minutes = Math.ceil(votingState(session).remaining / 60000);
@@ -316,6 +382,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
 
   function onAuth(nextUser, isAdmin) {
     const currentGeneration = ++generation;
+    clearAdminVotes();
     ownStops.forEach(stop => stop()); ownStops = []; adminStop?.(); adminStop = null;
     deletionStop?.(); deletionStop = null;
     deletionRequest = null; deletionReady = false; deletionError = false; deletionRequests = [];
@@ -420,6 +487,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
     if (name === 'open-voting') { selectedSessionId = trigger.dataset.sessionId; ballotDirty = false; location.hash = 'dashboard'; renderVoting(); $('dashboardVoting')?.scrollIntoView({block:'start'}); return; }
     if (name === 'my-stats' && link) { openProfile(link.playerId); return; }
     if (name === 'retry-results') { resultErrors.clear(); if (sessionsError) subscribeSessions(); refreshArchive(); refreshHistory(); return; }
+    if (name === 'refresh-admin-votes') { loadAdminVoteDetails(); return; }
     action(async () => {
       if (name === 'signout') await signOut(auth);
       else if (name === 'verify-email' && user) { await sendEmailVerification(user); notify(t('verificationSent')); feedback(t('verificationSent')); }
@@ -441,6 +509,7 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   document.addEventListener('input', markAccountDraft);
   document.addEventListener('change',event => {
     markAccountDraft(event);
+    if (event.target.id === 'adminVoteSession') { adminVoteSessionId = event.target.value; loadAdminVoteDetails(); return; }
     if (event.target.id === 'votingSession') { selectedSessionId = event.target.value; ballotDirty = false; renderVoting(); }
     if (event.target.matches('[data-vote-rank]')) { ballotDirty = true; updateChoiceAvailability(); }
   });
@@ -498,5 +567,5 @@ export function createCommunity({ db, auth, getModel, getPlayers, isDataReady, t
   timer = setInterval(updateCountdown,15000);
   const onVisibility = () => { if (!document.hidden) resume(); };
   document.addEventListener('visibilitychange',onVisibility);
-  return { onAuth, render, resume, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; document.removeEventListener?.('visibilitychange',onVisibility); stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); accountsStop?.(); linksStop?.(); deletionStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
+  return { onAuth, render, resume, saveMatchEntry, historyMarkup, refreshHistory, getProfile: id => profiles.get(String(id)), dispose() { disposed = true; clearAdminVotes(); renderAdminVoteDetails(); document.removeEventListener?.('visibilitychange',onVisibility); stopSessions?.(); publicStops.forEach(stop => stop()); ownStops.forEach(stop => stop()); receiptStops.forEach(stop => stop()); adminStop?.(); accountsStop?.(); linksStop?.(); deletionStop?.(); ballotStop?.(); clearInterval(timer); clearTimeout(expiryTimer); } };
 }

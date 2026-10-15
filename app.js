@@ -29,21 +29,21 @@ import {
   calculateMonthScores as calculateFootballMonthScores,
   computeHeadToHead as computeFootballHeadToHead,
   isGoalAddition, goalAdditionSide, prepareGoalAddition, validateGoalAdditionSave
-} from "./data-engine.js?v=500427";
+} from "./data-engine.js?v=500428";
 
-import { countText, directionFor, translate } from "./i18n.js?v=500427";
-import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches, PLAYER_MATCH_FILTERS, filterPlayerMatchPerformance } from "./insights-engine.js?v=500427";
-import { renderRankingPodium, renderAwardComparison } from './sports-ui.js?v=500427';
-import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500427";
-import { COMMUNITY_ENABLED } from "./community-config.js?v=500427";
-import { resolvePublicPlayers } from "./community-engine.js?v=500427";
-import { createCommunity } from "./community.js?v=500427";
-import { createHighlights } from "./highlights.js?v=500427";
-import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500427";
-import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500427";
-import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500427";
-import { observeConnectivity } from "./connectivity.js?v=500427";
-import { TABLE_VIEWS, applyTableColumns, renderMonthlyPerformance, renderScoringLeaders, toggleComparisonPick, renderComparisonPicker, renderParticipationWindow, renderDuelRecord, matchSharePayload } from './detail-ui.js?v=500427';
+import { countText, directionFor, translate } from "./i18n.js?v=500428";
+import { computePlayerProgress, computePlayerRecords, summarizePlayerHistory, computeComparisonWindow, computePartnerships, computeSharedMatches, PLAYER_MATCH_FILTERS, filterPlayerMatchPerformance } from "./insights-engine.js?v=500428";
+import { renderRankingPodium, renderAwardComparison } from './sports-ui.js?v=500428';
+import { readPinnedPlayer, writePinnedPlayer } from "./personalization.js?v=500428";
+import { COMMUNITY_ENABLED } from "./community-config.js?v=500428";
+import { resolvePublicPlayers } from "./community-engine.js?v=500428";
+import { createCommunity } from "./community.js?v=500428";
+import { createHighlights } from "./highlights.js?v=500428";
+import { AWARD_SORT_KEYS, rankAwardRows } from "./award-statistics.js?v=500428";
+import { isNativeApp, initializeNativeApp, shareNativeContent, exportNativeJSON } from "./platform.js?v=500428";
+import { sharedAppUrl, backupFileName } from "./platform-utils.js?v=500428";
+import { observeConnectivity } from "./connectivity.js?v=500428";
+import { TABLE_VIEWS, applyTableColumns, renderMonthlyPerformance, renderScoringLeaders, toggleComparisonPick, renderComparisonPicker, renderParticipationWindow, renderDuelRecord, matchSharePayload } from './detail-ui.js?v=500428';
 
 import {
   appRouteFor,
@@ -69,7 +69,7 @@ import {
   parseAppRoute,
   playerNameKey,
   selectDisplayMonth
-} from "./ux-utils.js?v=500427";
+} from "./ux-utils.js?v=500428";
 
 
 /* =========================================================
@@ -1027,7 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // The native builder removes this entire branch; website caching is unchanged.
   if ((typeof __FUTBOLISTA_PACKAGED__ === "undefined" || !__FUTBOLISTA_PACKAGED__) && "serviceWorker" in navigator && !localEmulator && !isNativeApp()) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js?v=500427").catch(error => console.warn("Service worker registration failed:", error));
+      navigator.serviceWorker.register("./sw.js?v=500428").catch(error => console.warn("Service worker registration failed:", error));
     }, { once: true });
   }
 });

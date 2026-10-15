@@ -22,17 +22,17 @@
       document.documentElement.dir = savedLanguage === "ar" ? "rtl" : "ltr";
     } catch {}
   </script>
-  <link rel="icon" href="./icon.svg?v=500427" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500427" />
-  <link rel="manifest" href="./manifest.json?v=500427" />
-  <link rel="stylesheet" href="./styles.css?v=500427" />
+  <link rel="icon" href="./icon.svg?v=500428" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=500428" />
+  <link rel="manifest" href="./manifest.json?v=500428" />
+  <link rel="stylesheet" href="./styles.css?v=500428" />
 </head>
 <body>
 <a class="skip-link" href="#mainContent" data-i18n="skip">Skip to content</a>
 
 <header class="topbar" id="topbar">
   <a class="brand" href="#mainContent" aria-label="Futbolista home" data-i18n-aria="homeAria">
-    <span class="appicon" aria-hidden="true"><img src="./icon.svg?v=500427" alt="" /></span>
+    <span class="appicon" aria-hidden="true"><img src="./icon.svg?v=500428" alt="" /></span>
     <span class="brandtxt"><span class="title">Futbolista</span></span>
   </a>
   <div class="topbar-actions">
@@ -155,6 +155,7 @@
     <article id="accountRequests" class="card hidden" data-admin="1"></article>
     <article id="adminDeletionRequests" class="card hidden" data-admin="1"></article>
     <article id="adminAccounts" class="card hidden" data-admin="1"></article>
+    <article id="adminVoteDetails" class="card admin-vote-details hidden" data-admin="1" aria-labelledby="adminVoteDetailsTitle"></article>
     <header class="screen-intro admin-intro"><div><div class="eyebrow" data-i18n="adminWorkspace">Admin workspace</div><h1 id="adminPlayersTitle" data-i18n="managePlayers">Manage players</h1><p data-i18n="manageLead">Add squad members and review recorded totals.</p></div><span class="admin-badge" data-i18n="adminOnly">Admin only</span></header>
     <article class="card admin-action-card"><h2 data-i18n="addPlayer">Add player</h2><p class="subnote" data-i18n="uniqueNames">Names must be unique.</p><div class="action-row"><label class="field grow" for="playerName"><span data-i18n="playerName">Player name</span><input id="playerName" class="input" autocomplete="off" maxlength="60" placeholder="e.g. Ahmed" data-i18n-placeholder="playerPlaceholder" /></label><button id="btnAddPlayer" type="button" class="btn btn-primary" data-i18n="addPlayer">Add player</button></div></article>
     <article class="card"><h2 data-i18n="squadList">Squad list</h2><div id="playersList" class="list skeleton-list" aria-live="polite" data-i18n="loadingAdminPlayers">Loading players…</div></article>
@@ -250,6 +251,6 @@
 
 <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="routeStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-<script type="module" src="./app.js?v=500427"></script>
+<script type="module" src="./app.js?v=500428"></script>
 </body>
 </html>

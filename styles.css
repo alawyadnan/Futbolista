@@ -1763,3 +1763,23 @@ body{background:radial-gradient(120% 55% at 50% -10%,rgba(61,220,132,.09),transp
   .leader-score{min-width:70px;padding:7px 8px}
   .leader-score strong{font-size:1.6rem}
 }
+
+/* Web-only, administrator's closed-ballot audit. */
+.admin-vote-details{min-width:0}
+.admin-vote-details .card-heading{align-items:flex-start;gap:12px;flex-wrap:wrap}
+.admin-vote-toolbar{display:flex;align-items:flex-end;gap:12px;margin-block:18px}
+.admin-vote-toolbar .field{min-width:0}
+.admin-vote-toolbar .select{width:100%;min-height:48px;font-size:16px}
+.admin-vote-toolbar .btn{min-height:48px;white-space:normal}
+.admin-vote-total{color:var(--muted);font-size:.875rem;margin-block:14px}
+.admin-ballot-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+.admin-ballot{min-width:0;padding:16px;border:1px solid var(--hair);border-radius:14px;background:var(--card-flat)}
+.admin-ballot h3{display:flex;flex-direction:column;gap:5px;margin:0 0 12px;overflow-wrap:anywhere}
+.admin-ballot h3>span{color:var(--muted);font-size:.75rem;font-weight:500}
+.admin-ballot h3>bdi{font-size:1.0625rem;line-height:1.6}
+.admin-ballot-choices{list-style:none;padding:0;margin:0;display:grid;gap:8px;counter-reset:ballot-rank}
+.admin-ballot-choices li{counter-increment:ballot-rank;display:grid;grid-template-columns:28px minmax(0,1fr);column-gap:10px;align-items:center;line-height:1.6}
+.admin-ballot-choices li::before{content:counter(ballot-rank);grid-row:span 2;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;color:var(--accent);background:rgba(61,220,132,.08);font-variant-numeric:tabular-nums}
+.admin-choice-label{font-size:.75rem;color:var(--muted)}
+.admin-ballot-choices bdi{grid-column:2;overflow-wrap:anywhere}
+@media(max-width:430px){.admin-vote-toolbar{align-items:stretch;flex-direction:column}.admin-vote-toolbar .btn{width:100%}.admin-ballot{padding:14px}}
